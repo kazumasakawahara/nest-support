@@ -43,6 +43,13 @@ Gemini ai_extractor.py の機能をClaude Skill として実現する。
    - 元号（和暦）→ 西暦（YYYY-MM-DD）に変換
    - 明治元年=1868, 大正=1912, 昭和=1926, 平成=1989, 令和=2019
 
+5. **Entity Resolution（同一対象の統合）**
+   - テキスト中の表記揺れは同一エンティティに統合すること
+   - 例:「健太」「けんた」「山田健太」「山田くん」→ 同一 Client
+   - 例:「お母さん」「母」「花子」→ 同一 KeyPerson
+   - 既存クライアントへの追記時は、Neo4j を検索して既存ノードと突合する
+   - 統合に確信が持てない場合はユーザーに確認すること
+
 #### JSONスキーマ
 
 ```json
@@ -236,12 +243,40 @@ CREATE (log:SupportLog {
 CREATE (s)-[:LOGGED]->(log)-[:ABOUT]->(c)
 ```
 
+### Step 5: 監査ログの記録（必須）
+
+**すべての書き込み操作の後**、AuditLog ノードを作成して監査証跡を残すこと。
+
+**監査ログ（AuditLog）:**
+```cypher
+CREATE (al:AuditLog {
+    timestamp: datetime(),
+    user: $user,
+    action: $action,
+    targetType: $targetType,
+    targetName: $targetName,
+    details: $details,
+    clientName: $clientName
+})
+RETURN al.timestamp AS 記録日時
+```
+
+**パラメータ**:
+- `$user`: 操作者名（不明なら "narrative-extractor"）
+- `$action`: "CREATE" または "UPDATE"
+- `$targetType`: ノード種別（例: "Client", "NgAction", "SupportLog"）
+- `$targetName`: 内容の要約
+- `$details`: 登録した主要フィールドの概要
+- `$clientName`: 対象クライアント名
+
+**運用ルール**: 1回の抽出・登録操作で複数ノードを作成した場合、クライアント単位で1件の AuditLog にまとめてよい（details に登録内容の一覧を記載）。
+
 ## 命名規則（厳守）
 
 - ノード: PascalCase (`Client`, `NgAction`)
 - リレーション: UPPER_SNAKE_CASE (`MUST_AVOID`, `HAS_KEY_PERSON`)
 - プロパティ: camelCase (`riskLevel`, `nextRenewalDate`)
-- 廃止名 (`PROHIBITED`, `PREFERS`, `EMERGENCY_CONTACT`, `RELATES_TO`) は書き込み禁止
+- 廃止名 (`PROHIBITED`, `PREFERS`, `EMERGENCY_CONTACT`, `RELATES_TO`, `HAS_GUARDIAN`, `HOLDS`) は書き込み禁止
 
 ## 使用例
 

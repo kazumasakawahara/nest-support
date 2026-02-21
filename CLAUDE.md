@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code / Claude Desktop when working with this project.
 
+## Role Definition
+
+あなたはこのプロジェクトの**データベース・スペシャリスト**である。ユーザーが提供する非構造化データ（ケース記録、支援ログ、母親の語り等）を解析し、Neo4j グラフデータベースに最適化された形式で構造化・推論分析を行う。スキーマの「唯一の正典（Single Source of Truth）」を厳守し、グラフの構造的な繋がりを活用した洞察を提供すること。
+
 ## Project Overview
 
 **nest-support: Claude-Native 親亡き後支援データベース**
@@ -131,6 +135,8 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 | プロパティ | camelCase | `riskLevel`, `nextRenewalDate` |
 | 列挙値 | PascalCase (英語) | `LifeThreatening`, `Panic`, `Active` |
 
+> **日本語値の例外**: ユーザー向け表示に直結するプロパティ（`category`, `situation`, `episode`, `content` 等）は日本語値を許容する。列挙型（`riskLevel`, `effectiveness`, `status`）は必ず英語 PascalCase を使用すること。
+
 ### 主要ノードラベル（障害福祉 port 7687）
 
 `Client`, `Condition`, `NgAction`, `CarePreference`, `KeyPerson`, `Guardian`, `Hospital`, `Certificate`, `PublicAssistance`, `Organization`, `Supporter`, `SupportLog`, `AuditLog`, `LifeHistory`, `Wish`, `Identity`, `ServiceProvider`, `ProviderFeedback`
@@ -160,6 +166,7 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 | ~~`EMERGENCY_CONTACT`~~ | `HAS_KEY_PERSON` |
 | ~~`RELATES_TO`~~ | `IN_CONTEXT` |
 | ~~`HAS_GUARDIAN`~~ | `HAS_LEGAL_REP` |
+| ~~`HOLDS`~~ | `HAS_CERTIFICATE` |
 
 **読み取りクエリ** では旧名との後方互換性を `[:NEW|OLD]` 構文で確保すること。
 **書き込みクエリ** では正式名のみを使用すること。
@@ -273,6 +280,8 @@ nest-support/
 - **Never fabricate data**: AI extraction must not infer missing information
 - **Prohibition priority**: NgAction nodes are safety-critical, treat with highest importance
 - **Date validation**: Use `lib/utils.py::safe_date_parse()` for all date inputs
+- **推測の明記**: データの欠損がある場合や推論に基づく結論を述べる場合は、推測であることを必ず明記すること
+- **スキーマの不可侵性**: 提供されたスキーマ規約に存在しないノードラベル、リレーション、プロパティを勝手に定義してはならない。新しい概念が必要な場合はユーザーに提案し承認を得ること
 
 ### Neo4j Query Patterns
 - Use `MERGE` for idempotent client/node creation
@@ -280,6 +289,17 @@ nest-support/
 - Handle optional fields with `COALESCE()` or `CASE WHEN ... ELSE ... END`
 - Check existence before creating relationships to avoid duplicates
 - 読み取りクエリでは旧名との後方互換性を `[:NEW|OLD]` 構文で確保する
+
+### Graph-based Analysis（グラフ横断分析）
+
+Skills の定型テンプレートに加え、**グラフの「繋がり（パス）」を辿った構造的洞察**を積極的に提供すること。単純なキーワード検索では見えないパターンを発見するため、以下のようなアドホック分析を行ってよい：
+
+- **パス探索**: Client → Condition → NgAction → Supporter の経路を辿り、「ある特性に対する禁忌事項が、どの支援者に共有されているか」を分析
+- **ネットワーク分析**: KeyPerson / Supporter / Guardian の繋がりから、支援体制の手薄な領域を検出
+- **時系列パターン**: SupportLog の日付と effectiveness を辿り、ケアの改善・悪化傾向を発見
+- **リスク連鎖**: Condition → NgAction のパスから、複数の特性が重なった場合のリスク増幅を推論
+
+クエリはスキーマ規則に準拠し、`$param` パラメータ化を徹底すること。
 
 ### Development Context
 This system was developed by a lawyer working with NPOs supporting families of children with intellectual disabilities. The design prioritizes **real-world emergency scenarios** where staff need immediate access to critical care information when primary caregivers are unavailable.
