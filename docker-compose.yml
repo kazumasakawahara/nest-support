@@ -1,0 +1,22 @@
+services:
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Neo4j データベース
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  neo4j:
+    image: neo4j:5.15-community
+    container_name: nest-support-neo4j
+    ports:
+      - "7474:7474" # HTTP Browser UI
+      - "7687:7687" # Bolt/Neo4j Protocol
+    environment:
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_server_memory_pagecache_size=1G
+      - NEO4J_server_memory_heap_initial__size=1G
+      - NEO4J_server_memory_heap_max__size=1G
+      - NEO4J_PLUGINS=["apoc"]
+    volumes:
+      - ./neo4j_data:/data
+      - ./neo4j_logs:/logs
+      - ./neo4j_plugins:/plugins
+      - ./neo4j_backup:/backup
+    restart: unless-stopped

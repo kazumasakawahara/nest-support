@@ -1,0 +1,39 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+**/.venv/
+
+# Environment variables (機密情報)
+.env
+.env.local
+.env.*.local
+
+# Neo4j data (ローカルデータ)
+neo4j_data/
+neo4j_logs/
+neo4j_plugins/
+neo4j_backup/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Generated outputs
+outputs/
+!outputs/.gitkeep

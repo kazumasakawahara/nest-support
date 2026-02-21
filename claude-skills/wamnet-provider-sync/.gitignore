@@ -1,0 +1,27 @@
+# WAM NETデータファイル（CSVは大きいためgit管理対象外）
+data/current/*.csv
+data/archive/*.csv
+
+# アーカイブメタデータは残す
+!data/archive/archive_*.json
+
+# Pythonキャッシュ
+__pycache__/
+*.pyc
+*.pyo
+
+# 環境変数
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 一時ファイル
+*.tmp
+*.log

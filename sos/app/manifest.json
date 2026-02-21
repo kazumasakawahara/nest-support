@@ -1,0 +1,18 @@
+{
+  "name": "nest SOS",
+  "short_name": "SOS",
+  "description": "緊急時に助けを呼ぶアプリ",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#fee2e2",
+  "theme_color": "#dc2626",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

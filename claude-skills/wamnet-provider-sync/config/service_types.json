@@ -1,0 +1,163 @@
+{
+  "service_types": {
+    "居宅介護": {
+      "normalized": "居宅介護",
+      "code": "11",
+      "category": "訪問系"
+    },
+    "重度訪問介護": {
+      "normalized": "重度訪問介護",
+      "code": "12",
+      "category": "訪問系"
+    },
+    "同行援護": {
+      "normalized": "同行援護",
+      "code": "13",
+      "category": "訪問系"
+    },
+    "行動援護": {
+      "normalized": "行動援護",
+      "code": "14",
+      "category": "訪問系"
+    },
+    "療養介護": {
+      "normalized": "療養介護",
+      "code": "21",
+      "category": "日中活動系"
+    },
+    "生活介護": {
+      "normalized": "生活介護",
+      "code": "22",
+      "category": "日中活動系"
+    },
+    "短期入所": {
+      "normalized": "短期入所",
+      "code": "31",
+      "category": "居住系"
+    },
+    "共同生活援助": {
+      "normalized": "グループホーム",
+      "code": "32",
+      "category": "居住系"
+    },
+    "施設入所支援": {
+      "normalized": "施設入所支援",
+      "code": "33",
+      "category": "居住系"
+    },
+    "自立訓練（機能訓練）": {
+      "normalized": "自立訓練（機能訓練）",
+      "code": "41",
+      "category": "訓練系"
+    },
+    "自立訓練（生活訓練）": {
+      "normalized": "自立訓練（生活訓練）",
+      "code": "42",
+      "category": "訓練系"
+    },
+    "就労移行支援": {
+      "normalized": "就労移行支援",
+      "code": "51",
+      "category": "就労系"
+    },
+    "就労継続支援Ａ型": {
+      "normalized": "就労継続支援A型",
+      "code": "52",
+      "category": "就労系"
+    },
+    "就労継続支援Ｂ型": {
+      "normalized": "就労継続支援B型",
+      "code": "53",
+      "category": "就労系"
+    },
+    "就労継続支援A型": {
+      "normalized": "就労継続支援A型",
+      "code": "52",
+      "category": "就労系"
+    },
+    "就労継続支援B型": {
+      "normalized": "就労継続支援B型",
+      "code": "53",
+      "category": "就労系"
+    },
+    "就労定着支援": {
+      "normalized": "就労定着支援",
+      "code": "54",
+      "category": "就労系"
+    },
+    "自立生活援助": {
+      "normalized": "自立生活援助",
+      "code": "61",
+      "category": "地域生活支援"
+    },
+    "計画相談支援": {
+      "normalized": "計画相談支援",
+      "code": "71",
+      "category": "相談支援"
+    },
+    "地域移行支援": {
+      "normalized": "地域移行支援",
+      "code": "72",
+      "category": "相談支援"
+    },
+    "地域定着支援": {
+      "normalized": "地域定着支援",
+      "code": "73",
+      "category": "相談支援"
+    },
+    "児童発達支援": {
+      "normalized": "児童発達支援",
+      "code": "81",
+      "category": "児童系"
+    },
+    "放課後等デイサービス": {
+      "normalized": "放課後等デイサービス",
+      "code": "82",
+      "category": "児童系"
+    },
+    "保育所等訪問支援": {
+      "normalized": "保育所等訪問支援",
+      "code": "83",
+      "category": "児童系"
+    },
+    "障害児相談支援": {
+      "normalized": "障害児相談支援",
+      "code": "84",
+      "category": "児童系"
+    }
+  },
+  "categories": {
+    "訪問系": {
+      "description": "自宅での支援サービス",
+      "icon": "🏠"
+    },
+    "日中活動系": {
+      "description": "日中の活動を支援するサービス",
+      "icon": "☀️"
+    },
+    "居住系": {
+      "description": "住まいに関するサービス",
+      "icon": "🏘️"
+    },
+    "訓練系": {
+      "description": "自立に向けた訓練サービス",
+      "icon": "💪"
+    },
+    "就労系": {
+      "description": "働くことを支援するサービス",
+      "icon": "💼"
+    },
+    "地域生活支援": {
+      "description": "地域での生活を支援するサービス",
+      "icon": "🌍"
+    },
+    "相談支援": {
+      "description": "計画作成や相談のサービス",
+      "icon": "📋"
+    },
+    "児童系": {
+      "description": "18歳未満の児童向けサービス",
+      "icon": "👶"
+    }
+  }
+}

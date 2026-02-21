@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#dc2626">
+    <title>nest SOS</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+        }
+
+        /* ヘッダー */
+        .header {
+            padding: 20px 15px;
+            text-align: center;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 20px;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .user-name {
+            font-size: 28px;
+            font-weight: bold;
+            color: #dc2626;
+            margin-top: 8px;
+        }
+
+        /* メインエリア */
+        .main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* SOSボタン */
+        .sos-button {
+            width: 280px;
+            height: 280px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(145deg, #ef4444, #dc2626);
+            box-shadow:
+                0 10px 40px rgba(220, 38, 38, 0.5),
+                inset 0 -5px 20px rgba(0,0,0,0.2),
+                inset 0 5px 20px rgba(255,255,255,0.2);
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.1s, box-shadow 0.1s;
+            -webkit-tap-highlight-color: transparent;
+            animation: pulse 2s infinite;
+        }
+
+        .sos-button:active {
+            transform: scale(0.95);
+            box-shadow:
+                0 5px 20px rgba(220, 38, 38, 0.5),
+                inset 0 -2px 10px rgba(0,0,0,0.2),
+                inset 0 2px 10px rgba(255,255,255,0.2);
+            animation: none;
+        }
+
+        .sos-button:disabled {
+            opacity: 0.7;
+            animation: none;
+        }
+
+        .sos-button .icon {
+            font-size: 60px;
+            margin-bottom: 10px;
+        }
+
+        .sos-button .text {
+            font-size: 72px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            letter-spacing: 8px;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.03);
+            }
+        }
+
+        /* フッター */
+        .footer {
+            padding: 20px;
+            text-align: center;
+            background: white;
+            font-size: 16px;
+            color: #6b7280;
+        }
+
+        /* オーバーレイ共通 */
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        .overlay.show {
+            display: flex;
+        }
+
+        /* ローディング */
+        .loading-spinner {
+            width: 80px;
+            height: 80px;
+            border: 6px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loading-text {
+            color: white;
+            font-size: 24px;
+            margin-top: 30px;
+            text-align: center;
+            padding: 0 30px;
+            line-height: 1.5;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 成功画面 */
+        .success-icon {
+            font-size: 100px;
+            margin-bottom: 20px;
+        }
+
+        .success-text {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .success-subtext {
+            color: rgba(255,255,255,0.8);
+            font-size: 18px;
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .close-button {
+            padding: 20px 60px;
+            font-size: 20px;
+            background: white;
+            color: #374151;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* エラー画面 */
+        .error-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+        }
+
+        .error-text {
+            color: white;
+            font-size: 20px;
+            text-align: center;
+            padding: 0 30px;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .retry-button {
+            padding: 18px 50px;
+            font-size: 18px;
+            background: #dc2626;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .cancel-button {
+            padding: 15px 40px;
+            font-size: 16px;
+            background: transparent;
+            color: white;
+            border: 2px solid white;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+
+        /* 設定エラー */
+        .setup-error {
+            display: none;
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .setup-error.show {
+            display: block;
+        }
+
+        .setup-error h2 {
+            color: #dc2626;
+            margin-bottom: 20px;
+        }
+
+        .setup-error p {
+            color: #6b7280;
+            line-height: 1.8;
+        }
+    </style>
+</head>
+<body>
+    <!-- 通常画面 -->
+    <div id="mainContent">
+        <div class="header">
+            <h1>🏠 nest SOS</h1>
+            <div class="user-name" id="userName">読み込み中...</div>
+        </div>
+
+        <div class="main">
+            <button class="sos-button" id="sosButton" onclick="sendSOS()">
+                <span class="icon">🆘</span>
+                <span class="text">SOS</span>
+            </button>
+        </div>
+
+        <div class="footer">
+            ボタンを押すと助けを呼べます
+        </div>
+    </div>
+
+    <!-- 設定エラー画面 -->
+    <div class="setup-error" id="setupError">
+        <h2>⚠️ 設定が必要です</h2>
+        <p>
+            このアプリを使うには、<br>
+            専用のURLが必要です。<br><br>
+            支援者の方に<br>
+            QRコードをもらってください。
+        </p>
+    </div>
+
+    <!-- ローディング -->
+    <div class="overlay" id="loading">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loadingText">送信中...</div>
+    </div>
+
+    <!-- 成功画面 -->
+    <div class="overlay" id="success">
+        <div class="success-icon">✅</div>
+        <div class="success-text">送信しました！</div>
+        <div class="success-subtext">助けが来るまで待っていてね</div>
+        <button class="close-button" onclick="closeSuccess()">とじる</button>
+    </div>
+
+    <!-- エラー画面 -->
+    <div class="overlay" id="error">
+        <div class="error-icon">😢</div>
+        <div class="error-text" id="errorText">送信できませんでした</div>
+        <button class="retry-button" onclick="sendSOS()">もう一度送る</button>
+        <button class="cancel-button" onclick="closeError()">とじる</button>
+    </div>
+
+    <script>
+        // --- 設定 ---
+        // APIサーバーのURL（団体のPCのアドレスに変更）
+        const API_BASE_URL = getApiBaseUrl();
+
+        function getApiBaseUrl() {
+            // 同じサーバーからアプリを配信している場合
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            return `${protocol}//${host}`;
+        }
+
+        // --- 初期化 ---
+        const params = new URLSearchParams(window.location.search);
+        const clientId = params.get('id') || params.get('name') || '';
+
+        // クライアントIDがない場合はエラー表示
+        if (!clientId) {
+            document.getElementById('mainContent').style.display = 'none';
+            document.getElementById('setupError').classList.add('show');
+        } else {
+            // クライアント情報を取得して名前を表示
+            initializeApp();
+        }
+
+        async function initializeApp() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/client/${encodeURIComponent(clientId)}`);
+                const data = await response.json();
+
+                if (data.found && data.name) {
+                    document.getElementById('userName').textContent = data.name + ' さん';
+                } else {
+                    document.getElementById('userName').textContent = clientId + ' さん';
+                }
+            } catch (e) {
+                // APIに接続できない場合はURLパラメータの名前を使用
+                document.getElementById('userName').textContent = clientId + ' さん';
+                console.log('API接続エラー:', e);
+            }
+        }
+
+        // --- SOS送信 ---
+        let isSending = false;
+
+        async function sendSOS() {
+            if (isSending) return;
+            isSending = true;
+
+            const loading = document.getElementById('loading');
+            const loadingText = document.getElementById('loadingText');
+
+            loading.classList.add('show');
+            loadingText.textContent = '位置情報を取得中...';
+
+            // 位置情報を取得
+            let location = null;
+            try {
+                location = await getLocation();
+                loadingText.textContent = '送信中...';
+            } catch (e) {
+                console.log('位置情報取得失敗:', e);
+                loadingText.textContent = '送信中...';
+            }
+
+            // APIにSOS送信
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/sos`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        client_id: clientId,
+                        latitude: location?.latitude || null,
+                        longitude: location?.longitude || null,
+                        accuracy: location?.accuracy || null
+                    })
+                });
+
+                loading.classList.remove('show');
+
+                if (response.ok) {
+                    showSuccess();
+                } else {
+                    const error = await response.json();
+                    showError(error.detail || '送信に失敗しました');
+                }
+            } catch (e) {
+                loading.classList.remove('show');
+                showError('サーバーに接続できません\nWi-Fiを確認してください');
+                console.error('SOS送信エラー:', e);
+            }
+
+            isSending = false;
+        }
+
+        // 位置情報取得
+        function getLocation() {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    reject(new Error('Geolocation not supported'));
+                    return;
+                }
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        resolve({
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy
+                        });
+                    },
+                    (error) => {
+                        reject(error);
+                    },
+                    {
+                        enableHighAccuracy: false,
+                        timeout: 10000,
+                        maximumAge: 300000
+                    }
+                );
+            });
+        }
+
+        // 成功画面表示
+        function showSuccess() {
+            document.getElementById('success').classList.add('show');
+            // バイブレーション（対応している場合）
+            if (navigator.vibrate) {
+                navigator.vibrate([200, 100, 200]);
+            }
+        }
+
+        function closeSuccess() {
+            document.getElementById('success').classList.remove('show');
+        }
+
+        // エラー画面表示
+        function showError(message) {
+            document.getElementById('errorText').textContent = message;
+            document.getElementById('error').classList.add('show');
+        }
+
+        function closeError() {
+            document.getElementById('error').classList.remove('show');
+        }
+
+        // --- Service Worker（オフライン対応） ---
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(function(err) {
+                console.log('ServiceWorker registration failed:', err);
+            });
+        }
+    </script>
+</body>
+</html>
