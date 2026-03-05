@@ -10,7 +10,7 @@ Neo4j接続、クエリ実行、データ登録処理、監査ログ
 
 import os
 import sys
-from datetime import date, datetime
+from datetime import date
 from typing import Optional
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
@@ -19,6 +19,42 @@ load_dotenv()
 
 # 仮名化スキーマが有効かどうか（マイグレーション後に True に設定）
 PSEUDONYMIZATION_ENABLED = os.getenv("PSEUDONYMIZATION_ENABLED", "false").lower() == "true"
+
+# 仮名化モジュール（遅延インポート）
+_pseudonymizer = None
+
+def _get_pseudonymizer():
+    """仮名化モジュールを遅延ロードして取得"""
+    global _pseudonymizer
+    if _pseudonymizer is None:
+        try:
+            from lib.pseudonymizer import get_pseudonymizer
+            _pseudonymizer = get_pseudonymizer()
+        except ImportError:
+            # pseudonymizer モジュールが見つからない場合はダミーを使用
+            from lib.pseudonymizer import Pseudonymizer
+            _pseudonymizer = Pseudonymizer(enabled=False)
+    return _pseudonymizer
+
+
+def _mask_output(records: list[dict], field_rules: dict = None) -> list[dict]:
+    """
+    クエリ結果に仮名化マスクを適用する出力フィルター
+
+    PSEUDONYMIZATION_ENABLED=true の場合のみ動作。
+    Neo4j 内のデータは変更せず、表示時にのみマスク。
+
+    Args:
+        records: run_query() の結果リスト
+        field_rules: カスタムフィールドルール（省略可）
+
+    Returns:
+        マスクされたレコードリスト
+    """
+    if not PSEUDONYMIZATION_ENABLED:
+        return records
+    p = _get_pseudonymizer()
+    return p.mask_records(records, field_rules)
 
 # --- ログ出力 ---
 def log(message: str, level: str = "INFO"):
@@ -35,7 +71,7 @@ def get_driver():
     if _driver is None:
         uri = os.getenv("NEO4J_URI")
         user = os.getenv("NEO4J_USERNAME")
-        pwd = os.getenv("NEO4J_PASSWORD")
+        pwd = os.getenv("NEO4J_PASSWORD", "")
         if not uri or not user:
             log("NEO4J_URI または NEO4J_USERNAME が未設定です", "ERROR")
             return None
@@ -86,7 +122,7 @@ def create_audit_log(
     target_type: str,
     target_name: str,
     details: str = "",
-    client_name: str = None
+    client_name: Optional[str] = None
 ) -> dict:
     """
     監査ログを作成
@@ -127,9 +163,9 @@ def create_audit_log(
 
 
 def get_audit_logs(
-    client_name: str = None,
-    user_name: str = None,
-    action: str = None,
+    client_name: Optional[str] = None,
+    user_name: Optional[str] = None,
+    action: Optional[str] = None,
     limit: int = 50
 ) -> list:
     """
@@ -144,7 +180,7 @@ def get_audit_logs(
     Returns:
         監査ログのリスト
     """
-    return run_query("""
+    results = run_query("""
         MATCH (al:AuditLog)
         WHERE ($client_name = '' OR al.clientName CONTAINS $client_name)
           AND ($user_name = '' OR al.user CONTAINS $user_name)
@@ -164,6 +200,7 @@ def get_audit_logs(
         "action": action or "",
         "limit": limit
     })
+    return _mask_output(results)
 
 
 def get_client_change_history(client_name: str, limit: int = 20) -> list:
@@ -177,7 +214,7 @@ def get_client_change_history(client_name: str, limit: int = 20) -> list:
     Returns:
         変更履歴のリスト
     """
-    return run_query("""
+    results = run_query("""
         MATCH (al:AuditLog)
         WHERE al.clientName CONTAINS $client_name
         RETURN al.timestamp as 日時,
@@ -189,6 +226,7 @@ def get_client_change_history(client_name: str, limit: int = 20) -> list:
         ORDER BY al.timestamp DESC
         LIMIT $limit
     """, {"client_name": client_name, "limit": limit})
+    return _mask_output(results)
 
 
 def register_support_log(log_data: dict, client_name: str) -> dict:
@@ -464,7 +502,11 @@ def register_to_database(data: dict, user_name: str = "system") -> dict:
 
 def get_clients_list():
     """登録済みクライアント一覧を取得"""
-    return [r['name'] for r in run_query("MATCH (c:Client) RETURN c.name as name ORDER BY c.name")]
+    results = run_query("MATCH (c:Client) RETURN c.name as name ORDER BY c.name")
+    if PSEUDONYMIZATION_ENABLED:
+        p = _get_pseudonymizer()
+        return [p.mask_name(r['name']) for r in results]
+    return [r['name'] for r in results]
 
 
 def get_client_stats():
@@ -480,7 +522,7 @@ def get_client_stats():
 
     return {
         'client_count': client_count,
-        'ng_by_client': ng_by_client
+        'ng_by_client': _mask_output(ng_by_client)
     }
 
 
@@ -495,7 +537,7 @@ def get_support_logs(client_name: str, limit: int = 20):
     Returns:
         支援記録のリスト
     """
-    return run_query("""
+    results = run_query("""
         MATCH (s:Supporter)-[:LOGGED]->(log:SupportLog)-[:ABOUT]->(c:Client {name: $client_name})
         RETURN log.date as 日付,
                s.name as 支援者,
@@ -506,6 +548,7 @@ def get_support_logs(client_name: str, limit: int = 20):
         ORDER BY log.date DESC
         LIMIT $limit
     """, {"client_name": client_name, "limit": limit})
+    return _mask_output(results)
 
 
 def discover_care_patterns(client_name: str, min_frequency: int = 3):
@@ -519,7 +562,7 @@ def discover_care_patterns(client_name: str, min_frequency: int = 3):
     Returns:
         発見されたパターンのリスト
     """
-    return run_query("""
+    results = run_query("""
         MATCH (c:Client {name: $client_name})<-[:ABOUT]-(log:SupportLog)
         WHERE log.effectiveness = 'Effective'
         WITH c, log.situation as situation, log.action as action, count(*) as frequency
@@ -529,6 +572,7 @@ def discover_care_patterns(client_name: str, min_frequency: int = 3):
                frequency as 効果的だった回数
         ORDER BY frequency DESC
     """, {"client_name": client_name, "min_frequency": min_frequency})
+    return _mask_output(results)
 
 
 # =============================================================================
@@ -827,7 +871,7 @@ def get_upcoming_renewals(days_ahead: int = 90, limit: int = 10) -> list:
         証明書のリスト（期限が近い順）
     """
     try:
-        return run_query("""
+        results = run_query("""
             MATCH (c:Client)-[:HAS_CERTIFICATE]->(cert:Certificate)
             WHERE cert.nextRenewalDate IS NOT NULL
               AND cert.nextRenewalDate <= date() + duration({days: $days})
@@ -840,6 +884,7 @@ def get_upcoming_renewals(days_ahead: int = 90, limit: int = 10) -> list:
             ORDER BY cert.nextRenewalDate ASC
             LIMIT $limit
         """, {"days": days_ahead, "limit": limit})
+        return _mask_output(results)
     except Exception as e:
         log(f"期限一覧取得エラー: {e}", "WARN")
         return []
@@ -921,9 +966,9 @@ def get_client_detail(client_name: str) -> dict:
         recent_logs = []
 
     return {
-        'basic': basic[0] if basic else {},
-        'ng_actions': ng_actions,
-        'care_prefs': care_prefs,
-        'key_persons': key_persons,
-        'recent_logs': recent_logs
+        'basic': _mask_output(basic)[0] if basic else {},
+        'ng_actions': ng_actions,  # 禁忌事項は安全上マスクしない
+        'care_prefs': care_prefs,  # ケア情報は安全上マスクしない
+        'key_persons': _mask_output(key_persons),
+        'recent_logs': _mask_output(recent_logs)
     }

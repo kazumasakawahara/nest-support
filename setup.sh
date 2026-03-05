@@ -27,7 +27,7 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_SOURCE_DIR="${PROJECT_DIR}/claude-skills"
 SKILLS_TARGET_DIR="${HOME}/.claude/skills"
 
-# Skills 一覧
+# Skills 一覧（13スキル）
 SKILLS=(
     "neo4j-support-db"
     "livelihood-support"
@@ -38,6 +38,10 @@ SKILLS=(
     "inheritance-calculator"
     "wamnet-provider-sync"
     "narrative-extractor"
+    "data-quality-agent"
+    "onboarding-wizard"
+    "resilience-checker"
+    "visit-prep"
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -113,23 +117,46 @@ setup_neo4j() {
         docker-compose up -d
     fi
 
-    info "Neo4j の起動を待機中（最大60秒）..."
     local retries=0
     local max_retries=12
+
+    # support-db インスタンスの起動待機（port 7687）
+    info "Neo4j (support-db) の起動を待機中（最大60秒）..."
+    retries=0
     while [ $retries -lt $max_retries ]; do
         if curl -s http://localhost:7474 &>/dev/null; then
-            success "Neo4j が起動しました"
+            success "Neo4j (support-db) が起動しました"
             echo "  ブラウザUI: http://localhost:7474"
             echo "  Bolt接続: bolt://localhost:7687"
             echo "  認証: neo4j / password"
-            return 0
+            break
         fi
         retries=$((retries + 1))
         sleep 5
     done
+    if [ $retries -eq $max_retries ]; then
+        warn "Neo4j (support-db) の起動確認がタイムアウトしました"
+        echo "  docker logs nest-support-neo4j で状態を確認してください"
+    fi
 
-    warn "Neo4j の起動確認がタイムアウトしました"
-    echo "  docker logs nest-support-neo4j で状態を確認してください"
+    # livelihood-support インスタンスの起動待機（port 7688）
+    info "Neo4j (livelihood-support) の起動を待機中（最大60秒）..."
+    retries=0
+    while [ $retries -lt $max_retries ]; do
+        if curl -s http://localhost:7475 &>/dev/null; then
+            success "Neo4j (livelihood-support) が起動しました"
+            echo "  ブラウザUI: http://localhost:7475"
+            echo "  Bolt接続: bolt://localhost:7688"
+            echo "  認証: neo4j / password"
+            break
+        fi
+        retries=$((retries + 1))
+        sleep 5
+    done
+    if [ $retries -eq $max_retries ]; then
+        warn "Neo4j (livelihood-support) の起動確認がタイムアウトしました"
+        echo "  docker logs nest-support-neo4j-livelihood で状態を確認してください"
+    fi
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

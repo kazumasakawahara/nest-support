@@ -20,3 +20,24 @@ services:
       - ./neo4j_plugins:/plugins
       - ./neo4j_backup:/backup
     restart: unless-stopped
+
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  # Neo4j データベース（生活困窮者自立支援）
+  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  neo4j-livelihood:
+    image: neo4j:5.15-community
+    container_name: nest-support-neo4j-livelihood
+    ports:
+      - "7475:7474" # HTTP Browser UI
+      - "7688:7687" # Bolt/Neo4j Protocol
+    environment:
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_server_memory_pagecache_size=512M
+      - NEO4J_server_memory_heap_initial__size=512M
+      - NEO4J_server_memory_heap_max__size=512M
+      - NEO4J_PLUGINS=["apoc"]
+    volumes:
+      - ./neo4j_livelihood_data:/data
+      - ./neo4j_livelihood_logs:/logs
+      - ./neo4j_livelihood_plugins:/plugins
+    restart: unless-stopped
