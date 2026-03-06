@@ -211,7 +211,7 @@ nest-support は2つのNeo4jインスタンスで構成されています:
 | `narrative-extractor` | テキスト → 構造化データ抽出 | 7687 |
 | `data-quality-agent` | データ品質チェック・検証 | 7687 |
 | `onboarding-wizard` | 新規クライアント登録ウィザード | 7687 |
-| `resilience-checker` | 親亡き後レジリエンス診断 | 7687 |
+| `resilience-checker` | 親なき後レジリエンス診断 | 7687 |
 | `visit-prep` | 訪問準備ブリーフィング | 7687 |
 
 ---

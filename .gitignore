@@ -37,3 +37,6 @@ Thumbs.db
 # Generated outputs
 outputs/
 !outputs/.gitkeep
+neo4j_livelihood_data/
+neo4j_livelihood_logs/
+neo4j_livelihood_plugins/

@@ -60,7 +60,7 @@ function Show-Welcome {
     Write-Host "  ╔══════════════════════════════════════════════╗" -ForegroundColor Magenta
     Write-Host "  ║                                              ║" -ForegroundColor Magenta
     Write-Host "  ║   nest-support インストーラー v$VERSION        ║" -ForegroundColor Magenta
-    Write-Host "  ║   〜 親亡き後支援データベース 〜              ║" -ForegroundColor Magenta
+    Write-Host "  ║   〜 親なき後支援データベース 〜              ║" -ForegroundColor Magenta
     Write-Host "  ║            （Windows版）                     ║" -ForegroundColor Magenta
     Write-Host "  ║                                              ║" -ForegroundColor Magenta
     Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Magenta

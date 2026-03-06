@@ -1,7 +1,7 @@
 [project]
 name = "nest-support"
 version = "1.0.0"
-description = "Claude-Native 親亡き後支援データベース - Skills + Neo4j MCP"
+description = "Claude-Native 親なき後支援データベース - Skills + Neo4j MCP"
 readme = "docs/QUICK_START.md"
 requires-python = ">=3.12"
 dependencies = [
