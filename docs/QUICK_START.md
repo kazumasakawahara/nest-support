@@ -16,16 +16,29 @@
 
 ## ステップ 1: セットアップの実行
 
+### macOS の場合
+
 ```bash
 cd nest-support
 chmod +x setup.sh
 ./setup.sh
 ```
 
+### Windows の場合
+
+PowerShell を開いて実行します:
+
+```powershell
+cd nest-support
+.\setup.ps1
+```
+
+> 初回実行時に `Set-ExecutionPolicy Bypass -Scope Process -Force` が必要な場合があります。
+
 このスクリプトが以下を実行します:
 
 1. **Neo4j の起動** — Docker コンテナで2つのデータベースを立ち上げ
-2. **Skills のインストール** — `claude-skills/` から `~/.claude/skills/` にシンボリックリンクを作成
+2. **Skills のインストール** — `claude-skills/` から Skills ディレクトリにリンクを作成
 3. **設定ガイダンスの表示** — 次に行うべきことを案内
 
 > Neo4j のブラウザ UI は http://localhost:7474 でアクセスできます（認証: neo4j / password）
@@ -34,9 +47,16 @@ chmod +x setup.sh
 
 前提条件のインストールも含めて自動化したい場合は:
 
+**macOS:**
 ```bash
 chmod +x installer/install-mac.sh
 ./installer/install-mac.sh
+```
+
+**Windows（PowerShell を管理者として実行）:**
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force
+.\installer\install-windows.ps1
 ```
 
 ---
@@ -45,18 +65,29 @@ chmod +x installer/install-mac.sh
 
 ### 自動設定（推奨）
 
+**macOS:**
 ```bash
 chmod +x installer/configure-claude.sh
 ./installer/configure-claude.sh
+```
+
+**Windows:**
+```powershell
+.\installer\configure-claude.ps1
 ```
 
 ### 手動設定
 
 Claude Desktop の設定ファイルを開きます:
 
-**Mac:**
+**macOS:**
 ```bash
 open ~/Library/Application\ Support/Claude/claude_desktop_config.json
+```
+
+**Windows:**
+```powershell
+notepad "$env:APPDATA\Claude\claude_desktop_config.json"
 ```
 
 以下の内容を追加（または `configs/claude_desktop_config.json` からコピー）:
@@ -102,14 +133,27 @@ open ~/Library/Application\ Support/Claude/claude_desktop_config.json
 
 動作確認やデモ用に、匿名化された架空データを投入できます:
 
+**macOS:**
 ```bash
 chmod +x installer/load-demo-data.sh
 ./installer/load-demo-data.sh
 ```
 
+**Windows:**
+```powershell
+.\installer\load-demo-data.ps1
+```
+
 デモデータの削除:
+
+**macOS:**
 ```bash
 ./installer/load-demo-data.sh --remove
+```
+
+**Windows:**
+```powershell
+.\installer\load-demo-data.ps1 -Remove
 ```
 
 ---
@@ -175,24 +219,40 @@ nest-support は2つのNeo4jインスタンスで構成されています:
 ## トラブルシューティング
 
 ### Skills が認識されない
+
+**macOS:**
 ```bash
 ls -la ~/.claude/skills/
 ./setup.sh --skills  # 再インストール
 ```
 
+**Windows:**
+```powershell
+dir $env:USERPROFILE\.claude\skills\
+.\setup.ps1 -Skills  # 再インストール
+```
+
 ### Neo4j に接続できない
+
 ```bash
 docker ps | grep neo4j
-curl -s http://localhost:7474
 docker compose restart
 ```
 
+ブラウザで http://localhost:7474 にアクセスして確認してください。
+
 ### Claude Desktop で MCP が表示されない
+
+**macOS:**
 ```bash
-# 設定ファイルの内容を確認
 cat ~/Library/Application\ Support/Claude/claude_desktop_config.json
-# 自動設定ツールで修復
 ./installer/configure-claude.sh
+```
+
+**Windows:**
+```powershell
+Get-Content "$env:APPDATA\Claude\claude_desktop_config.json"
+.\installer\configure-claude.ps1
 ```
 
 詳しくは [FAQ.md](./FAQ.md) を参照してください。

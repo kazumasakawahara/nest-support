@@ -263,7 +263,8 @@ nest-support/
 ├── pyproject.toml                 # 最小依存
 ├── .env.example                   # 環境変数テンプレート
 ├── .python-version                # 3.12
-├── setup.sh                       # Neo4j起動 + Skills symlink
+├── setup.sh                       # Neo4j起動 + Skills symlink (macOS/Linux)
+├── setup.ps1                      # Neo4j起動 + Skills symlink (Windows)
 ├── manifesto/                     # 理念・プロトコル・ワークフロー
 │   ├── MANIFESTO.md
 │   ├── protocols/                 # emergency, parent_down, onboarding, handover
@@ -300,9 +301,12 @@ nest-support/
 │   └── test_pseudonymizer.py      # 仮名化モジュールのユニットテスト
 ├── installer/                     # インストーラー
 │   ├── install-mac.sh             # macOSワンクリックインストーラー
-│   ├── configure-claude.sh        # Claude Desktop設定自動化
+│   ├── install-windows.ps1        # Windowsワンクリックインストーラー
+│   ├── configure-claude.sh        # Claude Desktop設定自動化 (macOS)
+│   ├── configure-claude.ps1       # Claude Desktop設定自動化 (Windows)
 │   ├── demo-data.cypher           # デモデータ（架空）
-│   └── load-demo-data.sh          # デモデータ投入・削除
+│   ├── load-demo-data.sh          # デモデータ投入・削除 (macOS)
+│   └── load-demo-data.ps1         # デモデータ投入・削除 (Windows)
 └── docs/                          # ドキュメント
     ├── QUICK_START.md
     ├── SCHEMA_CONVENTION.md

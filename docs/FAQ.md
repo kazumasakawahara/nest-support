@@ -48,11 +48,17 @@ docker compose start
 
 **症状**: `docker: command not found` または Docker Desktop が反応しない
 
-**対処法**:
+**対処法（macOS）**:
 1. Docker Desktop アプリが起動しているか確認（メニューバーにクジラのアイコン）
 2. 起動していない場合: アプリケーションフォルダから Docker を開く
 3. アイコンが表示されるまで1〜2分待つ
 4. それでも動かない場合: Docker Desktop を再インストール
+
+**対処法（Windows）**:
+1. タスクバー右下の通知領域にクジラのアイコンがあるか確認
+2. 起動していない場合: スタートメニューから「Docker Desktop」を検索して起動
+3. 「Docker Desktop is starting...」が消えるまで待つ（初回は数分かかることがあります）
+4. WSL2 バックエンドが有効か確認（Docker Desktop → Settings → General → Use the WSL 2 based engine）
 
 ```bash
 # Docker の状態確認
@@ -85,7 +91,7 @@ docker logs nest-support-neo4j-livelihood
 
 **症状**: ツールアイコンに neo4j が表示されない
 
-**対処法**:
+**対処法（macOS）**:
 1. 設定ファイルの確認:
 ```bash
 cat ~/Library/Application\ Support/Claude/claude_desktop_config.json
@@ -101,6 +107,24 @@ cd nest-support
 
 4. Claude Desktop を完全に終了して再起動（メニューバーから Quit → 再度開く）
 
+**対処法（Windows）**:
+1. 設定ファイルの確認:
+```powershell
+Get-Content "$env:APPDATA\Claude\claude_desktop_config.json"
+```
+
+2. JSON の書式が正しいか確認（カンマの過不足に注意）
+
+3. 自動設定ツールで修復:
+```powershell
+cd nest-support
+.\installer\configure-claude.ps1
+```
+
+4. Claude Desktop を完全に終了して再起動（タスクトレイから右クリック → Quit → 再度起動）
+
+**共通の確認事項**:
+
 5. npx の動作確認:
 ```bash
 npx -y @anthropic/neo4j-mcp-server --help
@@ -110,7 +134,7 @@ npx -y @anthropic/neo4j-mcp-server --help
 
 **症状**: Claude が Skills の機能を使ってくれない
 
-**対処法**:
+**対処法（macOS）**:
 ```bash
 # シンボリックリンクの確認
 ls -la ~/.claude/skills/
@@ -122,6 +146,18 @@ readlink ~/.claude/skills/neo4j-support-db
 cd nest-support
 ./setup.sh --skills
 ```
+
+**対処法（Windows）**:
+```powershell
+# Skills ディレクトリの確認
+dir $env:USERPROFILE\.claude\skills\
+
+# 再インストール
+cd nest-support
+.\setup.ps1 -Skills
+```
+
+> **Windows の注意**: シンボリックリンク作成に管理者権限が必要な場合、自動的にジャンクションリンクまたはコピーにフォールバックします。
 
 ### 「エラー: Neo4j connection refused」と言われる
 
@@ -161,6 +197,54 @@ chmod +x installer/install-mac.sh
 chmod +x installer/configure-claude.sh
 chmod +x setup.sh
 ```
+
+### Windows で「スクリプトの実行が無効」と言われる
+
+**症状**: `.ps1` ファイルを実行すると「このシステムではスクリプトの実行が無効になっています」と表示される
+
+**対処法**:
+```powershell
+# 現在のセッションのみ実行を許可（推奨）
+Set-ExecutionPolicy Bypass -Scope Process -Force
+
+# その後スクリプトを実行
+.\setup.ps1
+```
+
+> **注意**: `Set-ExecutionPolicy Bypass -Scope Process` は現在のPowerShellウィンドウのみに適用され、ウィンドウを閉じれば元に戻ります。システム全体の設定は変更しません。
+
+### Windows で Docker のメモリが不足する
+
+**症状**: Neo4j コンテナが起動後すぐに停止する、または「out of memory」エラー
+
+**対処法**:
+1. Docker Desktop → Settings → Resources → WSL Integration
+2. メモリを 4GB 以上に設定
+3. または `.wslconfig` で設定:
+
+```
+# %USERPROFILE%\.wslconfig に以下を記述
+[wsl2]
+memory=4GB
+```
+
+4. WSL を再起動: `wsl --shutdown` → Docker Desktop を再起動
+
+### Windows でポートが使用中と表示される
+
+**症状**: `docker compose up` で「port is already allocated」エラー
+
+**対処法**:
+```powershell
+# 使用中のポートを確認
+netstat -ano | findstr :7474
+netstat -ano | findstr :7687
+
+# 該当プロセスを確認（PID は上記コマンドの最後の列）
+tasklist | findstr <PID>
+```
+
+ポートを使用しているプロセスを終了するか、`docker-compose.yml` のポート番号を変更してください。
 
 ### メモリ使用量が多い
 

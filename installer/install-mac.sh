@@ -90,7 +90,7 @@ show_welcome() {
 check_macos() {
     if [[ "$(uname)" != "Darwin" ]]; then
         error "このインストーラーは macOS 専用です。"
-        error "Windows をお使いの場合は installer/install-win.ps1 を使用してください。"
+        error "Windows をお使いの場合は installer/install-windows.ps1 を使用してください。"
         exit 1
     fi
     success "macOS を確認しました: $(sw_vers -productVersion)"
