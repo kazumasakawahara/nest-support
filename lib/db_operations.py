@@ -148,6 +148,12 @@ def create_audit_log(
             details: $details,
             clientName: $client_name
         })
+        WITH al
+        OPTIONAL MATCH (c:Client {name: $client_name})
+        WHERE $client_name <> ''
+        FOREACH (_ IN CASE WHEN c IS NOT NULL THEN [1] ELSE [] END |
+            CREATE (al)-[:AUDIT_FOR]->(c)
+        )
         RETURN al.timestamp as timestamp, al.action as action
     """, {
         "user_name": user_name,
@@ -255,10 +261,21 @@ def register_support_log(log_data: dict, client_name: str) -> dict:
             situation: $situation,
             action: $action,
             effectiveness: $effectiveness,
-            note: $note
+            note: $note,
+            type: $type,
+            duration: $duration,
+            nextAction: $nextAction
         })
 
         CREATE (s)-[:LOGGED]->(log)-[:ABOUT]->(c)
+
+        WITH log, c
+        OPTIONAL MATCH (prevLog:SupportLog)-[:ABOUT]->(c)
+        WHERE prevLog <> log AND prevLog.date <= log.date
+        WITH log, prevLog ORDER BY prevLog.date DESC LIMIT 1
+        FOREACH (_ IN CASE WHEN prevLog IS NOT NULL THEN [1] ELSE [] END |
+            CREATE (log)-[:FOLLOWS]->(prevLog)
+        )
 
         RETURN log.date as date, log.situation as situation
     """, {
@@ -268,7 +285,10 @@ def register_support_log(log_data: dict, client_name: str) -> dict:
         "situation": log_data['situation'],
         "action": log_data['action'],
         "effectiveness": log_data['effectiveness'],
-        "note": log_data.get('note', '')
+        "note": log_data.get('note', ''),
+        "type": log_data.get('type', '日常記録'),
+        "duration": log_data.get('duration'),
+        "nextAction": log_data.get('nextAction')
     })
 
     if result:
@@ -331,7 +351,8 @@ def register_to_database(data: dict, user_name: str = "system") -> dict:
                 MATCH (c:Client {name: $client})
                 MERGE (con:Condition {name: $name})
                 SET con.status = $status
-                MERGE (c)-[:HAS_CONDITION]->(con)
+                MERGE (c)-[r:HAS_CONDITION]->(con)
+                ON CREATE SET r.diagnosedDate = date()
             """, {"client": client_name, "name": cond['name'], "status": cond.get('status', 'Active')})
 
     # 3. 禁忌事項（NgAction）- 最重要データのため詳細ログ
@@ -391,7 +412,8 @@ def register_to_database(data: dict, user_name: str = "system") -> dict:
                     grade: $grade,
                     nextRenewalDate: CASE WHEN $renewal IS NOT NULL THEN date($renewal) ELSE NULL END
                 })
-                CREATE (c)-[:HAS_CERTIFICATE]->(cert)
+                CREATE (c)-[r:HAS_CERTIFICATE]->(cert)
+                SET r.issuedDate = date(), r.status = 'Active'
             """, {
                 "client": client_name,
                 "type": cert['type'],
@@ -439,7 +461,8 @@ def register_to_database(data: dict, user_name: str = "system") -> dict:
                 MATCH (c:Client {name: $client})
                 MERGE (h:Hospital {name: $name})
                 SET h.specialty = $spec, h.phone = $phone, h.doctor = $doc
-                MERGE (c)-[:TREATED_AT]->(h)
+                MERGE (c)-[r:TREATED_AT]->(h)
+                ON CREATE SET r.since = date(), r.status = 'Active'
             """, {
                 "client": client_name,
                 "name": h['name'],
@@ -573,6 +596,62 @@ def discover_care_patterns(client_name: str, min_frequency: int = 3):
         ORDER BY frequency DESC
     """, {"client_name": client_name, "min_frequency": min_frequency})
     return _mask_output(results)
+
+
+def search_support_logs(keyword: str, client_name: str = None, limit: int = 20) -> list:
+    """
+    全文検索で支援記録を検索
+
+    Args:
+        keyword: 検索キーワード
+        client_name: クライアント名でフィルタ（任意）
+        limit: 取得件数（デフォルト20件）
+
+    Returns:
+        検索結果のリスト
+    """
+    results = run_query("""
+        CALL db.index.fulltext.queryNodes('idx_supportlog_fulltext', $keyword)
+        YIELD node, score
+        MATCH (s:Supporter)-[:LOGGED]->(node)-[:ABOUT]->(c:Client)
+        WHERE $client_name = '' OR c.name CONTAINS $client_name
+        RETURN node.date as 日付,
+               s.name as 支援者,
+               c.name as クライアント,
+               node.situation as 状況,
+               node.action as 対応,
+               node.effectiveness as 効果,
+               score as スコア
+        ORDER BY score DESC
+        LIMIT $limit
+    """, {
+        "keyword": keyword,
+        "client_name": client_name or "",
+        "limit": limit
+    })
+    return _mask_output(results)
+
+
+def validate_client_uniqueness(name: str, dob: str) -> bool:
+    """
+    クライアントの複合一意性をチェック（name + dob）
+
+    Community Edition では複合UNIQUE制約が使えないため、
+    アプリケーションレベルで重複チェックを行う。
+
+    Args:
+        name: クライアント名
+        dob: 生年月日（YYYY-MM-DD）
+
+    Returns:
+        True: 登録可能（重複なし）, False: 重複あり
+    """
+    result = run_query("""
+        MATCH (c:Client {name: $name})
+        WHERE c.dob = date($dob)
+        RETURN count(c) AS count
+    """, {"name": name, "dob": dob})
+    return result[0]["count"] == 0 if result else True
 
 
 # =============================================================================

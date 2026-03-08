@@ -72,7 +72,7 @@
 | `PublicAssistance` | 法的基盤 | 公的扶助 | type, grade, startDate |
 | `Organization` | 多機関連携 | 関係機関 | name, type, contact, address |
 | `Supporter` | 多機関連携 | 支援者 | name, role, organization, phone |
-| `SupportLog` | 記録 | 支援記録 | date, situation, action, effectiveness, note |
+| `SupportLog` | 記録 | 支援記録 | date, situation, action, effectiveness, note, type, duration, nextAction |
 | `AuditLog` | 監査 | 監査ログ | timestamp, user, action, targetType, targetName, details |
 | `LifeHistory` | 本人性 | 生育歴 | era, episode, emotion |
 | `Wish` | 本人性 | 本人・家族の願い | content, status, date |
@@ -104,20 +104,22 @@
 
 | リレーション | 方向 | プロパティ | 説明 |
 |---|---|---|---|
-| `HAS_CONDITION` | Client → Condition | — | 特性・診断の紐付け |
+| `HAS_CONDITION` | Client → Condition | diagnosedDate | 特性・診断の紐付け |
 | `MUST_AVOID` | Client → NgAction | — | **禁忌事項（最重要）** |
 | `IN_CONTEXT` | NgAction → Condition | — | 禁忌の文脈（関連特性） |
 | `REQUIRES` | Client → CarePreference | — | 推奨ケアの紐付け |
 | `ADDRESSES` | CarePreference → Condition | — | ケアが対応する特性 |
 | `HAS_KEY_PERSON` | Client → KeyPerson | rank | キーパーソン（rank で優先順位） |
 | `HAS_LEGAL_REP` | Client → Guardian | — | 法定代理人 |
-| `HAS_CERTIFICATE` | Client → Certificate | — | 手帳・受給者証 |
+| `HAS_CERTIFICATE` | Client → Certificate | issuedDate, status | 手帳・受給者証 |
 | `RECEIVES` | Client → PublicAssistance | — | 公的扶助の受給 |
 | `REGISTERED_AT` | Client → Organization | — | 関係機関への登録 |
-| `TREATED_AT` | Client → Hospital | — | 通院先 |
-| `SUPPORTED_BY` | Client → Supporter | — | 支援者の紐付け |
+| `TREATED_AT` | Client → Hospital | since, status | 通院先 |
+| `SUPPORTED_BY` | Client → Supporter | since, until | 支援者の紐付け |
 | `LOGGED` | Supporter → SupportLog | — | 支援記録の作成 |
 | `ABOUT` | SupportLog → Client | — | 記録の対象者 |
+| `FOLLOWS` | SupportLog → SupportLog | — | 時系列チェーン（新→旧） |
+| `AUDIT_FOR` | AuditLog → Client | — | 監査ログの対象クライアント |
 | `HAS_HISTORY` | Client → LifeHistory | — | 生育歴 |
 | `HAS_WISH` | Client → Wish | — | 願い |
 | `HAS_IDENTITY` | Client → Identity | — | 仮名化対応（将来） |
@@ -140,6 +142,55 @@
 | `HAS_MONEY_MGMT` | Recipient → MoneyManagementStatus | 金銭管理 |
 | `HAS_KEY_PERSON` | Recipient → KeyPerson | キーパーソン |
 | `HOLDS` | Recipient → Certificate | 証明書 |
+
+---
+
+## インデックスと制約
+
+### UNIQUE 制約
+
+| 制約名 | ノード | プロパティ | 備考 |
+|--------|--------|-----------|------|
+| `constraint_client_name_unique` | Client | name | 自動的にRANGEインデックスを含む |
+
+### RANGE インデックス
+
+| インデックス名 | ノード | プロパティ |
+|---------------|--------|-----------|
+| `idx_hospital_name` | Hospital | name |
+| `idx_supporter_name` | Supporter | name |
+| `idx_keyperson_name` | KeyPerson | name |
+| `idx_condition_name` | Condition | name |
+| `idx_ngaction_risklevel` | NgAction | riskLevel |
+| `idx_carepreference_category` | CarePreference | category |
+| `idx_supportlog_date` | SupportLog | date |
+| `idx_supportlog_type` | SupportLog | type |
+| `idx_certificate_renewal` | Certificate | nextRenewalDate |
+| `idx_auditlog_timestamp` | AuditLog | timestamp |
+| `idx_auditlog_clientname` | AuditLog | clientName |
+| `idx_auditlog_user` | AuditLog | user |
+
+### FULLTEXT インデックス
+
+| インデックス名 | ノード | プロパティ | 備考 |
+|---------------|--------|-----------|------|
+| `idx_supportlog_fulltext` | SupportLog | situation, action, note | 日本語は単語単位で検索可 |
+| `idx_lifehistory_fulltext` | LifeHistory | episode | 生育歴エピソード検索 |
+
+> **注意**: NOT NULL 制約は Community Edition では非対応。`validate_client_uniqueness()` でアプリケーションレベルの複合一意性チェックを実施。
+
+### マイグレーションスクリプト
+
+```bash
+# インデックス・制約・リレーション改善の一括実行
+uv run python scripts/migrate_schema_v2.py
+
+# 特定フェーズのみ実行
+uv run python scripts/migrate_schema_v2.py --phase 1
+
+# ドライラン（変更を適用せず確認のみ）
+uv run python scripts/migrate_schema_v2.py --dry-run
+```
 
 ---
 
@@ -324,4 +375,5 @@ REMOVE sp.office_name, sp.corp_name, sp.service_type,
 
 | 日付 | 変更内容 |
 |---|---|
+| 2026-03-09 | インデックス・制約セクション追加、FOLLOWS/AUDIT_FORリレーション追加、リレーションプロパティ拡張、SupportLog.type/duration/nextAction追加 |
 | 2026-02-16 | 初版作成。正式リレーション名の確定、廃止リレーションの明記、LLM向けガイドライン追加 |
