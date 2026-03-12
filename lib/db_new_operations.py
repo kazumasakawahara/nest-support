@@ -357,6 +357,11 @@ def register_to_database(extracted_graph: dict, user_name: str = "system") -> di
         registered_items=registered_items,
     )
 
+    # ---------------------------------------------------------
+    # 5. Client summaryEmbedding 自動付与（ベストエフォート）
+    # ---------------------------------------------------------
+    _try_attach_client_summary_embedding(registered_items, client_name_context)
+
     log(f"汎用グラフ登録完了: {client_name_context} - 項目数: {len(registered_items)}")
 
     return {
@@ -447,6 +452,26 @@ def _attach_embeddings(
             log(f"Embedding自動付与: {success}/{len(targets)} ノード")
     except Exception as e:
         log(f"Embedding一括生成スキップ: {e}", "WARN")
+
+
+def _try_attach_client_summary_embedding(
+    registered_items: list[str], client_name: str | None
+) -> None:
+    """Client の summaryEmbedding を自動付与（ベストエフォート）"""
+    if not client_name:
+        return
+
+    # Client 関連の登録があった場合のみ実行
+    client_related = {"Client", "Condition", "NgAction", "CarePreference"}
+    if not any(item in client_related for item in registered_items):
+        return
+
+    try:
+        from lib.embedding import embed_client_summary
+
+        embed_client_summary(client_name)
+    except Exception as e:
+        log(f"Client summaryEmbedding 自動付与スキップ: {e}", "WARN")
 
 
 def _attach_support_log_embedding(log_data: dict, element_id: str | None = None) -> None:
