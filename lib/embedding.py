@@ -1,6 +1,6 @@
 """
 親亡き後支援データベース - マルチモーダルEmbeddingモジュール
-Gemini Embedding 2 による テキスト/画像/PDF のembedding生成、
+Gemini Embedding 2 による テキスト/画像/PDF/音声 のembedding生成、
 Neo4j ベクトルインデックスを利用したセマンティック検索
 
 Dependencies:
@@ -52,6 +52,26 @@ VECTOR_INDEXES = {
         "property": "summaryEmbedding",
         "dimensions": DEFAULT_DIMENSIONS,
     },
+    "meeting_record_embedding": {
+        "label": "MeetingRecord",
+        "property": "embedding",
+        "dimensions": DEFAULT_DIMENSIONS,
+    },
+    "meeting_record_text_embedding": {
+        "label": "MeetingRecord",
+        "property": "textEmbedding",
+        "dimensions": DEFAULT_DIMENSIONS,
+    },
+}
+
+# 音声MIME タイプのフォールバック用マッピング
+_AUDIO_MIME_TYPES = {
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".m4a": "audio/mp4",
+    ".ogg": "audio/ogg",
+    ".flac": "audio/flac",
+    ".aac": "audio/aac",
 }
 
 
@@ -227,6 +247,115 @@ def embed_multimodal(
     except Exception as e:
         log(f"マルチモーダルembedding生成エラー: {e}", "ERROR")
         return None
+
+
+def embed_audio(
+    audio_path: str,
+    dimensions: int = DEFAULT_DIMENSIONS,
+) -> Optional[list[float]]:
+    """
+    音声ファイルからembeddingベクトルを生成（文字起こし不要）
+
+    Args:
+        audio_path: 音声ファイルパス（MP3, WAV 等。最大80秒）
+        dimensions: 出力次元数
+
+    Returns:
+        float のリスト（embeddingベクトル）、失敗時は None
+    """
+    client = get_genai_client()
+    if client is None:
+        return None
+
+    from google.genai import types
+    import mimetypes
+
+    mime_type, _ = mimetypes.guess_type(audio_path)
+    if mime_type is None:
+        ext = os.path.splitext(audio_path)[1].lower()
+        mime_type = _AUDIO_MIME_TYPES.get(ext)
+        if mime_type is None:
+            log(f"未対応の音声形式: {audio_path}", "ERROR")
+            return None
+
+    try:
+        with open(audio_path, "rb") as f:
+            audio_bytes = f.read()
+
+        response = client.models.embed_content(
+            model=EMBEDDING_MODEL,
+            contents=[
+                types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+            ],
+            config=types.EmbedContentConfig(
+                output_dimensionality=dimensions,
+            ),
+        )
+        values = response.embeddings[0].values
+        log(f"音声embedding生成完了: {len(values)}次元, {audio_path}")
+        return list(values)
+    except Exception as e:
+        log(f"音声embedding生成エラー: {e}", "ERROR")
+        return None
+
+
+def transcribe_audio(
+    audio_path: str,
+    instruction: str = "この音声を正確に文字起こししてください。話者が複数いる場合は区別してください。",
+) -> Optional[str]:
+    """
+    Gemini 2.0 Flash で音声をテキストに文字起こし
+
+    Args:
+        audio_path: 音声ファイルパス
+        instruction: 文字起こし指示
+
+    Returns:
+        文字起こしテキスト、失敗時は None
+    """
+    client = get_genai_client()
+    if client is None:
+        return None
+
+    from google.genai import types
+    import mimetypes
+
+    mime_type, _ = mimetypes.guess_type(audio_path)
+    if mime_type is None:
+        ext = os.path.splitext(audio_path)[1].lower()
+        mime_type = _AUDIO_MIME_TYPES.get(ext, "audio/mpeg")
+
+    try:
+        with open(audio_path, "rb") as f:
+            audio_bytes = f.read()
+
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[
+                types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                instruction,
+            ],
+        )
+        text = response.text
+        log(f"音声文字起こし完了: {len(text)}文字, {audio_path}")
+        return text
+    except Exception as e:
+        log(f"音声文字起こしエラー: {e}", "ERROR")
+        return None
+
+
+def _get_audio_duration(path: str) -> float:
+    """ffprobe で音声の長さ（秒）を取得。ffprobe がなければ -1 を返す"""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", path],
+            capture_output=True, text=True, timeout=10,
+        )
+        return float(result.stdout.strip())
+    except Exception:
+        return -1  # 不明の場合はembedding試行に任せる
 
 
 def embed_texts_batch(
@@ -650,6 +779,87 @@ def search_ng_actions_semantic(
     return results
 
 
+def search_meeting_records_semantic(
+    query_text: str,
+    top_k: int = 10,
+    client_name: Optional[str] = None,
+    index_name: str = "meeting_record_text_embedding",
+) -> list[dict]:
+    """
+    面談記録のセマンティック検索
+
+    Args:
+        query_text: 検索クエリ（例: "服薬の飲み忘れ"）
+        top_k: 返す結果の最大数
+        client_name: クライアント名でフィルタ（オプション）
+        index_name: 使用するインデックス
+            - "meeting_record_text_embedding": テキスト（transcript/note）ベースの検索
+            - "meeting_record_embedding": 音声ネイティブembeddingベースの検索
+
+    Returns:
+        面談記録のリスト（スコア付き）
+    """
+    query_embedding = embed_text(
+        query_text,
+        task_type="RETRIEVAL_QUERY",
+        dimensions=DEFAULT_DIMENSIONS,
+    )
+    if query_embedding is None:
+        return []
+
+    if client_name:
+        results = _run_query(
+            """
+            CALL db.index.vector.queryNodes($index_name, $top_k, $query_embedding)
+            YIELD node, score
+            MATCH (s:Supporter)-[:RECORDED]->(node)-[:ABOUT]->(c:Client)
+            WHERE c.name CONTAINS $client_name
+            RETURN node.date AS 日付,
+                   node.title AS タイトル,
+                   node.duration AS 秒数,
+                   node.filePath AS ファイルパス,
+                   s.name AS 記録者,
+                   c.name AS クライアント,
+                   node.note AS メモ,
+                   COALESCE(left(node.transcript, 100), '') AS 文字起こし抜粋,
+                   score AS スコア
+            ORDER BY score DESC
+            """,
+            {
+                "index_name": index_name,
+                "top_k": top_k * 3,
+                "query_embedding": query_embedding,
+                "client_name": client_name,
+            },
+        )
+    else:
+        results = _run_query(
+            """
+            CALL db.index.vector.queryNodes($index_name, $top_k, $query_embedding)
+            YIELD node, score
+            MATCH (s:Supporter)-[:RECORDED]->(node)-[:ABOUT]->(c:Client)
+            RETURN node.date AS 日付,
+                   node.title AS タイトル,
+                   node.duration AS 秒数,
+                   node.filePath AS ファイルパス,
+                   s.name AS 記録者,
+                   c.name AS クライアント,
+                   node.note AS メモ,
+                   COALESCE(left(node.transcript, 100), '') AS 文字起こし抜粋,
+                   score AS スコア
+            ORDER BY score DESC
+            """,
+            {
+                "index_name": index_name,
+                "top_k": top_k,
+                "query_embedding": query_embedding,
+            },
+        )
+
+    log(f"面談記録セマンティック検索: '{query_text}' → {len(results)}件")
+    return results
+
+
 # =============================================================================
 # バッチembedding付与（既存ノードの一括更新）
 # =============================================================================
@@ -831,3 +1041,351 @@ def get_embedding_stats() -> dict:
             "embedded": embedded[0]["c"] if embedded else 0,
         }
     return stats
+
+
+def register_meeting_record(
+    audio_path: str,
+    client_name: str,
+    supporter_name: str,
+    date: str,
+    title: str = "",
+    note: str = "",
+    auto_transcribe: bool = True,
+) -> dict:
+    """
+    音声ファイルから面談記録を登録
+
+    1. 音声ファイルの長さチェック（80秒超はembeddingスキップ）
+    2. 音声ファイルを embed_audio() でネイティブembedding
+    3. auto_transcribe=True なら transcribe_audio() で文字起こし
+    4. transcript/note のテキストを embed_text() でテキストembedding
+    5. MeetingRecord ノードを作成
+    6. Supporter→RECORDED→MeetingRecord→ABOUT→Client のリレーションを作成
+
+    Returns:
+        {"status": "success", "transcript": str, ...} または {"status": "error", ...}
+    """
+    if not os.path.exists(audio_path):
+        return {"status": "error", "message": f"音声ファイルが見つかりません: {audio_path}"}
+
+    abs_path = os.path.abspath(audio_path)
+
+    # MIMEタイプ判定
+    import mimetypes
+    mime_type, _ = mimetypes.guess_type(audio_path)
+    if mime_type is None:
+        ext = os.path.splitext(audio_path)[1].lower()
+        mime_type = _AUDIO_MIME_TYPES.get(ext, "audio/mpeg")
+
+    # 音声の長さチェック
+    duration = _get_audio_duration(audio_path)
+    audio_embedding = None
+    if duration <= 80 or duration < 0:
+        # 80秒以下、または長さ不明の場合はembeddingを試行
+        audio_embedding = embed_audio(audio_path)
+        if audio_embedding is None:
+            log("音声embedding生成失敗（テキストembeddingのみで続行）", "WARN")
+    else:
+        log(f"音声が80秒超 ({duration:.1f}秒) のためembeddingスキップ", "WARN")
+
+    # 文字起こし
+    transcript = None
+    if auto_transcribe:
+        transcript = transcribe_audio(audio_path)
+
+    # テキストembedding（transcript + note を結合）
+    text_parts = []
+    if transcript:
+        text_parts.append(transcript)
+    if note:
+        text_parts.append(note)
+    text_for_embedding = "\n".join(text_parts) if text_parts else None
+
+    text_embedding = None
+    if text_for_embedding:
+        text_embedding = embed_text(text_for_embedding, task_type="RETRIEVAL_DOCUMENT")
+
+    # Neo4j に登録
+    try:
+        duration_int = int(duration) if duration > 0 else None
+        _run_query(
+            """
+            MERGE (c:Client {name: $client_name})
+            MERGE (s:Supporter {name: $supporter_name})
+            CREATE (m:MeetingRecord {
+                date: date($date),
+                title: $title,
+                duration: $duration,
+                filePath: $file_path,
+                mimeType: $mime_type,
+                transcript: $transcript,
+                note: $note
+            })
+            CREATE (s)-[:RECORDED]->(m)
+            CREATE (m)-[:ABOUT]->(c)
+            WITH m
+            CALL { WITH m
+                WITH m WHERE $audio_embedding IS NOT NULL
+                CALL db.create.setNodeVectorProperty(m, 'embedding', $audio_embedding)
+            }
+            CALL { WITH m
+                WITH m WHERE $text_embedding IS NOT NULL
+                CALL db.create.setNodeVectorProperty(m, 'textEmbedding', $text_embedding)
+            }
+            RETURN elementId(m) AS id
+            """,
+            {
+                "client_name": client_name,
+                "supporter_name": supporter_name,
+                "date": date,
+                "title": title or f"面談記録 {date}",
+                "duration": duration_int,
+                "file_path": abs_path,
+                "mime_type": mime_type,
+                "transcript": transcript,
+                "note": note or None,
+                "audio_embedding": audio_embedding,
+                "text_embedding": text_embedding,
+            },
+        )
+        log(f"面談記録登録完了: {client_name} ({date})")
+        return {
+            "status": "success",
+            "client_name": client_name,
+            "date": date,
+            "transcript": transcript,
+            "audio_embedding": audio_embedding is not None,
+            "text_embedding": text_embedding is not None,
+        }
+    except Exception as e:
+        log(f"面談記録登録エラー: {e}", "ERROR")
+        return {"status": "error", "message": str(e)}
+
+
+# =============================================================================
+# クライアント類似度分析
+# =============================================================================
+
+def build_client_summary_text(client_name: str) -> Optional[str]:
+    """
+    Neo4j から Client の関連情報を集約し、embedding用の概要テキストを構築
+
+    Args:
+        client_name: クライアント名
+
+    Returns:
+        構築された概要テキスト、データ不足の場合は None
+    """
+    results = _run_query(
+        """
+        MATCH (c:Client {name: $client_name})
+        OPTIONAL MATCH (c)-[:HAS_CONDITION]->(con:Condition)
+        OPTIONAL MATCH (c)-[:MUST_AVOID]->(ng:NgAction)
+        OPTIONAL MATCH (c)-[:REQUIRES]->(cp:CarePreference)
+        WITH c,
+             collect(DISTINCT con.name) AS conditions,
+             collect(DISTINCT ng.action) AS ngActions,
+             collect(DISTINCT cp.instruction) AS careInstructions
+        OPTIONAL MATCH (log:SupportLog)-[:ABOUT]->(c)
+        WITH c, conditions, ngActions, careInstructions, log
+        ORDER BY log.date DESC
+        LIMIT 5
+        WITH c, conditions, ngActions, careInstructions,
+             collect(log.situation + '→' + COALESCE(log.action, '')) AS recentLogs
+        RETURN c.name AS name,
+               c.dob AS dob,
+               c.bloodType AS bloodType,
+               conditions,
+               ngActions,
+               careInstructions,
+               recentLogs
+        """,
+        {"client_name": client_name},
+    )
+
+    if not results:
+        log(f"クライアントが見つかりません: {client_name}", "WARN")
+        return None
+
+    r = results[0]
+    parts = []
+
+    # 基本情報
+    basic = r.get("name", "")
+    if r.get("dob"):
+        basic += f"、{r['dob']}"
+    if r.get("bloodType"):
+        basic += f"、血液型{r['bloodType']}"
+    parts.append(f"[基本情報] {basic}")
+
+    # 障害・疾患
+    conditions = [c for c in r.get("conditions", []) if c]
+    if conditions:
+        parts.append(f"[障害・疾患] {', '.join(conditions)}")
+
+    # 禁忌事項
+    ng_actions = [a for a in r.get("ngActions", []) if a]
+    if ng_actions:
+        parts.append(f"[禁忌事項] {', '.join(ng_actions)}")
+
+    # ケアの要点
+    care = [c for c in r.get("careInstructions", []) if c]
+    if care:
+        parts.append(f"[ケアの要点] {', '.join(care)}")
+
+    # 主な支援状況
+    logs = [entry for entry in r.get("recentLogs", []) if entry]
+    if logs:
+        parts.append(f"[主な支援状況] {'; '.join(logs)}")
+
+    # 基本情報だけでは類似度分析に不十分
+    if len(parts) <= 1:
+        log(f"クライアント概要テキストの情報不足: {client_name}", "WARN")
+        return None
+
+    text = "\n".join(parts)
+    log(f"クライアント概要テキスト構築完了: {client_name} ({len(text)}文字)")
+    return text
+
+
+def embed_client_summary(
+    client_name: str,
+    dimensions: int = DEFAULT_DIMENSIONS,
+) -> bool:
+    """
+    特定クライアントの summaryEmbedding を生成・付与
+
+    1. build_client_summary_text() で概要テキスト構築
+    2. embed_text(text, task_type="CLUSTERING") でembedding生成
+    3. Neo4j の Client ノードに summaryEmbedding を付与
+
+    Args:
+        client_name: クライアント名
+        dimensions: 出力次元数
+
+    Returns:
+        成功なら True
+    """
+    text = build_client_summary_text(client_name)
+    if not text:
+        return False
+
+    embedding = embed_text(text, task_type="CLUSTERING", dimensions=dimensions)
+    if embedding is None:
+        log(f"Client summaryEmbedding 生成失敗: {client_name}", "ERROR")
+        return False
+
+    try:
+        _run_query(
+            """
+            MATCH (c:Client {name: $name})
+            CALL db.create.setNodeVectorProperty(c, 'summaryEmbedding', $embedding)
+            """,
+            {"name": client_name, "embedding": embedding},
+        )
+        log(f"Client summaryEmbedding 付与完了: {client_name}")
+        return True
+    except Exception as e:
+        log(f"Client summaryEmbedding 付与エラー ({client_name}): {e}", "ERROR")
+        return False
+
+
+def find_similar_clients(
+    client_name: str,
+    top_k: int = 5,
+    exclude_self: bool = True,
+) -> list[dict]:
+    """
+    指定クライアントに支援特性が似ているクライアントを検索
+
+    Args:
+        client_name: 基準となるクライアント名
+        top_k: 返す結果の最大数
+        exclude_self: 自分自身を除外するか
+
+    Returns:
+        [{"name": str, "スコア": float, "conditions": list, ...}, ...]
+    """
+    base = _run_query(
+        """
+        MATCH (c:Client {name: $client_name})
+        WHERE c.summaryEmbedding IS NOT NULL
+        RETURN c.summaryEmbedding AS embedding
+        """,
+        {"client_name": client_name},
+    )
+
+    if not base:
+        log(f"summaryEmbedding が未付与です: {client_name}", "WARN")
+        return []
+
+    query_vec = base[0]["embedding"]
+    top_k_plus = top_k + (1 if exclude_self else 0)
+
+    results = _run_query(
+        """
+        CALL db.index.vector.queryNodes('client_summary_embedding', $top_k_plus, $query_vec)
+        YIELD node, score
+        WHERE ($exclude_self = false OR node.name <> $client_name)
+        OPTIONAL MATCH (node)-[:HAS_CONDITION]->(con:Condition)
+        RETURN node.name AS name,
+               node.dob AS dob,
+               collect(DISTINCT con.name) AS conditions,
+               score AS スコア
+        ORDER BY score DESC
+        LIMIT $top_k
+        """,
+        {
+            "top_k_plus": top_k_plus,
+            "query_vec": query_vec,
+            "client_name": client_name,
+            "exclude_self": exclude_self,
+            "top_k": top_k,
+        },
+    )
+    log(f"類似クライアント検索: {client_name} → {len(results)}件")
+    return results
+
+
+def search_similar_clients_by_text(
+    description: str,
+    top_k: int = 5,
+) -> list[dict]:
+    """
+    テキスト説明から類似クライアントを検索
+
+    新規利用者の特徴を入力し、既存クライアントから類似ケースを探す。
+
+    Args:
+        description: 支援特性の説明（例: "金銭管理が困難、訪問販売の被害歴あり"）
+        top_k: 返す結果の最大数
+
+    Returns:
+        類似クライアントのリスト（スコア付き）
+    """
+    query_embedding = embed_text(
+        description,
+        task_type="RETRIEVAL_QUERY",
+        dimensions=DEFAULT_DIMENSIONS,
+    )
+    if query_embedding is None:
+        return []
+
+    results = _run_query(
+        """
+        CALL db.index.vector.queryNodes('client_summary_embedding', $top_k, $query_embedding)
+        YIELD node, score
+        OPTIONAL MATCH (node)-[:HAS_CONDITION]->(con:Condition)
+        RETURN node.name AS name,
+               node.dob AS dob,
+               collect(DISTINCT con.name) AS conditions,
+               score AS スコア
+        ORDER BY score DESC
+        """,
+        {
+            "top_k": top_k,
+            "query_embedding": query_embedding,
+        },
+    )
+    log(f"テキストベース類似クライアント検索: '{description[:30]}...' → {len(results)}件")
+    return results

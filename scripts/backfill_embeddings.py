@@ -78,6 +78,8 @@ def backfill_label(label: str, client_name: str | None, batch_size: int, dry_run
             batch_size=batch_size,
             dry_run=dry_run,
         )
+    elif label == "Client":
+        return _backfill_clients(batch_size=batch_size, dry_run=dry_run)
     else:
         log(f"未対応のラベル: {label}", "ERROR")
         return {"processed": 0, "success": 0, "failed": 0}
@@ -244,6 +246,64 @@ def _backfill_loop(
     return {"processed": total_processed, "success": total_success, "failed": total_failed}
 
 
+# --- Client summaryEmbedding バックフィル ---
+
+def _backfill_clients(batch_size: int, dry_run: bool) -> dict:
+    """Client の summaryEmbedding を一括付与"""
+    from lib.embedding import build_client_summary_text, embed_text
+    from lib.db_new_operations import run_query
+
+    clients = run_query(
+        """
+        MATCH (c:Client)
+        WHERE c.summaryEmbedding IS NULL
+        RETURN c.name AS name
+        LIMIT $batch_size
+        """,
+        {"batch_size": batch_size},
+    )
+
+    if not clients:
+        log("summaryEmbedding 未付与の Client がありません")
+        return {"processed": 0, "success": 0, "failed": 0}
+
+    if dry_run:
+        log(f"[dry-run] Client: {len(clients)} 件が未付与")
+        return {"processed": len(clients), "success": 0, "failed": 0}
+
+    success = 0
+    failed = 0
+    for client in clients:
+        name = client["name"]
+        text = build_client_summary_text(name)
+        if not text:
+            log(f"Client 概要テキスト構築スキップ: {name}", "WARN")
+            failed += 1
+            continue
+        embedding = embed_text(text, task_type="CLUSTERING")
+        if embedding is None:
+            failed += 1
+            continue
+        try:
+            run_query(
+                """
+                MATCH (c:Client {name: $name})
+                CALL db.create.setNodeVectorProperty(c, 'summaryEmbedding', $embedding)
+                """,
+                {"name": name, "embedding": embedding},
+            )
+            success += 1
+            log(f"Client summaryEmbedding 付与: {name}", "OK")
+        except Exception as e:
+            log(f"Client summaryEmbedding 付与失敗 ({name}): {e}", "WARN")
+            failed += 1
+
+        # レートリミット対策
+        time.sleep(0.5)
+
+    return {"processed": len(clients), "success": success, "failed": failed}
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="既存ノードに Gemini Embedding 2 ベクトルを一括付与する"
@@ -253,7 +313,7 @@ def main():
         help="SupportLog, NgAction, CarePreference の全てを処理",
     )
     parser.add_argument(
-        "--label", choices=["SupportLog", "NgAction", "CarePreference"],
+        "--label", choices=["SupportLog", "NgAction", "CarePreference", "Client"],
         help="特定のラベルのみ処理",
     )
     parser.add_argument(
@@ -287,7 +347,7 @@ def main():
         print("\n--all または --label を指定してください。")
         return
 
-    labels = ["SupportLog", "NgAction", "CarePreference"] if args.all else [args.label]
+    labels = ["SupportLog", "NgAction", "CarePreference", "Client"] if args.all else [args.label]
 
     if args.dry_run:
         print("\n🔍 Dry-run モード（実際の付与は行いません）")
