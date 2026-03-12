@@ -10,9 +10,10 @@
 
 ## 特徴
 
-- **Single Layer Architecture** — Claude が UI・分析・データ操作のすべてを担当。Streamlit や Gemini への依存なし
+- **Single Layer Architecture** — Claude が UI・分析・データ操作のすべてを担当。Streamlit への依存なし
 - **Skills-First** — 9つの Claude Skills が Cypher テンプレートを提供し、汎用 Neo4j MCP 経由でクエリを実行
 - **Safety First** — 緊急時は禁忌事項（NgAction）を最優先で提示し、二次被害を防止
+- **セマンティック検索** — Gemini Embedding 2 + Neo4j Vector Index による意味ベースの類似検索
 - **SOS 緊急通知** — スマホ PWA から LINE グループへ即時通知（FastAPI 独立サービス）
 
 ## アーキテクチャ
@@ -226,6 +227,44 @@ Claude Desktop を再起動し、以下のように話しかけてください:
     (:Supporter)-[:LOGGED]->(:SupportLog)-[:ABOUT]->(:Client)  # 支援記録
 ```
 
+## セマンティック検索（Embedding & Vector Search）
+
+Gemini Embedding 2（`gemini-embedding-2-preview`）を使ったマルチモーダルセマンティック検索機能です。テキスト・画像・PDFを768次元のベクトル空間に統合し、Neo4j Vector Index で意味ベースの類似検索が可能です。
+
+### 主な機能
+
+- **自動 embedding 付与**: `lib/db_new_operations.py` でノード登録時にベストエフォートで自動付与
+- **セマンティック検索**: 支援記録・禁忌事項を意味ベースで検索（キーワード不一致でもヒット）
+- **OCR フォールバック**: スキャン PDF や画像ファイル（jpg/png/webp/heic）を Gemini OCR で読み取り
+- **バックフィル**: 既存ノードへの embedding 一括付与スクリプト
+
+### ベクトルインデックス
+
+| インデックス名 | 対象ノード | 次元 | 類似度 |
+|---------------|-----------|------|--------|
+| `support_log_embedding` | SupportLog | 768 | cosine |
+| `care_preference_embedding` | CarePreference | 768 | cosine |
+| `ng_action_embedding` | NgAction | 768 | cosine |
+| `client_summary_embedding` | Client | 768 | cosine |
+
+### 使い方
+
+```bash
+# 環境変数に Gemini API キーを設定
+# .env に GEMINI_API_KEY=your_key を追加
+
+# 既存ノードへの embedding バックフィル
+uv run python scripts/backfill_embeddings.py --all
+
+# ドライラン（変更なし）
+uv run python scripts/backfill_embeddings.py --all --dry-run
+
+# 統計情報の確認
+uv run python scripts/backfill_embeddings.py --stats
+```
+
+> **Note**: `GEMINI_API_KEY` が未設定の場合、embedding 処理はスキップされます（登録処理自体はブロックされません）。
+
 ## SOS 緊急通知サービス
 
 知的障害のある方がスマホからワンタップで支援者グループに SOS を送信できる PWA アプリです。
@@ -253,8 +292,11 @@ nest-support/
 │   ├── MANIFESTO.md           # マニフェスト v4.0（5 Values + 7 Pillars）
 │   ├── protocols/             # 緊急時、親の機能不全、新規登録、引き継ぎ
 │   └── workflows/             # 訪問準備、レジリエンスレポート、更新チェック
-├── lib/                       # 共有 Python ライブラリ（SOS 用）
+├── lib/                       # 共有 Python ライブラリ
 │   ├── db_operations.py       # Neo4j 接続・クエリ実行
+│   ├── db_new_operations.py   # グラフ構造化登録（embedding 自動付与）
+│   ├── embedding.py           # Gemini Embedding 2 によるベクトル生成・検索
+│   ├── file_readers.py        # ファイル読み取り（docx/xlsx/pdf/画像 + OCR）
 │   └── utils.py               # 日付パース（和暦対応）
 ├── claude-skills/             # 9つの Claude Skills
 │   ├── neo4j-support-db/      # 障害福祉 DB
@@ -275,7 +317,8 @@ nest-support/
 │   ├── SCHEMA_CONVENTION.md   # Neo4j 命名規則
 │   └── ADVANCED_USAGE.md      # Skills 詳細使い方
 └── scripts/                   # ユーティリティ
-    └── backup.sh              # Neo4j バックアップ
+    ├── backup.sh              # Neo4j バックアップ
+    └── backfill_embeddings.py # 既存ノードへの embedding 一括付与
 ```
 
 ## 技術スタック
@@ -283,6 +326,7 @@ nest-support/
 | レイヤー | 技術 |
 |---------|------|
 | AI | Claude Desktop / Claude Code + Skills |
+| セマンティック検索 | Gemini Embedding 2 (`gemini-embedding-2-preview`, 768次元) |
 | データベース | Neo4j 5.15+ (Docker) |
 | DB 接続 | Neo4j MCP (`@anthropic/neo4j-mcp-server`) |
 | SOS API | FastAPI + uvicorn |

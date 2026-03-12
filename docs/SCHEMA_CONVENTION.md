@@ -61,10 +61,10 @@
 
 | ノードラベル | 柱 | 説明 | 主要プロパティ |
 |---|---|---|---|
-| `Client` | 本人性 | 中心ノード（本人） | name, dob, bloodType, clientId, displayCode, kana |
+| `Client` | 本人性 | 中心ノード（本人） | name, dob, bloodType, clientId, displayCode, kana, embedding |
 | `Condition` | ケアの暗黙知 | 特性・医学的診断 | name, diagnosisDate, status |
-| `NgAction` | ケアの暗黙知 | 禁忌事項（**最重要**） | action, reason, riskLevel |
-| `CarePreference` | ケアの暗黙知 | 推奨ケア | category, instruction, priority |
+| `NgAction` | ケアの暗黙知 | 禁忌事項（**最重要**） | action, reason, riskLevel, embedding |
+| `CarePreference` | ケアの暗黙知 | 推奨ケア | category, instruction, priority, embedding |
 | `KeyPerson` | 危機管理 | キーパーソン・緊急連絡先 | name, relationship, phone, role |
 | `Guardian` | 法的基盤 | 成年後見人等 | name, type, phone, organization |
 | `Hospital` | 危機管理 | 医療機関 | name, specialty, phone, doctor |
@@ -72,7 +72,7 @@
 | `PublicAssistance` | 法的基盤 | 公的扶助 | type, grade, startDate |
 | `Organization` | 多機関連携 | 関係機関 | name, type, contact, address |
 | `Supporter` | 多機関連携 | 支援者 | name, role, organization, phone |
-| `SupportLog` | 記録 | 支援記録 | date, situation, action, effectiveness, note, type, duration, nextAction |
+| `SupportLog` | 記録 | 支援記録 | date, situation, action, effectiveness, note, type, duration, nextAction, embedding |
 | `AuditLog` | 監査 | 監査ログ | timestamp, user, action, targetType, targetName, details |
 | `LifeHistory` | 本人性 | 生育歴 | era, episode, emotion |
 | `Wish` | 本人性 | 本人・家族の願い | content, status, date |
@@ -176,6 +176,19 @@
 |---------------|--------|-----------|------|
 | `idx_supportlog_fulltext` | SupportLog | situation, action, note | 日本語は単語単位で検索可 |
 | `idx_lifehistory_fulltext` | LifeHistory | episode | 生育歴エピソード検索 |
+
+### VECTOR インデックス
+
+Gemini Embedding 2（`gemini-embedding-2-preview`）による768次元ベクトルを格納し、セマンティック検索を実現。
+
+| インデックス名 | ノード | プロパティ | 次元 | 類似度 |
+|---------------|--------|-----------|------|--------|
+| `support_log_embedding` | SupportLog | embedding | 768 | cosine |
+| `care_preference_embedding` | CarePreference | embedding | 768 | cosine |
+| `ng_action_embedding` | NgAction | embedding | 768 | cosine |
+| `client_summary_embedding` | Client | embedding | 768 | cosine |
+
+> **注意**: ベクトルプロパティは `db.create.setNodeVectorProperty()` で設定すること。通常の `SET n.embedding = $vec` ではベクトルインデックスに認識されない。
 
 > **注意**: NOT NULL 制約は Community Edition では非対応。`validate_client_uniqueness()` でアプリケーションレベルの複合一意性チェックを実施。
 
@@ -375,5 +388,6 @@ REMOVE sp.office_name, sp.corp_name, sp.service_type,
 
 | 日付 | 変更内容 |
 |---|---|
+| 2026-03-12 | VECTORインデックスセクション追加、embeddingプロパティをClient/SupportLog/NgAction/CarePreferenceに追加 |
 | 2026-03-09 | インデックス・制約セクション追加、FOLLOWS/AUDIT_FORリレーション追加、リレーションプロパティ拡張、SupportLog.type/duration/nextAction追加 |
 | 2026-02-16 | 初版作成。正式リレーション名の確定、廃止リレーションの明記、LLM向けガイドライン追加 |
