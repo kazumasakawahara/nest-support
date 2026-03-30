@@ -25,12 +25,13 @@ $PROJECT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SKILLS_SOURCE_DIR = Join-Path $PROJECT_DIR "claude-skills"
 $SKILLS_TARGET_DIR = Join-Path $env:USERPROFILE ".claude\skills"
 
-# Skills 一覧（13スキル）
+# Skills 一覧（14スキル）
 $SKILLS_LIST = @(
     "neo4j-support-db", "livelihood-support", "provider-search",
     "emergency-protocol", "ecomap-generator", "html-to-pdf",
     "inheritance-calculator", "wamnet-provider-sync", "narrative-extractor",
-    "data-quality-agent", "onboarding-wizard", "resilience-checker", "visit-prep"
+    "data-quality-agent", "onboarding-wizard", "resilience-checker", "visit-prep",
+    "insight-agent"
 )
 
 # ヘルパー関数

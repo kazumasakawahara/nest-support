@@ -15,13 +15,20 @@ HAS_CONDITION, MUST_AVOID, IN_CONTEXT, REQUIRES, ADDRESSES, HAS_KEY_PERSON, HAS_
 ※禁止事項: PROHIBITED, PREFERS などの旧名は絶対に使用しないこと。
 
 ## 3. プロパティ名 (camelCase)
-例: name, dob, bloodType, riskLevel, date, situation, action, effectiveness, note, type, duration, nextAction, clientId
+例: name, dob, bloodType, riskLevel, date, situation, action, effectiveness, note, type, duration, nextAction, clientId, emotion, triggerTag, context
 
 ## 4. 列挙値（Enums）
 - NgAction の `riskLevel` は必ず以下のいずれか（英語）を使用すること:
   "LifeThreatening", "Panic", "Discomfort"
 - SupportLog の `effectiveness` は以下のいずれか（英語）を使用すること:
   "Effective", "Ineffective", "Neutral", "Unknown"
+- SupportLog の `emotion`（感情）は以下のいずれか（英語）を使用すること:
+  "Joy", "Anger", "Sadness", "Fear", "Surprise", "Disgust", "Calm", "Anxiety", "Confusion", "Neutral"
+  テキストから本人の感情状態を読み取り、最も近い値を選択する。明確でない場合は "Neutral" とする。
+- SupportLog の `triggerTag`（きっかけタグ）は、出来事の引き金となった要因を短い日本語タグで表現する:
+  例: "大きな音", "環境変化", "人間関係", "体調不良", "スケジュール変更", "感覚過敏", "コミュニケーション困難"
+- SupportLog の `context`（文脈）は、出来事が起きた状況の背景を自由記述（日本語）で記録する:
+  例: "昼食時、外で工事が始まった", "新しい利用者が加わった初日"
 - SupportLog の `situation` や CarePreference の `category` は日本語を許容する（例: "食事", "入浴", "パニック時"）。
 
 # モデリングのルール（Reification）
@@ -60,7 +67,7 @@ HAS_CONDITION, MUST_AVOID, IN_CONTEXT, REQUIRES, ADDRESSES, HAS_KEY_PERSON, HAS_
   "nodes": [
     { "temp_id": "c1", "label": "Client", "properties": { "name": "山田太郎" } },
     { "temp_id": "s1", "label": "Supporter", "properties": { "name": "鈴木" } },
-    { "temp_id": "log1", "label": "SupportLog", "properties": { "date": "2026-03-09", "situation": "食事", "action": "静かな別室に移動させた", "effectiveness": "Effective", "note": "昼食の際、外で大きな工事音が鳴りパニックになった。" } },
+    { "temp_id": "log1", "label": "SupportLog", "properties": { "date": "2026-03-09", "situation": "食事", "action": "静かな別室に移動させた", "effectiveness": "Effective", "emotion": "Fear", "triggerTag": "大きな音", "context": "昼食時、外で工事が始まった", "note": "昼食の際、外で大きな工事音が鳴りパニックになった。" } },
     { "temp_id": "ng1", "label": "NgAction", "properties": { "action": "突然の大きな音", "reason": "パニックを誘発するため", "riskLevel": "Panic" } },
     { "temp_id": "cp1", "label": "CarePreference", "properties": { "category": "パニック時", "instruction": "静かな別室に移動させる", "priority": "High" } }
   ],

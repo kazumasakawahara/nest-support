@@ -235,6 +235,12 @@ def register_to_database(extracted_graph: dict, user_name: str = "system") -> di
         log("旧形式(ツリー型)のデータが渡されました。エラーを防ぐため登録をスキップします。", "WARN")
         return {"status": "error", "message": "旧形式のJSON構造はサポートされていません。"}
 
+    # Guardian Layer: スキーマバリデーション＆正規化
+    from lib.schema_validator import validate_and_normalize_graph
+    extracted_graph, validation_warnings = validate_and_normalize_graph(extracted_graph)
+    if validation_warnings:
+        log(f"スキーマ検証警告 ({len(validation_warnings)}件): {'; '.join(validation_warnings[:3])}", "WARN")
+
     temp_id_map = {}
     registered_items = []
     client_name_context = "Unknown"

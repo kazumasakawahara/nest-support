@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ TITLE }}</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body { margin: 0; background: #0f0f1a; color: #fff; font-family: 'Helvetica Neue', Arial, sans-serif; overflow: hidden; }
+        #canvas { width: 100vw; height: 100vh; cursor: move; }
+        .controls { position: fixed; top: 20px; left: 20px; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 8px; pointer-events: none; }
+        .legend { position: fixed; bottom: 20px; left: 20px; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 8px; font-size: 12px; }
+        .node-info { position: fixed; top: 20px; right: 20px; width: 300px; max-height: 80vh; background: rgba(20,20,40,0.95); padding: 20px; border-radius: 8px; border: 1px solid #444; display: none; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        h2 { margin: 0 0 5px 0; font-size: 18px; color: #4C8BF5; }
+        .label { font-size: 10px; color: #aaa; text-transform: uppercase; margin-bottom: 2px; }
+        .detail-item { margin-bottom: 15px; }
+        .close-btn { background: #444; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; float: right; }
+        
+        /* 感情アニメーション */
+        @keyframes vibrate { 0% { transform: translate(0); } 25% { transform: translate(1px, 1px); } 50% { transform: translate(-1px, -1px); } 100% { transform: translate(0); } }
+        .emotion-anger { animation: vibrate 0.2s infinite; }
+        .emotion-joy { filter: drop-shadow(0 0 10px gold); }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <h2>{{ TITLE }}</h2>
+    <p style="font-size: 12px; opacity: 0.7;">ノードをドラッグして移動 / スクロールで拡大縮小<br>クリックで詳細を表示</p>
+</div>
+
+<div class="node-info" id="info-panel">
+    <button class="close-btn" onclick="document.getElementById('info-panel').style.display='none'">×</button>
+    <h3 id="info-title"></h3>
+    <div id="info-content"></div>
+</div>
+
+<div class="legend" id="legend"></div>
+
+<svg id="canvas"></svg>
+
+<script>
+// データ注入用プレースホルダー
+const DATA = {{ GRAPH_DATA }};
+
+const width = window.innerWidth;
+const height = window.innerHeight;
+
+const svg = d3.select("#canvas")
+    .attr("width", width)
+    .attr("height", height)
+    .call(d3.zoom().on("zoom", (event) => {
+        container.attr("transform", event.transform);
+    }))
+    .append("g");
+
+const container = svg.append("g");
+
+// 物理シミュレーション
+const simulation = d3.forceSimulation(DATA.nodes)
+    .force("link", d3.forceLink(DATA.links).id(d => d.id).distance(d => d.distance || 150))
+    .force("charge", d3.forceManyBody().strength(-600))
+    .force("center", d3.forceCenter(width / 2, height / 2))
+    .force("collision", d3.forceCollide().radius(d => (d.r || 25) + 15));
+
+// エッジ
+const link = container.append("g")
+    .selectAll("g")
+    .data(DATA.links)
+    .join("g");
+
+link.append("line")
+    .attr("stroke", "#505070")
+    .attr("stroke-opacity", 0.6)
+    .attr("stroke-width", 1.5);
+
+link.append("text")
+    .attr("font-size", "9px")
+    .attr("fill", "#8888aa")
+    .attr("text-anchor", "middle")
+    .attr("dy", -5)
+    .text(d => d.label);
+
+// ノード
+const node = container.append("g")
+    .selectAll("g")
+    .data(DATA.nodes)
+    .join("g")
+    .attr("class", d => `node-group emotion-${(d.properties.emotion || "").toLowerCase()}`)
+    .call(d3.drag()
+        .on("start", dragstarted)
+        .on("drag", dragged)
+        .on("end", dragended))
+    .on("click", (event, d) => showDetail(d));
+
+node.append("circle")
+    .attr("r", d => d.r || 25)
+    .attr("fill", d => d.color || "#4C8BF5")
+    .attr("stroke", "#fff")
+    .attr("stroke-width", 2);
+
+node.append("text")
+    .text(d => d.label)
+    .attr("text-anchor", "middle")
+    .attr("dy", d => (d.r || 25) + 15)
+    .attr("fill", "#fff")
+    .style("font-size", "11px")
+    .style("pointer-events", "none");
+
+simulation.on("tick", () => {
+    link.select("line")
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
+
+    link.select("text")
+        .attr("x", d => (d.source.x + d.target.x) / 2)
+        .attr("y", d => (d.source.y + d.target.y) / 2);
+
+    node.attr("transform", d => `translate(${d.x},${d.y})`);
+});
+
+// 詳細表示
+function showDetail(d) {
+    const panel = document.getElementById('info-panel');
+    const title = document.getElementById('info-title');
+    const content = document.getElementById('info-content');
+    
+    title.innerText = d.label;
+    content.innerHTML = '';
+    
+    for (const [key, value] of Object.entries(d.properties)) {
+        if (value && key !== 'embedding') {
+            const item = document.createElement('div');
+            item.className = 'detail-item';
+            item.innerHTML = `<div class="label">${key}</div><div>${value}</div>`;
+            content.appendChild(item);
+        }
+    }
+    panel.style.display = 'block';
+}
+
+// 凡例生成
+const legendData = [
+    { label: "本人", color: "#4C8BF5" },
+    { label: "禁忌", color: "#FF5252" },
+    { label: "推奨", color: "#43A047" },
+    { label: "記録", color: "#66BB6A" }
+];
+const legend = d3.select("#legend");
+legendData.forEach(d => {
+    const item = legend.append("div").style("margin-bottom", "5px");
+    item.append("span")
+        .style("display", "inline-block")
+        .style("width", "12px")
+        .style("height", "12px")
+        .style("border-radius", "50%")
+        .style("background", d.color)
+        .style("margin-right", "8px");
+    item.append("span").text(d.label);
+});
+
+function dragstarted(event) {
+    if (!event.active) simulation.alphaTarget(0.3).restart();
+    event.subject.fx = event.subject.x;
+    event.subject.fy = event.subject.y;
+}
+function dragged(event) {
+    event.subject.fx = event.x;
+    event.subject.fy = event.y;
+}
+function dragended(event) {
+    if (!event.active) simulation.alphaTarget(0);
+    event.subject.fx = null;
+    event.subject.fy = null;
+}
+</script>
+</body>
+</html>

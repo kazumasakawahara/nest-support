@@ -27,7 +27,7 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_SOURCE_DIR="${PROJECT_DIR}/claude-skills"
 SKILLS_TARGET_DIR="${HOME}/.claude/skills"
 
-# Skills 一覧（13スキル）
+# Skills 一覧（14スキル）
 SKILLS=(
     "neo4j-support-db"
     "livelihood-support"
@@ -42,6 +42,7 @@ SKILLS=(
     "onboarding-wizard"
     "resilience-checker"
     "visit-prep"
+    "insight-agent"
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

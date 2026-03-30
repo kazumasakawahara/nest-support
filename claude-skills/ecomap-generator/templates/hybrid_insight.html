@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ TITLE }}</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0f0f1a; color: #e0e0e0; font-family: 'Helvetica Neue', Arial, sans-serif; }
+
+        .dashboard { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; height: 100vh; gap: 1px; background: #1a1a2e; }
+        .header { grid-column: 1 / -1; padding: 12px 20px; background: #16162a; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
+        .header h1 { font-size: 16px; color: #4C8BF5; }
+        .header .risk-badge { padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .risk-high { background: #FF5252; color: #fff; }
+        .risk-medium { background: #FB8C00; color: #fff; }
+        .risk-low { background: #43A047; color: #fff; }
+
+        /* 左: 感情時系列 */
+        .timeline-panel { background: #12122a; padding: 16px; overflow-y: auto; }
+        .timeline-panel h2 { font-size: 14px; color: #aaa; margin-bottom: 12px; }
+        .chart-container { background: #1a1a35; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+        .chart-container h3 { font-size: 12px; color: #888; margin-bottom: 8px; }
+
+        /* 右: 物理グラフ */
+        .graph-panel { background: #0f0f1a; position: relative; overflow: hidden; }
+        #graph-canvas { width: 100%; height: 100%; }
+
+        /* 詳細パネル (オーバーレイ) */
+        .detail-overlay { position: absolute; top: 10px; right: 10px; width: 280px; max-height: 60%; background: rgba(20,20,45,0.95); border: 1px solid #444; border-radius: 8px; padding: 16px; display: none; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.6); z-index: 10; }
+        .detail-overlay h3 { font-size: 14px; color: #4C8BF5; margin-bottom: 8px; }
+        .detail-item { margin-bottom: 10px; }
+        .detail-label { font-size: 10px; color: #888; text-transform: uppercase; }
+        .detail-value { font-size: 13px; }
+        .close-btn { position: absolute; top: 8px; right: 8px; background: #444; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+
+        /* AI相談ボタン */
+        .ai-consult-btn { display: block; width: 100%; margin-top: 12px; padding: 10px; background: linear-gradient(135deg, #4C8BF5, #7B61FF); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; transition: opacity 0.2s; }
+        .ai-consult-btn:hover { opacity: 0.85; }
+        .copied-toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #43A047; color: #fff; padding: 8px 20px; border-radius: 20px; font-size: 13px; display: none; z-index: 100; }
+
+        /* 感情カラー */
+        .emotion-joy { color: #FFD700; }
+        .emotion-anger { color: #FF5252; }
+        .emotion-sadness { color: #42A5F5; }
+        .emotion-fear { color: #AB47BC; }
+        .emotion-anxiety { color: #FF7043; }
+        .emotion-calm { color: #66BB6A; }
+        .emotion-neutral { color: #9E9E9E; }
+        .emotion-surprise { color: #FFEE58; }
+        .emotion-disgust { color: #8D6E63; }
+        .emotion-confusion { color: #78909C; }
+
+        /* アラートカード */
+        .alert-card { background: rgba(255,82,82,0.1); border-left: 3px solid #FF5252; padding: 10px 12px; border-radius: 0 6px 6px 0; margin-bottom: 8px; font-size: 12px; }
+        .alert-card.medium { background: rgba(251,140,0,0.1); border-left-color: #FB8C00; }
+
+        /* 凡例 */
+        .graph-legend { position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 6px; font-size: 11px; z-index: 5; }
+        .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; }
+    </style>
+</head>
+<body>
+
+<div class="dashboard">
+    <!-- ヘッダー -->
+    <div class="header">
+        <h1>{{ TITLE }}</h1>
+        <span class="risk-badge" id="risk-badge"></span>
+    </div>
+
+    <!-- 左パネル: 感情時系列 -->
+    <div class="timeline-panel">
+        <h2>感情の時系列変化</h2>
+        <div class="chart-container">
+            <h3>直近30日間の感情トレンド</h3>
+            <svg id="emotion-chart"></svg>
+        </div>
+        <div id="alerts-section">
+            <h2>検知されたアラート</h2>
+            <div id="alerts-container"></div>
+        </div>
+        <div class="chart-container" style="margin-top: 16px;">
+            <h3>成功パターン</h3>
+            <div id="patterns-container" style="font-size: 12px;"></div>
+        </div>
+    </div>
+
+    <!-- 右パネル: 物理グラフ -->
+    <div class="graph-panel">
+        <svg id="graph-canvas"></svg>
+        <div class="detail-overlay" id="detail-panel">
+            <button class="close-btn" onclick="document.getElementById('detail-panel').style.display='none'">×</button>
+            <h3 id="detail-title"></h3>
+            <div id="detail-content"></div>
+            <button class="ai-consult-btn" id="ai-consult-btn" onclick="copyAiPrompt()">
+                Claude に相談するプロンプトをコピー
+            </button>
+        </div>
+        <div class="graph-legend" id="graph-legend"></div>
+    </div>
+</div>
+
+<div class="copied-toast" id="copied-toast">プロンプトをクリップボードにコピーしました</div>
+
+<script>
+// =============================================================================
+// データ注入
+// =============================================================================
+const GRAPH_DATA = {{ GRAPH_DATA }};
+const EMOTION_DATA = {{ EMOTION_DATA }};
+const INSIGHT_DATA = {{ INSIGHT_DATA }};
+const CLIENT_NAME = {{ CLIENT_NAME }};
+
+// =============================================================================
+// 感情カラーマップ
+// =============================================================================
+const EMOTION_COLORS = {
+    Joy: "#FFD700", Anger: "#FF5252", Sadness: "#42A5F5", Fear: "#AB47BC",
+    Anxiety: "#FF7043", Calm: "#66BB6A", Neutral: "#9E9E9E", Surprise: "#FFEE58",
+    Disgust: "#8D6E63", Confusion: "#78909C"
+};
+
+// =============================================================================
+// リスクバッジ
+// =============================================================================
+const riskLevel = INSIGHT_DATA.risk_level || "low";
+const badge = document.getElementById("risk-badge");
+badge.textContent = `リスク: ${riskLevel === "high" ? "高" : riskLevel === "medium" ? "中" : "低"}`;
+badge.classList.add(`risk-${riskLevel}`);
+
+// =============================================================================
+// 感情時系列チャート
+// =============================================================================
+(function drawEmotionChart() {
+    const container = document.querySelector(".chart-container");
+    const cw = container.clientWidth - 24;
+    const ch = 200;
+    const margin = { top: 20, right: 20, bottom: 30, left: 40 };
+    const w = cw - margin.left - margin.right;
+    const h = ch - margin.top - margin.bottom;
+
+    const svg = d3.select("#emotion-chart").attr("width", cw).attr("height", ch);
+    const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+    if (!EMOTION_DATA || EMOTION_DATA.length === 0) {
+        g.append("text").attr("x", w / 2).attr("y", h / 2)
+            .attr("text-anchor", "middle").attr("fill", "#666").text("感情データなし");
+        return;
+    }
+
+    // 日付ごとに集計
+    const parseDate = d3.timeParse("%Y-%m-%d");
+    const byDate = d3.group(EMOTION_DATA, d => d.date);
+    const dates = Array.from(byDate.keys()).sort();
+    const negativeEmotions = new Set(["Anger", "Sadness", "Fear", "Disgust", "Anxiety"]);
+
+    const dailyData = dates.map(date => {
+        const logs = byDate.get(date);
+        const total = logs.length;
+        const negative = logs.filter(l => negativeEmotions.has(l.emotion)).length;
+        return { date: parseDate(date), total, negative, positiveRate: (total - negative) / total };
+    });
+
+    const x = d3.scaleTime().domain(d3.extent(dailyData, d => d.date)).range([0, w]);
+    const y = d3.scaleLinear().domain([0, 1]).range([h, 0]);
+
+    // 軸
+    g.append("g").attr("transform", `translate(0,${h})`).call(d3.axisBottom(x).ticks(6).tickFormat(d3.timeFormat("%m/%d")))
+        .selectAll("text").attr("fill", "#888").style("font-size", "10px");
+    g.append("g").call(d3.axisLeft(y).ticks(5).tickFormat(d3.format(".0%")))
+        .selectAll("text").attr("fill", "#888").style("font-size", "10px");
+    g.selectAll(".domain, .tick line").attr("stroke", "#333");
+
+    // エリア (ポジティブ率)
+    const area = d3.area().x(d => x(d.date)).y0(h).y1(d => y(d.positiveRate)).curve(d3.curveMonotoneX);
+    g.append("path").datum(dailyData).attr("fill", "rgba(67, 160, 71, 0.15)").attr("d", area);
+
+    // ライン
+    const line = d3.line().x(d => x(d.date)).y(d => y(d.positiveRate)).curve(d3.curveMonotoneX);
+    g.append("path").datum(dailyData).attr("fill", "none").attr("stroke", "#43A047").attr("stroke-width", 2).attr("d", line);
+
+    // ドット
+    g.selectAll(".dot").data(dailyData).join("circle")
+        .attr("cx", d => x(d.date)).attr("cy", d => y(d.positiveRate))
+        .attr("r", 4).attr("fill", d => d.positiveRate < 0.5 ? "#FF5252" : "#43A047")
+        .attr("stroke", "#fff").attr("stroke-width", 1)
+        .append("title").text(d => `${d3.timeFormat("%m/%d")(d.date)}: ポジティブ率 ${(d.positiveRate * 100).toFixed(0)}% (${d.total}件中)`);
+
+    // 基準線 (50%)
+    g.append("line").attr("x1", 0).attr("x2", w).attr("y1", y(0.5)).attr("y2", y(0.5))
+        .attr("stroke", "#FF5252").attr("stroke-dasharray", "4,4").attr("stroke-opacity", 0.5);
+    g.append("text").attr("x", w).attr("y", y(0.5) - 5).attr("text-anchor", "end")
+        .attr("fill", "#FF5252").attr("font-size", "9px").attr("opacity", 0.7).text("警戒ライン (50%)");
+})();
+
+// =============================================================================
+// アラート表示
+// =============================================================================
+(function renderAlerts() {
+    const container = document.getElementById("alerts-container");
+    const alerts = (INSIGHT_DATA.emotion_drift && INSIGHT_DATA.emotion_drift.alerts) || [];
+
+    if (alerts.length === 0) {
+        container.innerHTML = '<div style="font-size: 12px; color: #666; padding: 8px;">アラートなし</div>';
+        return;
+    }
+
+    alerts.forEach(a => {
+        const div = document.createElement("div");
+        div.className = `alert-card ${a.severity === "high" ? "" : "medium"}`;
+        div.innerHTML = `<strong>「${a.triggerTag}」</strong> のネガティブ感情が `
+            + `<span style="color: ${a.severity === 'high' ? '#FF5252' : '#FB8C00'}">+${(a.drift * 100).toFixed(0)}%</span> 増加`
+            + `<br><span style="color: #888;">ベースライン ${(a.baseline_negative_rate * 100).toFixed(0)}% → 直近 ${(a.recent_negative_rate * 100).toFixed(0)}%</span>`;
+        container.appendChild(div);
+    });
+})();
+
+// =============================================================================
+// 成功パターン表示
+// =============================================================================
+(function renderPatterns() {
+    const container = document.getElementById("patterns-container");
+    const promotions = INSIGHT_DATA.care_promotions || [];
+
+    if (promotions.length === 0) {
+        container.innerHTML = '<div style="color: #666;">発見されたパターンなし</div>';
+        return;
+    }
+
+    promotions.forEach(p => {
+        const div = document.createElement("div");
+        div.style.cssText = "margin-bottom: 8px; padding: 8px; background: rgba(67,160,71,0.1); border-radius: 4px;";
+        div.innerHTML = `<strong style="color: #43A047;">「${p.triggerTag}」</strong> → ${p.action}`
+            + `<br><span style="color: #888;">効果的 ${p.frequency}回</span>`
+            + (p.already_exists ? ' <span style="color: #666;">(登録済み)</span>' : ' <span style="color: #FFD700;">★ 登録推奨</span>');
+        container.appendChild(div);
+    });
+})();
+
+// =============================================================================
+// 物理グラフ
+// =============================================================================
+(function drawGraph() {
+    const panel = document.querySelector(".graph-panel");
+    const w = panel.clientWidth;
+    const h = panel.clientHeight;
+
+    const svg = d3.select("#graph-canvas").attr("width", w).attr("height", h)
+        .call(d3.zoom().on("zoom", (e) => gAll.attr("transform", e.transform)));
+    const gAll = svg.append("g");
+
+    const simulation = d3.forceSimulation(GRAPH_DATA.nodes)
+        .force("link", d3.forceLink(GRAPH_DATA.links).id(d => d.id).distance(120))
+        .force("charge", d3.forceManyBody().strength(-500))
+        .force("center", d3.forceCenter(w / 2, h / 2))
+        .force("collision", d3.forceCollide().radius(d => (d.r || 20) + 10));
+
+    const link = gAll.append("g").selectAll("g").data(GRAPH_DATA.links).join("g");
+    link.append("line").attr("stroke", "#404060").attr("stroke-width", 1.5);
+    link.append("text").attr("font-size", "9px").attr("fill", "#666").attr("text-anchor", "middle").attr("dy", -4).text(d => d.label);
+
+    const node = gAll.append("g").selectAll("g").data(GRAPH_DATA.nodes).join("g")
+        .call(d3.drag().on("start", ds).on("drag", dd).on("end", de))
+        .on("click", (e, d) => showNodeDetail(d));
+
+    node.append("circle").attr("r", d => d.r || 20).attr("fill", d => d.color || "#4C8BF5")
+        .attr("stroke", d => {
+            const em = d.properties && d.properties.emotion;
+            return em && EMOTION_COLORS[em] ? EMOTION_COLORS[em] : "#fff";
+        })
+        .attr("stroke-width", d => {
+            const em = d.properties && d.properties.emotion;
+            return em && EMOTION_COLORS[em] ? 3 : 1.5;
+        });
+
+    node.append("text").text(d => d.label).attr("text-anchor", "middle").attr("dy", d => (d.r || 20) + 14)
+        .attr("fill", "#ccc").style("font-size", "10px").style("pointer-events", "none");
+
+    simulation.on("tick", () => {
+        link.select("line").attr("x1", d => d.source.x).attr("y1", d => d.source.y).attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+        link.select("text").attr("x", d => (d.source.x + d.target.x) / 2).attr("y", d => (d.source.y + d.target.y) / 2);
+        node.attr("transform", d => `translate(${d.x},${d.y})`);
+    });
+
+    function ds(e) { if (!e.active) simulation.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; }
+    function dd(e) { e.subject.fx = e.x; e.subject.fy = e.y; }
+    function de(e) { if (!e.active) simulation.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; }
+
+    // 凡例
+    const legendItems = [
+        { label: "本人 (Client)", color: "#4C8BF5" },
+        { label: "禁忌 (NgAction)", color: "#FF5252" },
+        { label: "推奨ケア", color: "#43A047" },
+        { label: "キーパーソン", color: "#FB8C00" },
+        { label: "支援記録", color: "#66BB6A" },
+        { label: "特性", color: "#F9A825" },
+    ];
+    const legend = d3.select("#graph-legend");
+    legendItems.forEach(d => {
+        const item = legend.append("div").attr("class", "legend-item");
+        item.append("span").attr("class", "legend-dot").style("background", d.color);
+        item.append("span").text(d.label);
+    });
+})();
+
+// =============================================================================
+// ノード詳細 + AI相談プロンプト
+// =============================================================================
+let selectedNode = null;
+
+function showNodeDetail(d) {
+    selectedNode = d;
+    const panel = document.getElementById("detail-panel");
+    document.getElementById("detail-title").textContent = `${d.type}: ${d.label}`;
+    const content = document.getElementById("detail-content");
+    content.innerHTML = "";
+
+    for (const [key, value] of Object.entries(d.properties || {})) {
+        if (value && key !== "embedding" && key !== "summaryEmbedding" && key !== "textEmbedding") {
+            const item = document.createElement("div");
+            item.className = "detail-item";
+            const emotionClass = key === "emotion" && EMOTION_COLORS[value] ? ` emotion-${value.toLowerCase()}` : "";
+            item.innerHTML = `<div class="detail-label">${key}</div><div class="detail-value${emotionClass}">${value}</div>`;
+            content.appendChild(item);
+        }
+    }
+
+    // AI相談ボタンのラベルをノードタイプに応じて変更
+    const btn = document.getElementById("ai-consult-btn");
+    const prompts = {
+        NgAction: "この禁忌事項への対処法を相談",
+        CarePreference: "このケア方法の改善を相談",
+        SupportLog: "この記録について詳しく分析",
+        Condition: "この特性への対応を相談",
+        KeyPerson: "この方との連携について相談",
+    };
+    btn.textContent = (prompts[d.type] || "Claude に相談するプロンプトをコピー");
+    panel.style.display = "block";
+}
+
+function copyAiPrompt() {
+    if (!selectedNode) return;
+    const d = selectedNode;
+    const props = d.properties || {};
+
+    let prompt = `${CLIENT_NAME}さんについて相談です。\n\n`;
+
+    if (d.type === "NgAction") {
+        prompt += `【禁忌事項について】\n`;
+        prompt += `禁忌: ${props.action || ""}\n`;
+        prompt += `理由: ${props.reason || ""}\n`;
+        prompt += `リスクレベル: ${props.riskLevel || ""}\n\n`;
+        prompt += `この禁忌事項に対して、現場で安全に対応するための具体的な手順と、万が一発生した場合の初動対応を教えてください。`;
+    } else if (d.type === "CarePreference") {
+        prompt += `【推奨ケアについて】\n`;
+        prompt += `カテゴリ: ${props.category || ""}\n`;
+        prompt += `指示: ${props.instruction || ""}\n\n`;
+        prompt += `このケア方法をさらに効果的にするための工夫や、状況に応じたバリエーションを提案してください。`;
+    } else if (d.type === "SupportLog") {
+        prompt += `【支援記録の分析】\n`;
+        prompt += `日付: ${props.date || ""}\n`;
+        prompt += `状況: ${props.situation || ""}\n`;
+        prompt += `対応: ${props.action || ""}\n`;
+        prompt += `感情: ${props.emotion || ""}\n`;
+        prompt += `きっかけ: ${props.triggerTag || ""}\n`;
+        prompt += `文脈: ${props.context || ""}\n\n`;
+        prompt += `この記録を踏まえて、今後の支援方針の改善点や注意すべき兆候を分析してください。`;
+    } else if (d.type === "Condition") {
+        prompt += `【特性への対応相談】\n`;
+        prompt += `特性: ${props.name || ""}\n\n`;
+        prompt += `この特性を持つ方への日常的な支援で気をつけるべきポイントと、グループホームでの実践的な対応方法を教えてください。`;
+    } else {
+        prompt += `【${d.type}: ${d.label}について】\n`;
+        for (const [k, v] of Object.entries(props)) {
+            if (v && k !== "embedding") prompt += `${k}: ${v}\n`;
+        }
+        prompt += `\nこの情報について、支援の観点からアドバイスをください。`;
+    }
+
+    navigator.clipboard.writeText(prompt).then(() => {
+        const toast = document.getElementById("copied-toast");
+        toast.style.display = "block";
+        setTimeout(() => { toast.style.display = "none"; }, 2000);
+    });
+}
+</script>
+</body>
+</html>

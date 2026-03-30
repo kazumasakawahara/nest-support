@@ -565,6 +565,21 @@ cd $env:USERPROFILE\Documents\nest-support
 
 > 更新期限が近い手帳・受給者証を確認して
 
+**感情シミュレーションデータも入れる場合（予兆検知の練習用）:**
+```bash
+# Mac — デモデータ + 1ヶ月分の感情データ
+./installer/load-demo-data.sh --simulation
+
+# Windows（PowerShell）
+.\installer\load-demo-data.ps1 -Simulation
+```
+
+シミュレーションデータ投入後、以下も試せます:
+
+> 山本翔太さんの最近の感情トレンドを分析して
+
+> 山本翔太さんのリスク評価を実行して
+
 **デモデータを削除する場合:**
 ```bash
 # Mac
@@ -601,6 +616,22 @@ cd $env:USERPROFILE\Documents\nest-support
 | 事業所を探す | 「北九州市の生活介護で空きのある事業所を検索して」 |
 | データの健全性を確認 | 「データ品質チェックをお願いします」 |
 | 親なき後の備えを診断 | 「〇〇さんのレジリエンス診断をして」 |
+| 感情トレンドを分析する | 「〇〇さんの最近の変化を分析して」 |
+| 声で記録を残す | 音声ファイルを添付して「〇〇さんの支援記録として登録して」 |
+
+### Gemini API の設定（音声・画像からの登録に必要）
+
+音声ファイルの文字起こしや手書きメモの読み取りには、Google の Gemini API が必要です。
+
+1. [Google AI Studio](https://aistudio.google.com/apikey) にアクセスして API キーを取得（無料）
+2. プロジェクトフォルダの `.env` ファイルに追記:
+   ```
+   GEMINI_API_KEY=取得したキーをここに貼り付け
+   ```
+
+> **Note**: Gemini API キーがなくても、テキスト入力での登録やデータ閲覧は問題なく使えます。
+
+詳しい録音の仕方は [VOICE_RECORDING_GUIDE.md](./VOICE_RECORDING_GUIDE.md) を参照してください。
 
 > Claude は「わからないことはわからない」と正直に答えます。「使い方がわからない」「どんなことができるか一覧を見せて」と聞いても大丈夫です。
 
@@ -682,7 +713,7 @@ docker compose start
 | **Claude Desktop** | Anthropic 社の AI アシスタント。日本語で話しかけるだけでデータベースを操作してくれる |
 | **Node.js / npx** | Claude とデータベースをつなぐ裏方プログラム。一度設定したら意識不要 |
 | **MCP** | Claude がデータベースなどの外部ツールと連携するための仕組み（Model Context Protocol の略）|
-| **Skills** | Claude に業務の手順を教える説明書ファイル。13種類が用意されている |
+| **Skills** | Claude に業務の手順を教える説明書ファイル。14種類が用意されている |
 | **ターミナル（Mac）** | パソコンに直接命令を入力するアプリ。Launchpad で「ターミナル」と検索すると見つかる |
 | **PowerShell（Windows）** | Windows 版のターミナル。スタートメニューで「PowerShell」と検索すると見つかる |
 | **ポート** | パソコン内の通信口の番号。nest-support は 7474, 7475, 7687, 7688 を使用 |

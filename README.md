@@ -11,10 +11,14 @@
 ## 特徴
 
 - **Single Layer Architecture** — Claude が UI・分析・データ操作のすべてを担当。Streamlit への依存なし
-- **Skills-First** — 9つの Claude Skills が Cypher テンプレートを提供し、汎用 Neo4j MCP 経由でクエリを実行
+- **Skills-First** — 14の Claude Skills が Cypher テンプレートを提供し、汎用 Neo4j MCP 経由でクエリを実行
 - **Safety First** — 緊急時は禁忌事項（NgAction）を最優先で提示し、二次被害を防止
+- **Guardian Layer** — スキーマバリデーション（camelCase 自動変換・廃止リレーション修正・列挙値検証）でデータ品質を担保
+- **Oracle Layer** — 感情トレンド分析・リスク予兆検知・ケアパターン自動発見で予防的支援を実現
 - **セマンティック検索** — Gemini Embedding 2 + Neo4j Vector Index による意味ベースの類似検索
 - **音声面談記録** — 音声ファイルから自動文字起こし + dual embedding（音声ネイティブ + テキスト）で面談記録を登録・検索
+- **多機能インポーター** — 音声・画像・PDF・テキストから感情データを含む構造化データを一括登録
+- **ハイブリッド・インサイト・ビュー** — D3.js による感情時系列チャート + 物理グラフ + AI相談プロンプト
 - **クライアント類似度分析** — 支援特性に基づくクライアント間の類似度比較・類似ケース検索
 - **SOS 緊急通知** — スマホ PWA から LINE グループへ即時通知（FastAPI 独立サービス）
 
@@ -23,11 +27,15 @@
 ```
 ユーザー → Claude Desktop / Claude Code
               ↓
-         Skills (SKILL.md)  ←  9つのスキルがCypherテンプレートを提供
+         Skills (SKILL.md)  ←  14のスキルがCypherテンプレートを提供
               ↓
          Neo4j MCP (@anthropic/neo4j-mcp-server)
               ↓
          Neo4j Graph Database
+
+Guardian Layer (schema_validator.py)  ← 全データ書き込み時にスキーマ検証
+Oracle Layer (insight_engine.py)      ← 感情トレンド分析・リスク予兆検知
+Slim View (D3.js hybrid_insight)      ← ハイブリッド・インサイト・ビュー
 ```
 
 ```
@@ -50,11 +58,14 @@
 
 ### 前提条件
 
-| ツール | 用途 |
-|-------|------|
-| [Docker Desktop](https://docs.docker.com/get-docker/) | Neo4j データベース |
-| [Claude Desktop](https://claude.ai/download) | AI 操作 |
-| [Node.js](https://nodejs.org/) (npx) | Neo4j MCP サーバー |
+| ツール | 用途 | 必須? |
+|-------|------|:---:|
+| [Docker Desktop](https://docs.docker.com/get-docker/) | Neo4j データベース | 必須 |
+| [Claude Desktop](https://claude.ai/download) | AI 操作 | 必須 |
+| [Node.js](https://nodejs.org/) (npx) | Neo4j MCP サーバー | 必須 |
+| [Gemini API Key](https://aistudio.google.com/apikey) | 音声文字起こし・OCR・テキスト構造化・embedding | 推奨 |
+
+> **Gemini API Key について**: 多機能インポーター（音声・画像→構造化登録）やセマンティック検索に必要です。未設定でもスキル操作やデータ閲覧は可能ですが、embedding 付与・OCR・音声処理はスキップされます。
 
 ### セットアップ
 
@@ -106,7 +117,7 @@ Claude Desktop を再起動し、以下のように話しかけてください:
 パニック時は静かな部屋に移動して背中をゆっくりさすると落ち着きます。
 ```
 
-## Skills 一覧
+## Skills 一覧（14スキル）
 
 | Skill | 対象業務 | 説明 |
 |-------|----------|------|
@@ -114,11 +125,16 @@ Claude Desktop を再起動し、以下のように話しかけてください:
 | `livelihood-support` | 生活困窮者自立支援 | 訪問前ブリーフィング、引き継ぎサマリー、類似ケース検索 |
 | `provider-search` | 事業所検索・口コミ | サービス種類・地域・空き状況での検索、口コミ評価 |
 | `emergency-protocol` | 緊急時対応 | Safety First プロトコル（禁忌→推奨ケア→連絡先→医療→後見人）|
-| `ecomap-generator` | エコマップ生成 | 支援ネットワーク可視化（Mermaid / SVG）|
+| `ecomap-generator` | エコマップ・インサイト生成 | D3.js ハイブリッド・インサイト・ビュー、ノードクリックでAI相談 |
 | `narrative-extractor` | テキスト→構造化データ | 母親の語りやファイルから JSON 抽出→Neo4j 登録 |
 | `html-to-pdf` | HTML→PDF 変換 | Chrome 印刷機能を利用した PDF 生成 |
 | `inheritance-calculator` | 法定相続計算 | 日本民法に基づく相続人・相続分の計算 |
 | `wamnet-provider-sync` | WAM NET 同期 | 障害福祉サービス情報公表システムからのデータ同期 |
+| `data-quality-agent` | データ品質チェック | 更新期限アラート・データ欠損・スキーマ違反の検出 |
+| `onboarding-wizard` | 新規クライアント登録 | 7本柱に沿った対話型情報収集・Neo4j 構造化登録 |
+| `resilience-checker` | 親なき後レジリエンス診断 | CareRole カバー率診断・福祉サービス候補の検索 |
+| `visit-prep` | 訪問準備ブリーフィング | 禁忌事項・推奨ケア・直近記録の自動収集 |
+| `insight-agent` | 予兆検知・インサイト分析 | 感情トレンド分析、連鎖リスク検知、ケアパターン自動発見 |
 
 ## データ登録の方法（narrative-extractor）
 
@@ -303,32 +319,54 @@ nest-support/
 │   ├── protocols/             # 緊急時、親の機能不全、新規登録、引き継ぎ
 │   └── workflows/             # 訪問準備、レジリエンスレポート、更新チェック
 ├── lib/                       # 共有 Python ライブラリ
-│   ├── db_operations.py       # Neo4j 接続・クエリ実行
-│   ├── db_new_operations.py   # グラフ構造化登録（embedding 自動付与、Client summaryEmbedding 含む）
+│   ├── db_operations.py       # Neo4j 接続・クエリ実行（Guardian Layer 統合）
+│   ├── db_new_operations.py   # グラフ構造化登録（embedding 自動付与、Guardian Layer 統合）
+│   ├── schema_validator.py    # Guardian Layer: スキーマバリデーション・camelCase 変換
+│   ├── insight_engine.py      # Oracle Layer: 感情トレンド分析・リスク予兆検知
 │   ├── embedding.py           # Gemini Embedding 2（ベクトル生成・検索・音声・類似度分析）
 │   ├── file_readers.py        # ファイル読み取り（docx/xlsx/pdf/画像 + OCR）
+│   ├── pseudonymizer.py       # 仮名化モジュール
 │   └── utils.py               # 日付パース（和暦対応）
-├── claude-skills/             # 9つの Claude Skills
+├── claude-skills/             # 14の Claude Skills
 │   ├── neo4j-support-db/      # 障害福祉 DB
 │   ├── livelihood-support/    # 生活困窮者支援
 │   ├── provider-search/       # 事業所検索
-│   ├── emergency-protocol/    # 緊急時プロトコル
-│   ├── ecomap-generator/      # エコマップ生成
+│   ├── emergency-protocol/    # 緊急時プロトコル（insight-agent 連動）
+│   ├── ecomap-generator/      # エコマップ・インサイト生成（D3.js ハイブリッドビュー）
 │   ├── narrative-extractor/   # テキスト→構造化データ抽出
 │   ├── html-to-pdf/           # HTML→PDF 変換
 │   ├── inheritance-calculator/ # 法定相続計算
-│   └── wamnet-provider-sync/  # WAM NET データ同期
+│   ├── wamnet-provider-sync/  # WAM NET データ同期
+│   ├── data-quality-agent/    # データ品質チェック
+│   ├── onboarding-wizard/     # 新規クライアント登録
+│   ├── resilience-checker/    # 親なき後レジリエンス診断
+│   ├── visit-prep/            # 訪問準備ブリーフィング
+│   └── insight-agent/         # 予兆検知・インサイト分析（Oracle Layer）
 ├── sos/                       # SOS 緊急通知サービス
 │   ├── api_server.py          # FastAPI サーバー
 │   └── app/                   # PWA フロントエンド
 ├── configs/                   # Claude Desktop 設定テンプレート
+├── installer/                 # インストーラー・デモデータ
+│   ├── install-mac.sh         # macOS ワンクリックインストーラー
+│   ├── demo-data.cypher       # デモデータ（架空）
+│   └── simulation-emotion-data.cypher  # 感情シミュレーションデータ（検証用）
 ├── docs/                      # ドキュメント
 │   ├── QUICK_START.md         # クイックスタートガイド
-│   ├── SCHEMA_CONVENTION.md   # Neo4j 命名規則
-│   └── ADVANCED_USAGE.md      # Skills 詳細使い方
+│   ├── SETUP_GUIDE.md         # 詳細セットアップガイド
+│   ├── ADVANCED_USAGE.md      # Skills 詳細使い方
+│   ├── SCHEMA_CONVENTION.md   # Neo4j 命名規則（Single Source of Truth）
+│   ├── VOICE_RECORDING_GUIDE.md # 声の記録マニュアル（現場スタッフ向け）
+│   ├── PRIVACY_GUIDELINES.md  # プライバシーガイドライン
+│   └── EXTRACTION_PROMPT.md   # Gemini 構造化プロンプト（emotion/triggerTag/context 対応）
+├── tests/                     # テスト
+│   ├── test_schema_validator.py    # Guardian Layer テスト
+│   ├── test_insight_engine.py      # Oracle Layer テスト
+│   ├── test_simulation_scenario.py # シナリオテスト
+│   └── test_pseudonymizer.py       # 仮名化テスト
 └── scripts/                   # ユーティリティ
     ├── backup.sh              # Neo4j バックアップ
-    └── backfill_embeddings.py # 既存ノードへの embedding 一括付与
+    ├── backfill_embeddings.py # 既存ノードへの embedding 一括付与
+    └── multi_importer.py      # 多機能インポーター（音声・画像・PDF→構造化→登録）
 ```
 
 ## 技術スタック
@@ -351,8 +389,11 @@ nest-support/
 |-------------|------|
 | [CLAUDE.md](CLAUDE.md) | Claude 向けプロジェクト指示書（スキーマ規則、Skills ルーティング含む）|
 | [docs/QUICK_START.md](docs/QUICK_START.md) | 5分セットアップガイド |
+| [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md) | 詳細セットアップガイド（非技術者向け）|
 | [docs/ADVANCED_USAGE.md](docs/ADVANCED_USAGE.md) | Skills の詳細な使い方とプロンプト例 |
 | [docs/SCHEMA_CONVENTION.md](docs/SCHEMA_CONVENTION.md) | Neo4j 命名規則（Single Source of Truth）|
+| [docs/VOICE_RECORDING_GUIDE.md](docs/VOICE_RECORDING_GUIDE.md) | 声の記録マニュアル（現場スタッフ向け）|
+| [docs/PRIVACY_GUIDELINES.md](docs/PRIVACY_GUIDELINES.md) | プライバシーガイドライン |
 | [manifesto/MANIFESTO.md](manifesto/MANIFESTO.md) | マニフェスト v4.0 |
 | [sos/README.md](sos/README.md) | SOS 緊急通知サービスの詳細 |
 

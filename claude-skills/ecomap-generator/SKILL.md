@@ -1,163 +1,71 @@
 ---
 name: ecomap-generator
-description: 支援ネットワークをエコマップ（支援関係図）として可視化するスキル。HTML形式（Neo4j風）・Mermaid形式・SVG形式での出力に対応し、4種類のテンプレート（全体像、支援会議用、緊急時、引き継ぎ用）を提供。
+description: クライアントの支援ネットワークや現在の状態を、D3.jsを用いたインタラクティブなグラフ（エコマップ・インサイトグラフ）として可視化するスキル。ノードをドラッグして動かしたり、詳細を確認したりできるHTMLを出力する。「エコマップ」「関係図」「今の状態を視覚化」「インサイトグラフ」「ビジュアルで確認」などの話題で必ずこのスキルを使用すること。
 ---
 
-# エコマップ生成スキル (ecomap-generator)
+# エコマップ・インサイト生成スキル (ecomap-generator)
 
-知的障害・精神障害のある方の支援ネットワークを**エコマップ（支援関係図）**として可視化するスキルです。
+## このスキルの意義
+知的障害者支援において、本人を取り巻く「関係性」や、日々の「感情の変化」を直感的に把握することは極めて重要です。このスキルは、Neo4j内の複雑な繋がりを、物理シミュレーションを用いた生き生きとしたビジュアル（HTML形式）に変換し、支援チームの共通理解を助けます。
 
-## 使用条件
-
-- **neo4j-support-db**スキルが有効であること
-- Neo4jデータベースにクライアント情報が登録済みであること
-
-## 使用トリガー
-
-ユーザーが以下のように依頼した場合にこのスキルを使用：
-
-- 「〇〇さんのエコマップを作って」
-- 「支援会議用にエコマップを表示して」
-- 「緊急連絡体制を図にして」
-- 「引き継ぎ用のエコマップが欲しい」
-- 「Neo4j風のグラフで表示して」
-
-## エコマップの種類
-
-| テンプレート | 用途 | 含まれる情報 |
-|-------------|------|-------------|
-| `full_view` | 全体像把握 | 全ての関係者・機関 |
-| `support_meeting` | ケース会議 | 推奨ケア、キーパーソン、最近の支援記録 |
-| `emergency` | 緊急時対応 | 禁忌事項（最優先）、キーパーソン、医療機関 |
-| `handover` | 担当者引き継ぎ | 全情報＋支援記録履歴 |
-
-## 実行方法
-
-### 方法1: HTML形式（ブラウザで表示・推奨）
-
-Neo4j風のインタラクティブなグラフをブラウザで表示します。
-外部CDNに依存せず、純粋なSVGで描画するため確実に表示されます。
-ノードのドラッグ移動、クリックで詳細表示が可能です。
-
-```bash
-cd claude-skills/ecomap-generator/scripts
-uv run python generate_html.py "クライアント名" -t テンプレート名
-```
-
-**例：**
-```bash
-uv run python generate_html.py "山田健太" -t full_view
-# → outputs/山田健太_ecomap_full_view.html が生成される
-```
-
-生成されたHTMLファイルをブラウザで開いてください。
-
-### 方法2: Mermaid形式（チャット内表示）
-
-```bash
-cd claude-skills/ecomap-generator/scripts
-uv run python generate_mermaid.py "クライアント名" -t テンプレート名
-```
-
-**例：**
-```bash
-uv run python generate_mermaid.py "山田健太" -t emergency
-```
-
-### 方法3: SVG形式（印刷用ファイル）
-
-```bash
-cd claude-skills/ecomap-generator/scripts
-uv run python generate_svg.py "クライアント名" -t テンプレート名
-```
-
-**例：**
-```bash
-uv run python generate_svg.py "山田健太" -t support_meeting
-```
-
-出力先: `claude-skills/ecomap-generator/outputs/`
-
-### 方法4: Neo4jブラウザで表示
-
-以下のCypherクエリをNeo4jブラウザ（http://localhost:7474）で実行：
-
-**全体像:**
-```cypher
-MATCH path = (c:Client {name: 'クライアント名'})-[*1..2]-()
-RETURN path LIMIT 100
-```
-
-**緊急時体制:**
-```cypher
-MATCH (c:Client {name: 'クライアント名'})
-OPTIONAL MATCH (c)-[:MUST_AVOID|PROHIBITED]->(ng:NgAction)
-OPTIONAL MATCH (c)-[:REQUIRES|PREFERS]->(cp:CarePreference)
-WHERE cp.priority = 'High'
-OPTIONAL MATCH (c)-[kp_rel:HAS_KEY_PERSON|EMERGENCY_CONTACT]->(kp:KeyPerson)
-OPTIONAL MATCH (c)-[:HAS_GUARDIAN|HAS_LEGAL_REP]->(g:Guardian)
-OPTIONAL MATCH (c)-[:TREATED_AT]->(h:Hospital)
-RETURN c, ng, cp, kp, kp_rel, g, h
-```
-
-## neo4j-support-dbとの連携
-
-エコマップ生成前に、以下のツールでデータを確認：
-
+## 使用するMCPツール
 | ツール | 用途 |
 |--------|------|
-| `list_clients` | クライアント一覧 |
-| `get_client_profile` | クライアント全体像 |
-| `search_emergency_info` | 緊急時情報 |
+| `neo4j:read_neo4j_cypher` | 可視化に必要なデータの読み取り |
+| `bash:run_shell_command` | 可視化HTML生成スクリプトの実行 |
 
-## データモデル
+## 主な可視化内容
+1. **本人の中心性:** クライアントを中央に、周囲に支援情報を配置。
+2. **禁忌・推奨事項:** 安全に関わる「絶対にやってはいけないこと」や「効果的なケア」を色分けして表示。
+3. **最新の感情インサイト:** 直近の支援記録に基づき、喜び（Joy）や怒り（Anger）の状態をアニメーション効果で強調。
+4. **インタラクティブ性:** 各ノードをクリックして詳細プロパティ（背景、具体的な状況など）を確認可能。
 
-### ノード
+## 実行手順
 
-- `Client` - 本人（赤）
-- `NgAction` - 禁忌事項（赤）
-- `CarePreference` - 推奨ケア（緑）
-- `KeyPerson` - キーパーソン（オレンジ）
-- `Guardian` - 後見人（紫）
-- `Hospital` - 医療機関（青）
-- `Certificate` - 手帳（グレー）
-- `Condition` - 特性（黄）
-- `Supporter` - 支援者（青紫）
+### Step 1: データの確認と抽出
+対象のクライアント名に基づき、必要な情報が揃っているか確認します。
 
-### リレーション
+### Step 2: ビューの生成
 
-| 現行名（推奨） | 旧名（後方互換） | 用途 |
-|---|---|---|
-| `MUST_AVOID` | `PROHIBITED` | 禁忌事項 |
-| `REQUIRES` | `PREFERS` | 推奨ケア |
-| `HAS_KEY_PERSON` | `EMERGENCY_CONTACT` | キーパーソン |
-| `HAS_LEGAL_REP` | `HAS_GUARDIAN` | 後見人 |
-| `TREATED_AT` | - | 医療機関 |
-| `HAS_CERTIFICATE` | - | 手帳 |
-| `HAS_CONDITION` | - | 特性 |
+#### ハイブリッド・インサイト・ビュー（推奨）
+感情時系列チャート + 物理グラフ + AI相談プロンプト機能を統合したダッシュボード。
 
-**注意**: 読み取りクエリでは `[:MUST_AVOID|PROHIBITED]` のように旧名との後方互換性を確保しています。書き込み時は現行名のみ使用してください。
-
-## ファイル構成
-
-```
-claude-skills/ecomap-generator/
-├── SKILL.md              ← このファイル
-├── pyproject.toml        ← 依存関係定義
-├── scripts/
-│   ├── generate_html.py    ← HTML形式出力（推奨）
-│   ├── generate_mermaid.py ← Mermaid形式出力
-│   ├── generate_svg.py     ← SVG形式出力
-│   └── cypher_templates.py ← クエリテンプレート
-├── templates/            ← Cypherテンプレート
-│   ├── full_view.cypher
-│   ├── support_meeting.cypher
-│   ├── emergency.cypher
-│   └── handover.cypher
-└── outputs/              ← 生成ファイル
+```bash
+uv run python claude-skills/ecomap-generator/scripts/generate_html.py "[クライアント名]" hybrid
 ```
 
-## バージョン
+**機能:**
+- **左パネル**: 感情ポジティブ率の時系列折れ線グラフ（30日間）、Emotion Drift アラート、成功パターン一覧
+- **右パネル**: D3.js物理シミュレーションによるノードグラフ
+- **ノードクリック**: 詳細プロパティ表示 + AI相談プロンプトのワンクリックコピー
+- **リスクバッジ**: insight-engine の総合リスク評価（高/中/低）をヘッダーに表示
 
-- v1.1.0 (2026-02-17) - HTML出力追加、SVGバグ修正、パス修正
-- v1.0.0 (2025-12-26) - 初版リリース
+#### クラシックエコマップ
+従来の物理グラフのみのビュー。
+
+```bash
+uv run python claude-skills/ecomap-generator/scripts/generate_html.py "[クライアント名]" classic
+```
+
+### Step 3: ユーザーへの提示
+生成されたファイルのパスを提示し、ブラウザで開くよう案内します。
+例：「[クライアント名]さんのインサイトグラフを生成しました。以下のファイルを開くと、現在の感情の変化や禁忌事項を動的なグラフで確認できます。」
+
+### AI相談プロンプト機能
+グラフ上のノードをクリックすると詳細パネルが開き、「Claude に相談するプロンプトをコピー」ボタンが表示されます。
+ボタンを押すとノードタイプに応じた相談プロンプトがクリップボードにコピーされ、そのまま Claude Desktop に貼り付けて相談できます。
+
+| ノードタイプ | 生成されるプロンプト |
+|------------|-------------------|
+| NgAction | 禁忌事項への安全な対応手順と初動対応の相談 |
+| CarePreference | ケア方法の改善とバリエーション提案 |
+| SupportLog | 記録の分析と今後の支援方針改善 |
+| Condition | 特性への日常的な支援ポイント相談 |
+
+---
+
+## 活用場面
+- **ケース会議:** ハイブリッドビューで感情トレンドとネットワークを同時に俯瞰。
+- **新人研修・引き継ぎ:** 禁忌事項ノードをクリックし、AI相談プロンプトで具体的な対応方法を学ぶ。
+- **リスクモニタリング:** 感情チャートの警戒ライン割れとアラートで悪化兆候を早期発見。
+- **現場での即時相談:** ノードクリック → プロンプトコピー → Claude に貼り付けて即相談。

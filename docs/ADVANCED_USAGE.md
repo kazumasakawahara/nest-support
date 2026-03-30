@@ -12,7 +12,7 @@ Claude が SKILL.md に含まれるCypherテンプレートを参照し、汎用
 
 ---
 
-## 9つの Skills
+## 14の Skills
 
 ### 1. neo4j-support-db（障害福祉）
 
@@ -94,6 +94,76 @@ Claude が SKILL.md に含まれるCypherテンプレートを参照し、汎用
 WAM NETから最新の事業所データを取得して同期して
 ```
 
+### 10. data-quality-agent（データ品質チェック）
+
+**対象**: データの整合性・鮮度・欠損の定期チェック
+
+**プロンプト例:**
+```
+データベースの品質チェックを実行して
+更新期限が近いデータをすべてリストアップして
+スキーマ違反がないかチェックして
+```
+
+### 11. onboarding-wizard（新規クライアント登録）
+
+**対象**: 初回面接時の対話型情報収集
+
+**プロンプト例:**
+```
+新しいクライアントを登録したい
+初回面接の情報を入力します
+新規利用者の受け入れ準備をしたい
+```
+
+### 12. resilience-checker（親なき後レジリエンス診断）
+
+**対象**: 親が担う機能のカバー率診断
+
+**プロンプト例:**
+```
+山田さんの親なき後レジリエンスを診断して
+もし親が倒れたらどうなるかシミュレーションして
+バックアップ体制のカバー率を確認して
+```
+
+### 13. visit-prep（訪問準備ブリーフィング）
+
+**対象**: 訪問・同行支援の前日〜当日の準備
+
+**プロンプト例:**
+```
+明日、山田さんのところに訪問します。準備情報をください
+山田さんの訪問前ブリーフィングをお願い
+```
+
+### 14. insight-agent（予兆検知・インサイト分析）
+
+**対象**: 感情トレンド分析、リスク予兆の早期検知、ケアパターン自動発見
+
+**プロンプト例:**
+```
+山本翔太さんの最近の感情トレンドを分析して
+最近様子がおかしい利用者がいないかチェックして
+山本さんのリスク評価を実行して
+効果的なケアパターンを発見して
+全クライアントの感情サマリーを見せて
+```
+
+**機能:**
+- **Emotion Drift**: ベースラインからのネガティブ感情の増加率を検知（閾値30%）
+- **Cascading Risk**: 複数場面にまたがる負の感情の連鎖を検知
+- **Staff SOS**: スタッフの負荷増大を記録比率で検知
+- **Care Pattern**: 繰り返し効果的な対応を自動発見し、CarePreference への昇格を提案
+- **Risk Assessment**: 総合リスク評価 → High 時は emergency-protocol を自動連動
+
+**Python API (`lib/insight_engine.py`):**
+```python
+from lib.insight_engine import generate_risk_assessment
+result = generate_risk_assessment("山本翔太")
+# → {"risk_level": "high", "should_trigger_emergency": true, ...}
+```
+
 ---
 
 ## Skills の選択ガイド
@@ -103,13 +173,55 @@ WAM NETから最新の事業所データを取得して同期して
 | クライアントの情報確認 | `neo4j-support-db` |
 | テキストからの情報抽出・登録 | `narrative-extractor` |
 | 支援記録の追加・分析 | `neo4j-support-db` |
-| 訪問前の準備 | `livelihood-support` |
+| 訪問前の準備（障害福祉） | `visit-prep` |
+| 訪問前の準備（生活困窮者） | `livelihood-support` |
 | 引き継ぎ資料の作成 | `livelihood-support` |
 | 事業所の検索・比較 | `provider-search` |
 | 緊急時の即時対応 | `emergency-protocol` |
 | 支援関係の可視化 | `ecomap-generator` |
 | 証明書の期限管理 | `neo4j-support-db` |
 | 口コミの参照・登録 | `provider-search` |
+| 感情トレンド・予兆の分析 | `insight-agent` |
+| 新規クライアント登録 | `onboarding-wizard` |
+| 親なき後レジリエンス診断 | `resilience-checker` |
+| データ品質の定期チェック | `data-quality-agent` |
+
+---
+
+## 多機能インポーター
+
+音声・画像・PDF・テキストから感情データを含む構造化データを一括登録するスクリプトです。
+
+**前提**: `GEMINI_API_KEY` 環境変数が必要です（Gemini 2.0 Flash による音声文字起こし・画像OCR・テキスト構造化に使用）。
+
+```bash
+# 単一ファイル
+uv run python scripts/multi_importer.py 録音.m4a --client "山田太郎" --supporter "鈴木"
+
+# フォルダ一括
+uv run python scripts/multi_importer.py ./今日の記録/ --client "山田太郎"
+
+# ドライラン（登録せず構造化結果のみ確認）
+uv run python scripts/multi_importer.py memo.jpg --client "山田太郎" --dry-run
+```
+
+対応形式: `.mp3`, `.wav`, `.m4a`, `.ogg`, `.flac`, `.docx`, `.xlsx`, `.pdf`, `.txt`, `.jpg`, `.png`, `.webp`, `.heic`
+
+詳しい録音の仕方は [docs/VOICE_RECORDING_GUIDE.md](VOICE_RECORDING_GUIDE.md) を参照。
+
+---
+
+## ハイブリッド・インサイト・ビュー
+
+D3.js による感情時系列チャート + 物理グラフ + AI相談プロンプト機能を統合したダッシュボードです。
+
+```bash
+uv run python claude-skills/ecomap-generator/scripts/generate_html.py "山本翔太" hybrid
+```
+
+- **左パネル**: 感情ポジティブ率の時系列折れ線グラフ、アラートカード、成功パターン
+- **右パネル**: D3.js 物理シミュレーションによるノードグラフ
+- **ノードクリック**: 詳細表示 + AI相談プロンプトのクリップボードコピー
 
 ---
 

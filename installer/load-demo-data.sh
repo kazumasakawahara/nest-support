@@ -4,8 +4,10 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #
 # 使い方:
-#   ./load-demo-data.sh          # デモデータを投入
-#   ./load-demo-data.sh --remove # デモデータを削除
+#   ./load-demo-data.sh              # デモデータを投入
+#   ./load-demo-data.sh --simulation # デモ + シミュレーション感情データを投入
+#   ./load-demo-data.sh --remove     # デモデータを削除
+#   ./load-demo-data.sh --remove-sim # シミュレーションデータのみ削除
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -13,6 +15,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEMO_FILE="${SCRIPT_DIR}/demo-data.cypher"
+SIMULATION_FILE="${SCRIPT_DIR}/simulation-emotion-data.cypher"
 NEO4J_URL="http://localhost:7474/db/neo4j/tx/commit"
 NEO4J_AUTH="neo4j:password"
 
@@ -128,6 +131,51 @@ remove_demo() {
     success "デモデータの削除が完了しました"
 }
 
+# シミュレーション感情データ投入
+load_simulation() {
+    info "シミュレーション感情データを投入中..."
+
+    if [ ! -f "${SIMULATION_FILE}" ]; then
+        error "シミュレーションデータファイルが見つかりません: ${SIMULATION_FILE}"
+        exit 1
+    fi
+
+    local count=0
+    local current_stmt=""
+
+    while IFS= read -r line; do
+        [[ "$line" =~ ^[[:space:]]*//.* ]] && continue
+        [[ -z "$line" ]] && continue
+        current_stmt="${current_stmt} ${line}"
+        if [[ "$line" =~ \;[[:space:]]*$ ]]; then
+            current_stmt="${current_stmt%;}"
+            current_stmt=$(echo "$current_stmt" | sed 's/^[[:space:]]*//')
+            if [ -n "$current_stmt" ]; then
+                if run_cypher "$current_stmt"; then
+                    count=$((count + 1))
+                else
+                    warn "ステートメント ${count} でエラーが発生（続行します）"
+                fi
+            fi
+            current_stmt=""
+        fi
+    done < "${SIMULATION_FILE}"
+
+    success "シミュレーションデータの投入が完了しました（${count} ステートメント実行）"
+    echo ""
+    echo "  insight-agent の検証コマンド:"
+    echo "  「山本翔太さんの最近の感情トレンドを分析して」"
+    echo "  「山本翔太さんのリスク評価を実行して」"
+    echo ""
+}
+
+# シミュレーションデータ削除
+remove_simulation() {
+    info "シミュレーション感情データを削除中..."
+    run_cypher "MATCH (log:SupportLog) WHERE log.isSimulation = true DETACH DELETE log" && \
+        success "シミュレーションデータを削除しました"
+}
+
 main() {
     check_neo4j
 
@@ -135,11 +183,18 @@ main() {
         --remove|-r)
             remove_demo
             ;;
+        --simulation|-s)
+            load_demo
+            load_simulation
+            ;;
+        --remove-sim)
+            remove_simulation
+            ;;
         load|"")
             load_demo
             ;;
         *)
-            echo "使い方: $0 [--remove]"
+            echo "使い方: $0 [--simulation|--remove|--remove-sim]"
             exit 1
             ;;
     esac

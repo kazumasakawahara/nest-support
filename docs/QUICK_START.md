@@ -196,7 +196,7 @@ nest-support は2つのNeo4jインスタンスで構成されています:
 
 ---
 
-## Skills の一覧（13スキル）
+## Skills の一覧（14スキル）
 
 | Skill | 用途 | Neo4j Port |
 |-------|------|------------|
@@ -204,7 +204,7 @@ nest-support は2つのNeo4jインスタンスで構成されています:
 | `livelihood-support` | 生活困窮者自立支援 | 7688 |
 | `provider-search` | 事業所検索・口コミ | 7687 |
 | `emergency-protocol` | 緊急時対応プロトコル | — |
-| `ecomap-generator` | エコマップ生成 | — |
+| `ecomap-generator` | エコマップ・インサイト生成 | — |
 | `html-to-pdf` | HTML → PDF 変換 | — |
 | `inheritance-calculator` | 法定相続計算 | — |
 | `wamnet-provider-sync` | WAM NET データ同期 | 7687 |
@@ -213,6 +213,7 @@ nest-support は2つのNeo4jインスタンスで構成されています:
 | `onboarding-wizard` | 新規クライアント登録ウィザード | 7687 |
 | `resilience-checker` | 親なき後レジリエンス診断 | 7687 |
 | `visit-prep` | 訪問準備ブリーフィング | 7687 |
+| `insight-agent` | 予兆検知・インサイト分析 | 7687 |
 
 ---
 
