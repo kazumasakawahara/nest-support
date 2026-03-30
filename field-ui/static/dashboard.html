@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ダッシュボード - nest-support</title>
+<link rel="stylesheet" href="/static/shared.css">
+<style>
+    .rate-bar { height: 6px; border-radius: 3px; background: #eee; margin-top: 4px; }
+    .rate-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+    .detail-panel { display: none; margin-top: 12px; }
+    .detail-panel.open { display: block; }
+    .client-row { cursor: pointer; }
+    .log-item { padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+    .log-emotion { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="container">
+    <a href="/" class="nav-back">&larr; メニューに戻る</a>
+    <h1 style="font-size:20px; margin: 8px 0 4px;">ダッシュボード</h1>
+    <p style="font-size:13px; color: var(--text-light); margin-bottom:16px;">直近7日間の全体状況</p>
+
+    <div class="spinner" id="loading" style="display:block; margin-bottom:16px;"></div>
+
+    <div id="summary-section" style="display:none;">
+        <!-- サマリーカード -->
+        <div class="card" style="display:flex; gap:16px; text-align:center;">
+            <div style="flex:1;">
+                <div style="font-size:28px; font-weight:bold; color:var(--primary);" id="totalClients">-</div>
+                <div style="font-size:12px; color:var(--text-light);">クライアント</div>
+            </div>
+            <div style="flex:1;">
+                <div style="font-size:28px; font-weight:bold; color:var(--danger);" id="alertCount">-</div>
+                <div style="font-size:12px; color:var(--text-light);">要注意</div>
+            </div>
+            <div style="flex:1;">
+                <div style="font-size:28px; font-weight:bold; color:var(--success);" id="stableCount">-</div>
+                <div style="font-size:12px; color:var(--text-light);">安定</div>
+            </div>
+        </div>
+
+        <!-- クライアント一覧 -->
+        <div class="card">
+            <h2 style="font-size:16px; margin-bottom:12px;">クライアント一覧</h2>
+            <div id="client-list"></div>
+        </div>
+    </div>
+
+    <!-- 詳細モーダル -->
+    <div id="detail-modal" style="display:none;">
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h2 style="font-size:16px;" id="detail-name"></h2>
+                <button onclick="closeDetail()" style="background:none; border:none; font-size:20px; cursor:pointer; color:var(--text-light);">&times;</button>
+            </div>
+
+            <div id="detail-risk" style="margin-bottom:12px;"></div>
+
+            <h3 style="font-size:14px; margin: 12px 0 8px; color:var(--text-light);">アラート</h3>
+            <div id="detail-alerts"></div>
+
+            <h3 style="font-size:14px; margin: 12px 0 8px; color:var(--text-light);">推奨アクション</h3>
+            <div id="detail-actions" style="font-size:13px;"></div>
+
+            <h3 style="font-size:14px; margin: 12px 0 8px; color:var(--text-light);">直近の記録</h3>
+            <div id="detail-logs"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+const EMOTION_COLORS = {
+    Joy: '#FFD700', Anger: '#FF5252', Sadness: '#42A5F5', Fear: '#AB47BC',
+    Anxiety: '#FF7043', Calm: '#66BB6A', Neutral: '#9E9E9E', Surprise: '#FFEE58',
+    Disgust: '#8D6E63', Confusion: '#78909C'
+};
+const EMOTION_LABELS = {
+    Joy: '嬉しい', Anger: '怒り', Sadness: '悲しみ', Fear: '恐怖',
+    Anxiety: '不安', Calm: '穏やか', Neutral: '普通', Surprise: '驚き',
+    Disgust: '嫌悪', Confusion: '混乱'
+};
+
+// データ取得
+fetch('/api/dashboard/summary')
+    .then(r => r.json())
+    .then(data => renderSummary(data))
+    .catch(err => {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('summary-section').innerHTML =
+            '<div class="card"><p>データの取得に失敗しました。Neo4j が起動しているか確認してください。</p></div>';
+        document.getElementById('summary-section').style.display = 'block';
+    });
+
+function renderSummary(data) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('summary-section').style.display = 'block';
+
+    const alertThreshold = 40;
+    const alertClients = data.filter(d => d.negativeRate >= alertThreshold);
+    const stableClients = data.filter(d => d.negativeRate < alertThreshold);
+
+    document.getElementById('totalClients').textContent = data.length;
+    document.getElementById('alertCount').textContent = alertClients.length;
+    document.getElementById('stableCount').textContent = stableClients.length;
+
+    const list = document.getElementById('client-list');
+    if (data.length === 0) {
+        list.innerHTML = '<p style="color:var(--text-light); font-size:14px;">直近7日間の記録がありません</p>';
+        return;
+    }
+
+    data.forEach(d => {
+        const isAlert = d.negativeRate >= alertThreshold;
+        const color = isAlert ? 'var(--danger)' : d.negativeRate >= 20 ? 'var(--warning)' : 'var(--success)';
+
+        const row = document.createElement('div');
+        row.className = 'client-row';
+        row.style.cssText = 'padding: 12px 0; border-bottom: 1px solid #f0f0f0;';
+        row.onclick = () => showDetail(d.clientName);
+
+        row.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <div style="font-weight:bold; font-size:15px;">${d.clientName}</div>
+                    <div style="font-size:12px; color:var(--text-light);">${d.totalLogs}件の記録</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:18px; font-weight:bold; color:${color};">${d.negativeRate}%</div>
+                    <div style="font-size:11px; color:var(--text-light);">ネガティブ率</div>
+                </div>
+            </div>
+            <div class="rate-bar">
+                <div class="rate-fill" style="width:${d.negativeRate}%; background:${color};"></div>
+            </div>
+        `;
+        list.appendChild(row);
+    });
+}
+
+async function showDetail(clientName) {
+    document.getElementById('summary-section').style.display = 'none';
+    document.getElementById('detail-modal').style.display = 'block';
+    document.getElementById('detail-name').textContent = clientName;
+    document.getElementById('detail-risk').innerHTML = '<div class="spinner" style="display:block;"></div>';
+    document.getElementById('detail-alerts').innerHTML = '';
+    document.getElementById('detail-actions').innerHTML = '';
+    document.getElementById('detail-logs').innerHTML = '';
+
+    // インサイト分析と直近記録を並行取得
+    const [insightRes, logsRes] = await Promise.all([
+        fetch(`/api/dashboard/alerts/${encodeURIComponent(clientName)}`).then(r => r.json()).catch(() => null),
+        fetch(`/api/dashboard/recent-logs/${encodeURIComponent(clientName)}`).then(r => r.json()).catch(() => []),
+    ]);
+
+    // リスクレベル
+    if (insightRes) {
+        const level = insightRes.risk_level || 'low';
+        const labels = { high: '高', medium: '中', low: '低' };
+        document.getElementById('detail-risk').innerHTML =
+            `<span class="badge badge-${level}">リスク: ${labels[level]}</span>`;
+
+        // アラート
+        const alerts = (insightRes.emotion_drift && insightRes.emotion_drift.alerts) || [];
+        const alertsDiv = document.getElementById('detail-alerts');
+        if (alerts.length === 0) {
+            alertsDiv.innerHTML = '<p style="font-size:13px; color:var(--text-light);">アラートなし</p>';
+        } else {
+            alerts.forEach(a => {
+                const div = document.createElement('div');
+                div.className = `alert-item alert-${a.severity}`;
+                div.innerHTML = `<strong>「${a.triggerTag}」</strong> ネガティブ +${(a.drift * 100).toFixed(0)}%`
+                    + `<br><span style="color:var(--text-light); font-size:12px;">`
+                    + `${(a.baseline_negative_rate * 100).toFixed(0)}% → ${(a.recent_negative_rate * 100).toFixed(0)}%</span>`;
+                alertsDiv.appendChild(div);
+            });
+        }
+
+        // 推奨アクション
+        const actions = insightRes.recommended_actions || [];
+        const actionsDiv = document.getElementById('detail-actions');
+        if (actions.length === 0) {
+            actionsDiv.innerHTML = '<p style="color:var(--text-light);">特になし</p>';
+        } else {
+            const ul = document.createElement('ul');
+            ul.style.cssText = 'padding-left: 20px; margin: 0;';
+            actions.forEach(a => {
+                const li = document.createElement('li');
+                li.textContent = a;
+                li.style.marginBottom = '4px';
+                ul.appendChild(li);
+            });
+            actionsDiv.appendChild(ul);
+        }
+    } else {
+        document.getElementById('detail-risk').innerHTML = '<span style="color:var(--text-light);">分析データなし</span>';
+    }
+
+    // 直近の記録
+    const logsDiv = document.getElementById('detail-logs');
+    if (logsRes.length === 0) {
+        logsDiv.innerHTML = '<p style="font-size:13px; color:var(--text-light);">記録なし</p>';
+    } else {
+        logsRes.slice(0, 10).forEach(log => {
+            const emotion = log.emotion || 'Neutral';
+            const color = EMOTION_COLORS[emotion] || '#9E9E9E';
+            const label = EMOTION_LABELS[emotion] || emotion;
+
+            const div = document.createElement('div');
+            div.className = 'log-item';
+            div.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>${log.date || ''} ${log.situation || ''}</span>
+                    <span class="log-emotion" style="background:${color}20; color:${color};">${label}</span>
+                </div>
+                <div style="color:var(--text-light); margin-top:2px;">${log.action || ''}</div>
+            `;
+            logsDiv.appendChild(div);
+        });
+    }
+}
+
+function closeDetail() {
+    document.getElementById('detail-modal').style.display = 'none';
+    document.getElementById('summary-section').style.display = 'block';
+}
+</script>
+</body>
+</html>
