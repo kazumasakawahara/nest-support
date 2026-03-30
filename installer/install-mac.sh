@@ -413,7 +413,7 @@ configure_claude_desktop() {
             echo "  mcpServers に以下を追加:"
             echo '    "neo4j": {'
             echo '      "command": "npx",'
-            echo '      "args": ["-y", "@anthropic/neo4j-mcp-server"],'
+            echo '      "args": ["-y", "@alanse/mcp-neo4j-server"],'
             echo '      "env": {'
             echo '        "NEO4J_URI": "bolt://localhost:7687",'
             echo '        "NEO4J_USERNAME": "neo4j",'
@@ -422,7 +422,7 @@ configure_claude_desktop() {
             echo '    },'
             echo '    "livelihood-support-db": {'
             echo '      "command": "npx",'
-            echo '      "args": ["-y", "@anthropic/neo4j-mcp-server"],'
+            echo '      "args": ["-y", "@alanse/mcp-neo4j-server"],'
             echo '      "env": {'
             echo '        "NEO4J_URI": "bolt://localhost:7688",'
             echo '        "NEO4J_USERNAME": "neo4j",'

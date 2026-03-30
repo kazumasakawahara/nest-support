@@ -455,7 +455,7 @@ function Configure-ClaudeDesktop {
         mcpServers = @{
             neo4j = @{
                 command = "npx"
-                args    = @("-y", "@anthropic/neo4j-mcp-server")
+                args    = @("-y", "@alanse/mcp-neo4j-server")
                 env     = @{
                     NEO4J_URI      = "bolt://localhost:7687"
                     NEO4J_USERNAME = "neo4j"
@@ -464,7 +464,7 @@ function Configure-ClaudeDesktop {
             }
             "livelihood-support-db" = @{
                 command = "npx"
-                args    = @("-y", "@anthropic/neo4j-mcp-server")
+                args    = @("-y", "@alanse/mcp-neo4j-server")
                 env     = @{
                     NEO4J_URI      = "bolt://localhost:7688"
                     NEO4J_USERNAME = "neo4j"

@@ -256,7 +256,7 @@ ls -la ~/.claude/skills/
 ```bash
 docker ps | grep neo4j
 curl -s http://localhost:7474
-npx -y @anthropic/neo4j-mcp-server --help
+npx -y @alanse/mcp-neo4j-server --help
 ```
 
 ### Cypher クエリがエラーになる

@@ -29,7 +29,7 @@
               ↓
          Skills (SKILL.md)  ←  14のスキルがCypherテンプレートを提供
               ↓
-         Neo4j MCP (@anthropic/neo4j-mcp-server)
+         Neo4j MCP (@alanse/mcp-neo4j-server)
               ↓
          Neo4j Graph Database
 
@@ -89,7 +89,7 @@ chmod +x setup.sh
   "mcpServers": {
     "neo4j": {
       "command": "npx",
-      "args": ["-y", "@anthropic/neo4j-mcp-server"],
+      "args": ["-y", "@alanse/mcp-neo4j-server"],
       "env": {
         "NEO4J_URI": "bolt://localhost:7687",
         "NEO4J_USERNAME": "neo4j",
@@ -376,7 +376,7 @@ nest-support/
 | AI | Claude Desktop / Claude Code + Skills |
 | セマンティック検索 | Gemini Embedding 2 (`gemini-embedding-2-preview`, 768次元) |
 | データベース | Neo4j 5.15+ (Docker) |
-| DB 接続 | Neo4j MCP (`@anthropic/neo4j-mcp-server`) |
+| DB 接続 | Neo4j MCP (`@alanse/mcp-neo4j-server`) |
 | SOS API | FastAPI + uvicorn |
 | SOS 通知 | LINE Messaging API |
 | SOS フロントエンド | PWA (HTML + Service Worker) |

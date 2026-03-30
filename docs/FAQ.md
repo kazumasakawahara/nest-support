@@ -127,7 +127,7 @@ cd nest-support
 
 5. npx の動作確認:
 ```bash
-npx -y @anthropic/neo4j-mcp-server --help
+npx -y @alanse/mcp-neo4j-server --help
 ```
 
 ### Skills が認識されない
