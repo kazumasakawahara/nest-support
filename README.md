@@ -20,6 +20,7 @@
 - **多機能インポーター** — 音声・画像・PDF・テキストから感情データを含む構造化データを一括登録
 - **ハイブリッド・インサイト・ビュー** — D3.js による感情時系列チャート + 物理グラフ + AI相談プロンプト
 - **クライアント類似度分析** — 支援特性に基づくクライアント間の類似度比較・類似ケース検索
+- **現場UI (Field UI)** — モバイルファーストの PWA で現場スタッフがスマホから支援記録入力・感情サマリー確認・音声ワンタップ録音（FastAPI サーバー）
 - **SOS 緊急通知** — スマホ PWA から LINE グループへ即時通知（FastAPI 独立サービス）
 
 ## アーキテクチャ
@@ -36,6 +37,7 @@
 Guardian Layer (schema_validator.py)  ← 全データ書き込み時にスキーマ検証
 Oracle Layer (insight_engine.py)      ← 感情トレンド分析・リスク予兆検知
 Slim View (D3.js hybrid_insight)      ← ハイブリッド・インサイト・ビュー
+Field UI (FastAPI :8001)              ← 現場スタッフ向けモバイルPWA
 ```
 
 ```
@@ -306,6 +308,28 @@ uv run python api_server.py
 
 詳細: [sos/README.md](sos/README.md)
 
+## 現場UI (Field UI)
+
+現場スタッフがスマホから直接操作できるモバイルファーストの PWA です。FastAPI サーバー（port 8001）で提供されます。
+
+### 3つの画面
+
+| 画面 | URL | 説明 |
+|------|-----|------|
+| 支援記録フォーム | `/record` | チップ選択式の簡単入力で現場から支援記録を登録 |
+| 管理者ダッシュボード | `/dashboard` | クライアントの感情サマリーとドリルダウン分析 |
+| 音声ワンタップ録音 | `/voice` | ブラウザで録音 → Gemini 文字起こし → 自動登録 |
+
+### 起動方法
+
+```bash
+uv run uvicorn field-ui.server:app --host 0.0.0.0 --port 8001
+```
+
+アプリURL: `http://localhost:8001`
+
+> **Note**: 音声ワンタップ録音機能には `GEMINI_API_KEY` の設定が必要です。
+
 ## プロジェクト構成
 
 ```
@@ -342,6 +366,8 @@ nest-support/
 │   ├── resilience-checker/    # 親なき後レジリエンス診断
 │   ├── visit-prep/            # 訪問準備ブリーフィング
 │   └── insight-agent/         # 予兆検知・インサイト分析（Oracle Layer）
+├── field-ui/                  # 現場UI（モバイルファースト PWA）
+│   └── server.py              # FastAPI サーバー（port 8001）
 ├── sos/                       # SOS 緊急通知サービス
 │   ├── api_server.py          # FastAPI サーバー
 │   └── app/                   # PWA フロントエンド

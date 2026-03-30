@@ -225,6 +225,28 @@ uv run python claude-skills/ecomap-generator/scripts/generate_html.py "山本翔
 
 ---
 
+## 現場UI (Field UI)
+
+現場スタッフがスマホから直接操作できるモバイルファーストの PWA です。Claude Desktop を使わずに、ブラウザから支援記録の入力や感情サマリーの確認ができます。
+
+### サーバーの起動
+
+```bash
+uv run uvicorn field-ui.server:app --host 0.0.0.0 --port 8001
+```
+
+### 3つの画面
+
+| 画面 | URL | 説明 |
+|------|-----|------|
+| 支援記録フォーム | http://localhost:8001/record | チップ選択式の簡単入力。現場でスマホからすばやく支援記録を登録できます |
+| 管理者ダッシュボード | http://localhost:8001/dashboard | クライアントの感情サマリー表示とドリルダウン分析。管理者向け |
+| 音声ワンタップ録音 | http://localhost:8001/voice | ブラウザで録音 → Gemini による文字起こし → Neo4j に自動登録 |
+
+> **Note**: 音声ワンタップ録音機能には `GEMINI_API_KEY` 環境変数の設定が必要です。`.env` ファイルに `GEMINI_API_KEY=your_key` を追記してください。
+
+---
+
 ## Skills のカスタマイズ
 
 ### SKILL.md の編集

@@ -267,3 +267,15 @@ Get-Content "$env:APPDATA\Claude\claude_desktop_config.json"
 - [SCHEMA_CONVENTION.md](./SCHEMA_CONVENTION.md) — Neo4j 命名規則
 - [FAQ.md](./FAQ.md) — よくある質問とトラブルシューティング
 - [Neo4j Browser](http://localhost:7474) — データの直接確認・操作
+
+---
+
+## 現場UI (Field UI)
+
+スマホから支援記録の入力や感情サマリーの確認ができるモバイル向け PWA も利用できます。
+
+```bash
+uv run uvicorn field-ui.server:app --host 0.0.0.0 --port 8001
+```
+
+起動後、`http://localhost:8001` にアクセスしてください。詳細は [ADVANCED_USAGE.md](./ADVANCED_USAGE.md) の「現場UI」セクションを参照してください。
