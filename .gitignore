@@ -44,6 +44,9 @@ neo4j_livelihood_plugins/
 # 再整備時の旧資産退避先（Git 管理外）
 .quarantine/
 
+# neo4j-graph-viz の生成物（再生成可能）
+docs/viz/
+
 # ツール固有
 .serena/
 .superpowers/
