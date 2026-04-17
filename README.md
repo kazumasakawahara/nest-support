@@ -102,6 +102,16 @@ chmod +x setup.sh
 }
 ```
 
+### 環境整合チェック（推奨）
+
+セットアップ後は `doctor.sh` で全体の整合性（Docker コンテナ・Bolt 疎通・Skills symlink・MCP 設定）を一発確認できます。
+
+```bash
+./scripts/doctor.sh
+```
+
+問題があれば具体的な FAIL 項目が表示されます。常時 **All PASS** を目標にしてください。
+
 ### 動作確認
 
 Claude Desktop を再起動し、以下のように話しかけてください:

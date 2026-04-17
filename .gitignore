@@ -40,3 +40,11 @@ outputs/
 neo4j_livelihood_data/
 neo4j_livelihood_logs/
 neo4j_livelihood_plugins/
+
+# 再整備時の旧資産退避先（Git 管理外）
+.quarantine/
+
+# ツール固有
+.serena/
+.superpowers/
+docs/superpowers/

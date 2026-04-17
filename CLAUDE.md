@@ -270,6 +270,35 @@ cd sos && cp .env.example .env && uv run python api_server.py
 
 See `docs/QUICK_START.md` for detailed setup instructions.
 
+### 環境整合チェック（doctor.sh）
+
+開発・運用中の環境が仕様通りかを一発で検証するスクリプト。セッション開始時、コンテナ再起動後、あるいは「動かない」と感じたら最初に実行すること。
+
+```bash
+./scripts/doctor.sh
+```
+
+チェック項目（21項目・All PASS が健全状態）:
+1. Docker コンテナ（`nest-support-neo4j`, `nest-support-neo4j-livelihood`）が running か
+2. Bolt ポート 7687 / 7688 が疎通するか
+3. `~/.claude/skills/` の 14 Skills が本プロジェクトの `claude-skills/` を指しているか
+4. プロジェクトの `.mcp.json` が port 7687/7688 の neo4j / livelihood-support-db を定義しているか
+5. Claude Desktop 設定にも neo4j / livelihood-support-db があるか（情報のみ）
+
+---
+
+## Operational Status / Phase History
+
+| Phase | 完了日 | 内容 |
+|-------|-------|------|
+| Phase 1: 足場の清掃 | 2026-04-17 | 別プロジェクト依存の解消（Skills symlink 張替え、Docker 正規化、MCP 設定整備、`doctor.sh` 追加） |
+| Phase 2: 概念実証 | 2026-04-17 | 「narrative → 構造化 → Neo4j 登録 → 照会 → 訪問準備シート生成」を Claude + Skills のみで完走（成果物: `scripts/examples/phase2-poc/`） |
+| Phase 3: ドリフト防止 | 2026-04-17 | CLAUDE.md / README.md に運用ステータスと `doctor.sh` を記載 |
+
+**次のアクション（候補）**:
+- Claude Desktop 再起動後、実業務記録を使って narrative-extractor → visit-prep の一気通貫を試行
+- 支援記録が蓄積したら `insight-agent` Skill で予兆検知・効果パターン分析を有効化
+
 ---
 
 ## File Organization
