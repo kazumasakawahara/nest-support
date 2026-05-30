@@ -23,3 +23,9 @@ dependencies = [
 dev = [
     "pytest>=9.0.2",
 ]
+
+[tool.pytest.ini_options]
+# テストは lib/ を import するため、リポジトリルートを import パスに含める。
+# これがないと `uv run pytest` が ModuleNotFoundError: No module named 'lib' で失敗する。
+pythonpath = ["."]
+testpaths = ["tests"]

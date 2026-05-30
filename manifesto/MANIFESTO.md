@@ -13,7 +13,7 @@
 親たちが長い時間をかけて蓄積してきた**「我が子を守るための暗黙知（Wisdom）」**と**「愛（Care）」**を、親なき後も機能する**「社会的なシステム」**へと継承するためのデジタル・アーカイブである。
 また、クライアントは、尊厳のある個人であって、自らのことは自らが決める権利を有している（もちろん社会性の制約はある）ことを支援に関わる者たちは決して忘れてはならない。
 
-このシステムは**Claude AI**を中核エージェントとし、5つのSkillsと汎用Neo4j MCPを通じてNeo4jグラフデータベースに蓄積された知識を運用する。
+このシステムは**Claude AI**を中核エージェントとし、複数のSkills（現在14個）と汎用Neo4j MCPを通じてNeo4jグラフデータベースに蓄積された知識を運用する。Skillの最新一覧と使い分けは `CLAUDE.md`「Skills 一覧と使い分けガイド」を正典とする。
 
 ---
 
@@ -31,7 +31,7 @@
 
 ## 2. データモデルの7本柱 (The 7 Data Pillars)
 
-v4.0では、5つのSkills（neo4j-support-db / livelihood-support / provider-search / emergency-protocol / ecomap-generator）が扱う領域を統一的に整理する。
+v4.0では、中核5Skills（neo4j-support-db / livelihood-support / provider-search / emergency-protocol / ecomap-generator）が扱う領域を統一的に整理した。その後 narrative-extractor / visit-prep / resilience-checker / onboarding-wizard / data-quality-agent / insight-agent / wamnet-provider-sync / inheritance-calculator / html-to-pdf を追加し、現在は計14 Skills（最新は `CLAUDE.md` を参照）。以下の7本柱はこれら全Skillに通底するデータモデルである。
 
 ### 第1の柱：本人性 (Identity & Narrative)
 「その人は誰か」を定義する。属性だけでなく、人生の物語を含む。
@@ -120,7 +120,7 @@ v4.0では、5つのSkills（neo4j-support-db / livelihood-support / provider-se
 
 ## 4. Skills & Neo4j MCP 構成
 
-このシステムは5つのSkillsと2つの汎用Neo4j MCPで構成される。
+このシステムは複数のSkills（現在14個）と2つの汎用Neo4j MCPで構成される。データモデルの中心を担う代表的なSkillを以下に示す（全Skillの一覧・ルーティング判断フローは `CLAUDE.md` を正典とする）。
 
 | スキル | 対象業務 | 柱の対応 | Neo4j ポート |
 |--------|----------|---------|-------------|
@@ -130,11 +130,13 @@ v4.0では、5つのSkills（neo4j-support-db / livelihood-support / provider-se
 | **emergency-protocol** | 緊急時対応プロトコル | 第2の柱（ケアの暗黙知） | — |
 | **ecomap-generator** | 支援ネットワーク可視化 | 第3の柱（危機管理） | — |
 
+（上記に加え narrative-extractor / visit-prep / resilience-checker / onboarding-wizard / data-quality-agent / insight-agent / wamnet-provider-sync / inheritance-calculator / html-to-pdf がある）
+
 **Neo4j MCP:**
 - `neo4j`（port 7687）: neo4j-support-db, provider-search スキル用
 - `neo4j-livelihood`（port 7688）: livelihood-support スキル用
 
-→ 詳細: `ROUTING.md`
+→ 全Skillの使い分けとルーティング判断フロー: `CLAUDE.md`「Skills 一覧と使い分けガイド」
 
 ---
 

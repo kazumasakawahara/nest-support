@@ -4,7 +4,7 @@
 
 母親・支援者の語り（ナラティブ）やファイルから、支援に必要な構造化データをJSON形式で抽出し、Neo4jデータベースに登録するためのスキル。
 
-Gemini ai_extractor.py の機能をClaude Skill として実現する。
+構造化抽出は **Claude 自身がこの SKILL.md の指示に従って直接行う**（外部 LLM API は不要）。Claude が抽出した JSON を、neo4j MCP の `write_neo4j_cypher` で本スキルの Cypher テンプレートを使って登録する。
 
 ## トリガーワード
 

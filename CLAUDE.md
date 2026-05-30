@@ -10,7 +10,9 @@ This file provides guidance to Claude Code / Claude Desktop when working with th
 
 **nest-support: Claude-Native 親なき後支援データベース**
 
-Neo4j グラフデータベースに蓄積された障害福祉支援情報を、**Claude Desktop / Claude Code + Skills + Neo4j MCP** のみで運用するシステム。Streamlit UI や Gemini API への依存を完全に排除した Single Layer アーキテクチャ。
+Neo4j グラフデータベースに蓄積された障害福祉支援情報を、**Claude Desktop / Claude Code + Skills + Neo4j MCP** を中核に運用するシステム。Streamlit UI への依存を排除し、日常運用は Claude との対話だけで完結する。
+
+> **依存についての正確な記述**: テキストの構造化抽出（narrative-extractor）・照会・分析・ブリーフィング生成といった**日常運用は Claude のみで完結**する（Single Layer）。一方、**セマンティック検索の embedding 生成・音声文字起こし・手書き OCR は Gemini API（`lib/embedding.py`）に依存**する補助機能であり、`GEMINI_API_KEY` 未設定でもスキップされるだけで中核機能は動作する。「Claude 主体 + 検索系は外部 embedding 依存あり」が正確なアーキテクチャ像である。
 
 ### Core Manifesto (5 Values + 7 Pillars)
 
@@ -36,13 +38,21 @@ See `manifesto/MANIFESTO.md` for the complete v4.0 manifesto.
 
 ## Architecture
 
-### Single Layer Design
+### アーキテクチャ：Claude ハブ + 補助サービス
+
+中核は単層（Single Layer）— Claude が SKILL.md の Cypher テンプレートを参照し、汎用 Neo4j MCP でクエリを実行する。これに、Claude を介さず Neo4j を直接読む独立サービス（field-ui / sos）が疎結合でぶら下がる構成。
 
 ```
+【中核 = Single Layer】
 ユーザー → Claude Desktop / Claude Code → Skills (SKILL.md) → Neo4j MCP → Neo4j DB
+
+【補助サービス（独立 FastAPI・Claude を経由しない）】
+現場スタッフのスマホ → field-ui (port 8001) ──┐
+緊急時の通報         → sos (port 8000) ───────┼─→ Neo4j DB
+                                              └─→ 外部API（Gemini / LINE）
 ```
 
-Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎用 Neo4j MCP の `read_neo4j_cypher` / `write_neo4j_cypher` ツールでクエリを実行する。
+Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎用 Neo4j MCP の `read_neo4j_cypher` / `write_neo4j_cypher` ツールでクエリを実行する。field-ui と sos は現場のモバイル UX・緊急通報のための独立サービスで、中核の Single Layer とは別系統で動作する。
 
 ### System Components
 
@@ -50,8 +60,7 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 2. **SOS Service** (`sos/`): FastAPI + LINE Messaging API による緊急通知（独立サービス）
 3. **Field UI** (`field-ui/`): FastAPI（port 8001）によるモバイルファースト PWA — 支援記録フォーム、管理者ダッシュボード、音声ワンタップ録音の3画面
 4. **Shared Libraries** (`lib/`):
-   - `db_operations.py`: Neo4j 接続・クエリ実行・CRUD・仮名化出力（Guardian Layer 統合）
-   - `db_new_operations.py`: グラフ構造化登録（embedding 自動付与フック付き、Guardian Layer 統合）
+   - `db_operations.py`: Neo4j 接続・クエリ実行・グラフ構造化登録（`register_to_database`）・CRUD・仮名化出力。embedding 自動付与フックと Guardian Layer を統合した唯一の登録モジュール
    - `schema_validator.py`: **Guardian Layer** — スキーマバリデーション（camelCase 自動変換・廃止リレーション修正・列挙値検証）
    - `insight_engine.py`: **Oracle Layer** — 感情トレンド分析・リスク予兆検知・ケアパターン自動発見・CarePreference 昇格提案
    - `embedding.py`: Gemini Embedding 2 によるベクトル生成・セマンティック検索・OCR・音声embedding・クライアント類似度分析
@@ -317,8 +326,7 @@ nest-support/
 │   ├── protocols/                 # emergency, parent_down, onboarding, handover
 │   └── workflows/                 # visit_preparation, resilience_report, renewal_check
 ├── lib/                           # 共有Pythonライブラリ
-│   ├── db_operations.py           # Neo4j接続・クエリ実行・CRUD・仮名化出力（Guardian Layer統合）
-│   ├── db_new_operations.py       # グラフ構造化登録（embedding自動付与、Guardian Layer統合）
+│   ├── db_operations.py           # Neo4j接続・クエリ実行・グラフ構造化登録・CRUD・仮名化出力（embedding自動付与＋Guardian Layer統合）
 │   ├── schema_validator.py        # Guardian Layer: スキーマバリデーション・camelCase変換
 │   ├── insight_engine.py          # Oracle Layer: 感情トレンド分析・リスク予兆検知
 │   ├── embedding.py               # Gemini Embedding 2（ベクトル生成・検索・OCR）
@@ -426,9 +434,8 @@ Gemini Embedding 2（`gemini-embedding-2-preview`）による768次元ベクト�
 | `meeting_record_text_embedding` | MeetingRecord | textEmbedding | 768 | cosine |
 
 **自動付与フロー:**
-- `lib/db_new_operations.py::register_to_database()` — ノード登録時にベストエフォートで embedding 自動付与
-- `lib/db_new_operations.py::register_to_database()` — ノード登録時に Client の summaryEmbedding もベストエフォートで自動付与
-- `lib/db_new_operations.py::register_support_log()` — 支援記録登録時に embedding 自動付与
+- `lib/db_operations.py::register_to_database()` — ノード登録時にベストエフォートで embedding 自動付与（SupportLog / NgAction / CarePreference）
+- `lib/db_operations.py::register_to_database()` — ノード登録時に Client の summaryEmbedding もベストエフォートで自動付与
 - `db.create.setNodeVectorProperty()` を使用（通常の `SET` ではベクトルインデックスに認識されない）
 
 **検索関数（`lib/embedding.py`）:**

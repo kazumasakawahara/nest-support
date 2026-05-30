@@ -7,17 +7,16 @@
 
 ## 目的
 
-本プロジェクトでは、複数の LLM・エージェントが Neo4j データベースへの読み書きを行います：
+本プロジェクトでは、複数のエントリーポイントが Neo4j データベースへの読み書きを行います：
 
-| エントリーポイント | 担当LLM | 書き込み方式 | 規約準拠の強制力 |
+| エントリーポイント | 担当 | 書き込み方式 | 規約準拠の強制力 |
 |---|---|---|---|
-| `lib/ai_extractor.py` → `lib/db_operations.py` | Gemini 2.0 Flash | EXTRACTION_PROMPT → register_to_database() | **強**（コードで固定） |
-| `server.py` (MCP server) | Claude Desktop | run_cypher_query() 経由 | **中**（Skill テンプレート依存） |
-| Claude Skills (SKILL.md) | Claude Desktop | neo4j MCP の read/write_neo4j_cypher | **弱**（LLMの判断に依存） |
-| `mobile/api_server.py` | Gemini 2.0 Flash | 上記と同じ extract → register | **強**（コードで固定） |
+| Claude Skills (SKILL.md) | Claude Desktop / Code | neo4j MCP の read/write_neo4j_cypher | **中**（Guardian Layer 非経由・LLMの判断＋本規約に依存） |
+| `lib/db_operations.py` | Python（field-ui・scripts 等が呼ぶ） | `register_to_database()` 等。書込前に Guardian Layer（`lib/schema_validator.py`）が camelCase 変換・廃止リレーション補正・列挙値検証を実行 | **強**（コードで固定） |
+| `scripts/multi_importer.py` | Gemini（構造化）→ Python 登録 | extract → `register_to_database()` | **強**（Guardian Layer 経由） |
 | 将来のエージェント | 任意のLLM | 未定 | **弱**（このドキュメントが唯一のガイド） |
 
-**リスク**: Skills 経由や将来のエージェントが ad-hoc な Cypher を生成する際、命名規則に準拠しないリレーションやプロパティが作成される可能性があります。このドキュメントはその防止策です。
+**リスク**: Skills 経由や将来のエージェントが ad-hoc な Cypher を生成する際、命名規則に準拠しないリレーションやプロパティが作成される可能性があります（Skills は Guardian Layer を経由しないため）。このドキュメントはその防止策です。
 
 ---
 

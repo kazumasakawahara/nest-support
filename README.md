@@ -264,7 +264,7 @@ Gemini Embedding 2（`gemini-embedding-2-preview`）を使ったマルチモー�
 
 ### 主な機能
 
-- **自動 embedding 付与**: `lib/db_new_operations.py` でノード登録時にベストエフォートで自動付与（Client summaryEmbedding 含む）
+- **自動 embedding 付与**: `lib/db_operations.py` でノード登録時にベストエフォートで自動付与（Client summaryEmbedding 含む）
 - **セマンティック検索**: 支援記録・禁忌事項・面談記録を意味ベースで検索（キーワード不一致でもヒット）
 - **音声面談記録**: 音声ファイル（MP3/WAV/M4A等）から自動文字起こし + dual embedding（音声ネイティブ + テキスト）で面談記録を登録
 - **クライアント類似度分析**: 支援特性に基づくクライアント間の類似度比較、テキスト説明からの類似ケース検索
@@ -353,8 +353,7 @@ nest-support/
 │   ├── protocols/             # 緊急時、親の機能不全、新規登録、引き継ぎ
 │   └── workflows/             # 訪問準備、レジリエンスレポート、更新チェック
 ├── lib/                       # 共有 Python ライブラリ
-│   ├── db_operations.py       # Neo4j 接続・クエリ実行（Guardian Layer 統合）
-│   ├── db_new_operations.py   # グラフ構造化登録（embedding 自動付与、Guardian Layer 統合）
+│   ├── db_operations.py       # Neo4j 接続・クエリ実行・グラフ構造化登録・仮名化（embedding 自動付与＋Guardian Layer 統合）
 │   ├── schema_validator.py    # Guardian Layer: スキーマバリデーション・camelCase 変換
 │   ├── insight_engine.py      # Oracle Layer: 感情トレンド分析・リスク予兆検知
 │   ├── embedding.py           # Gemini Embedding 2（ベクトル生成・検索・音声・類似度分析）

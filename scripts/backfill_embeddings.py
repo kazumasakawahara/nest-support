@@ -51,7 +51,7 @@ def get_stats():
 def backfill_label(label: str, client_name: str | None, batch_size: int, dry_run: bool):
     """指定ラベルのノードにembeddingをバックフィル"""
     from lib.embedding import backfill_support_log_embeddings, backfill_ng_action_embeddings
-    from lib.db_new_operations import run_query
+    from lib.db_operations import run_query
     from lib.embedding import embed_texts_batch, _run_query
 
     if label == "SupportLog":
@@ -88,7 +88,7 @@ def backfill_label(label: str, client_name: str | None, batch_size: int, dry_run
 # --- Fetch 関数 ---
 
 def _fetch_support_logs(client_name: str | None, batch_size: int) -> list:
-    from lib.db_new_operations import run_query
+    from lib.db_operations import run_query
 
     if client_name:
         return run_query(
@@ -116,7 +116,7 @@ def _fetch_support_logs(client_name: str | None, batch_size: int) -> list:
 
 
 def _fetch_ng_actions(batch_size: int) -> list:
-    from lib.db_new_operations import run_query
+    from lib.db_operations import run_query
 
     return run_query(
         """
@@ -131,7 +131,7 @@ def _fetch_ng_actions(batch_size: int) -> list:
 
 
 def _fetch_care_preferences(batch_size: int) -> list:
-    from lib.db_new_operations import run_query
+    from lib.db_operations import run_query
 
     return run_query(
         """
@@ -189,7 +189,7 @@ def _backfill_loop(
 ) -> dict:
     """バッチ単位でembeddingを付与するループ"""
     from lib.embedding import embed_texts_batch
-    from lib.db_new_operations import run_query
+    from lib.db_operations import run_query
 
     total_processed = 0
     total_success = 0
@@ -251,7 +251,7 @@ def _backfill_loop(
 def _backfill_clients(batch_size: int, dry_run: bool) -> dict:
     """Client の summaryEmbedding を一括付与"""
     from lib.embedding import build_client_summary_text, embed_text
-    from lib.db_new_operations import run_query
+    from lib.db_operations import run_query
 
     clients = run_query(
         """
