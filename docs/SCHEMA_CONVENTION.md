@@ -80,7 +80,7 @@
 | `ServiceProvider` | 多機関連携 | 福祉サービス事業所 | name, corporateName, serviceType, wamnetId |
 | `ProviderFeedback` | 多機関連携 | 事業所口コミ | feedbackId, category, content, rating |
 
-### 生活保護受給者DB（port 7688）
+### 生活保護受給者DB（port 7688）⚠️ 非運用（2026-05 廃止・記録目的で残置）
 
 | ノードラベル | 説明 | 主要プロパティ |
 |---|---|---|
@@ -128,7 +128,7 @@
 | `HAS_FEEDBACK` | ServiceProvider → ProviderFeedback | — | 口コミ |
 | `WROTE` | Supporter → ProviderFeedback | — | 口コミ作成者 |
 
-### 生活保護受給者DB（port 7688）
+### 生活保護受給者DB（port 7688）⚠️ 非運用（2026-05 廃止・記録目的で残置）
 
 | リレーション | 方向 | 説明 |
 |---|---|---|

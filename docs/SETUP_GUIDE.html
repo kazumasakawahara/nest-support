@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nest-support セットアップガイド</title>
+<style>
+  :root {
+    --ink:#1f2933; --muted:#52606d; --line:#e4e7eb; --bg:#fbfcfd;
+    --accent:#2f6f4f; --accent-soft:#e8f3ed; --code-bg:#f5f7fa; --warn-bg:#fff7e6; --warn-line:#f0b429;
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body {
+    margin:0; color:var(--ink); background:var(--bg);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
+    line-height:1.85; font-size:17px;
+  }
+  .wrap { display:flex; max-width:1180px; margin:0 auto; gap:32px; padding:0 20px; }
+  /* sidebar TOC */
+  nav.toc {
+    position:sticky; top:0; align-self:flex-start; height:100vh; overflow-y:auto;
+    width:280px; flex:0 0 280px; padding:28px 12px 40px 0; border-right:1px solid var(--line);
+    font-size:14px;
+  }
+  nav.toc h2 { font-size:13px; letter-spacing:.08em; color:var(--muted); text-transform:uppercase; margin:0 0 12px; border:0; padding:0; }
+  nav.toc ul { list-style:none; margin:0; padding:0; }
+  nav.toc li { margin:2px 0; }
+  nav.toc a { color:var(--muted); text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+  nav.toc a:hover { background:var(--accent-soft); color:var(--accent); }
+  nav.toc > ul > li > ul { padding-left:12px; border-left:1px solid var(--line); margin-left:6px; }
+  /* main */
+  main { flex:1 1 auto; min-width:0; padding:36px 0 96px; }
+  .hero { background:linear-gradient(135deg,#2f6f4f,#3f8f66); color:#fff; border-radius:16px; padding:30px 32px; margin-bottom:30px; }
+  .hero h1 { color:#fff; border:0; margin:0 0 8px; font-size:28px; }
+  .hero p { margin:0; opacity:.92; }
+  h1,h2,h3,h4 { line-height:1.4; color:var(--ink); }
+  h2 { font-size:23px; margin-top:46px; padding-bottom:8px; border-bottom:2px solid var(--accent-soft); }
+  h3 { font-size:19px; margin-top:32px; }
+  h4 { font-size:16px; margin-top:24px; color:var(--accent); }
+  a { color:var(--accent); }
+  code { background:var(--code-bg); padding:2px 6px; border-radius:5px; font-size:.88em;
+         font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace; }
+  pre { background:#0f1b16; color:#e6f0ea; padding:16px 18px; border-radius:10px; overflow-x:auto; line-height:1.6; }
+  pre code { background:transparent; color:inherit; padding:0; font-size:13.5px; }
+  table { border-collapse:collapse; width:100%; margin:18px 0; font-size:15px; }
+  th,td { border:1px solid var(--line); padding:9px 12px; text-align:left; vertical-align:top; }
+  th { background:var(--accent-soft); color:var(--ink); }
+  tr:nth-child(even) td { background:#fafbfc; }
+  blockquote { margin:18px 0; padding:12px 18px; background:var(--warn-bg);
+               border-left:4px solid var(--warn-line); border-radius:0 8px 8px 0; color:#5c4b1a; }
+  blockquote p { margin:.3em 0; }
+  hr { border:0; border-top:1px solid var(--line); margin:40px 0; }
+  img { max-width:100%; }
+  .topnote { font-size:13px; color:var(--muted); margin-top:10px; }
+  @media (max-width:860px) {
+    nav.toc { display:none; }
+    .wrap { padding:0 16px; }
+    body { font-size:16px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="toc">
+    <h2>目次</h2>
+    <div class="toc">
+<ul>
+<li><a href="#_1">このガイドの読み方</a></li>
+<li><a href="#_2">このシステムの全体像</a></li>
+<li><a href="#_3">全体の流れ</a></li>
+<li><a href="#step-1-3">Step 1: 3つのアプリを準備する</a><ul>
+<li><a href="#1-1-docker-desktop">1-1. Docker Desktop を入れる</a></li>
+<li><a href="#1-2-claude-desktop">1-2. Claude Desktop を入れる</a></li>
+<li><a href="#1-3-nodejs">1-3. Node.js を入れる</a></li>
+</ul>
+</li>
+<li><a href="#step-2-nest-support">Step 2: nest-support をダウンロードする</a><ul>
+<li><a href="#a-step-25">方法 A: ワンクリックインストーラーを使う（Step 2〜5 をまとめて実行）</a></li>
+<li><a href="#b-a">方法 B: 手動でダウンロードする（方法 A がうまくいかない場合）</a></li>
+</ul>
+</li>
+<li><a href="#step-3">Step 3: データベースを起動する</a></li>
+<li><a href="#step-4-claude-mcp">Step 4: Claude にデータベースの場所を教える（MCP 設定）</a><ul>
+<li><a href="#a">方法 A: 自動設定ツールを使う（推奨）</a></li>
+<li><a href="#b">方法 B: 手動で設定する</a></li>
+</ul>
+</li>
+<li><a href="#step-5-claude-skills">Step 5: Claude に業務手順書を渡す（Skills の設定）</a><ul>
+<li><a href="#claude-desktop">Claude Desktop を再起動する</a></li>
+<li><a href="#_15">接続成功の確認</a></li>
+</ul>
+</li>
+<li><a href="#step-6-claude">Step 6: 動作確認 — Claude に話しかけてみる</a><ul>
+<li><a href="#1">テスト 1: データベースの接続確認</a></li>
+<li><a href="#2">テスト 2: はじめてのデータ登録</a></li>
+<li><a href="#3">テスト 3: 登録した情報を確認する</a></li>
+<li><a href="#_16">テストデータの削除</a></li>
+</ul>
+</li>
+<li><a href="#step-7-ok">Step 7: 練習用のデモデータを入れる（やらなくても OK）</a></li>
+<li><a href="#_18">セットアップ完了！ ここからの使い方</a><ul>
+<li><a href="#5">まず試してほしい 5 つの操作</a></li>
+<li><a href="#_19">さらに使いこなしたい方</a></li>
+<li><a href="#gemini-api">Gemini API の設定（音声・画像からの登録に必要）</a></li>
+</ul>
+</li>
+<li><a href="#_20">日常の起動手順（毎日やること）</a><ul>
+<li><a href="#_21">パソコンをシャットダウンするとき</a></li>
+</ul>
+</li>
+<li><a href="#_22">データのバックアップ</a><ul>
+<li><a href="#mac_2">Mac の方</a></li>
+<li><a href="#windows_3">Windows の方</a></li>
+</ul>
+</li>
+<li><a href="#_23">プライバシーについて</a><ul>
+<li><a href="#_24">データの保存場所</a></li>
+<li><a href="#_25">仮名化機能</a></li>
+</ul>
+</li>
+<li><a href="#_26">用語集</a></li>
+<li><a href="#_27">困ったときは</a><ul>
+<li><a href="#claude">まず Claude に聞いてみる</a></li>
+<li><a href="#_28">よくあるつまずきと解決法</a></li>
+<li><a href="#_29">それでも解決しない場合</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+  </nav>
+  <main>
+    <div class="hero">
+      <h1>nest-support セットアップガイド</h1>
+      <p>はじめての方向け・詳細手順（Mac / Windows 対応）</p>
+    </div>
+    <h1 id="nest-support">nest-support 導入ガイド</h1>
+<blockquote>
+<p><strong>パソコンの操作に不慣れな方でも、このガイドの通りに進めれば導入できます。</strong></p>
+<p>所要時間の目安: <strong>30分〜1時間</strong>（途中で休憩しても大丈夫です）</p>
+</blockquote>
+<hr />
+<h2 id="_1">このガイドの読み方</h2>
+<ul>
+<li>各ステップに <strong>「なぜ必要か」</strong> を添えています。意味がわかると安心して進められます</li>
+<li><code>この書体</code> の部分は、パソコンに入力する文字列です。そのままコピーして貼り付けてください</li>
+<li>「&gt; こういう囲み」は、Claude に話しかけるときの例文です</li>
+<li>うまくいかないときは、各ステップの末尾にある <strong>「うまくいかないとき」</strong> を確認してください</li>
+<li>このガイドで解決しない場合は <a href="./FAQ.md">FAQ.md</a> も参照してください</li>
+</ul>
+<hr />
+<h2 id="_2">このシステムの全体像</h2>
+<p>はじめに、「何を使って何ができるのか」を知っておくと、この先の手順が理解しやすくなります。</p>
+<pre><code>┌───────────────────────────────────────────────────────┐
+│                                                       │
+│  あなた（支援者）                                      │
+│    ↕ 日本語で話しかける                                │
+│  Claude Desktop（AIアシスタント）                       │
+│    ↕ Skills（業務手順書）を参照して操作                  │
+│  Neo4j（グラフデータベース）                            │
+│    └─ 支援記録・禁忌事項・連絡先・手帳情報 などを保管    │
+│                                                       │
+└───────────────────────────────────────────────────────┘
+</code></pre>
+<p><strong>ポイント</strong>: あなたがやることは「Claude に話しかける」だけです。データベースの操作は Claude が代行します。</p>
+<p>必要なアプリは <strong>3つだけ</strong> です:</p>
+<table>
+<thead>
+<tr>
+<th>アプリ名</th>
+<th>役割</th>
+<th>日常的に例えると</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Docker Desktop</strong></td>
+<td>データベースを動かす土台</td>
+<td>データベースの「電源スイッチ」</td>
+</tr>
+<tr>
+<td><strong>Claude Desktop</strong></td>
+<td>AIアシスタント</td>
+<td>何でも相談できる「データベース係」</td>
+</tr>
+<tr>
+<td><strong>Node.js</strong></td>
+<td>Claude とデータベースをつなぐ裏方</td>
+<td>「通訳」。設定後は意識しなくてOK</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_3">全体の流れ</h2>
+<pre><code>Step 1  3つのアプリを準備する
+  ↓
+Step 2  nest-support をダウンロードする
+  ↓
+Step 3  データベースを起動する
+  ↓
+Step 4  Claude にデータベースを教える（接続設定）
+  ↓
+Step 5  Claude に「業務手順書」を渡す（Skills 設定）
+  ↓
+Step 6  動作確認 — Claude に話しかけてみる
+  ↓
+Step 7  練習用データを入れてみる（やらなくてもOK）
+</code></pre>
+<blockquote>
+<p><strong>時間の目安</strong>:
+- Step 1（アプリの準備）: 10〜20分
+- Step 2〜5（設定）: 10〜20分
+- Step 6〜7（動作確認）: 5〜10分</p>
+</blockquote>
+<hr />
+<h2 id="step-1-3">Step 1: 3つのアプリを準備する</h2>
+<p>すでにインストール済みのアプリは飛ばしてください。</p>
+<hr />
+<h3 id="1-1-docker-desktop">1-1. Docker Desktop を入れる</h3>
+<p><strong>なぜ必要？</strong> — クライアントの情報を保存するデータベース（Neo4j）を動かすための土台です。</p>
+<h4 id="_4">ダウンロードとインストール</h4>
+<ol>
+<li>
+<p>ブラウザで以下のページを開きます:
+   https://www.docker.com/products/docker-desktop/</p>
+</li>
+<li>
+<p>お使いのパソコンに合ったボタンをクリックしてダウンロードします
+   - <strong>Mac</strong> の方: 「Download for Mac」</p>
+<ul>
+<li>Apple Silicon（M1/M2/M3/M4）か Intel かを聞かれた場合:
+   画面左上のリンゴマーク →「この Mac について」→「チップ」の欄を確認</li>
+<li><strong>Windows</strong> の方: 「Download for Windows」</li>
+</ul>
+</li>
+<li>
+<p>ダウンロードしたファイルを開きます
+   - <strong>Mac</strong>: <code>.dmg</code> ファイルを開き、Docker のアイコンを「アプリケーション」フォルダにドラッグ
+   - <strong>Windows</strong>: <code>.exe</code> ファイルを開き、画面の指示に従って進めます</p>
+<ul>
+<li>「Use WSL 2 instead of Hyper-V」にチェックが入っていることを確認</li>
+<li>インストール完了後「Close and restart」でパソコンを再起動</li>
+</ul>
+</li>
+<li>
+<p>Docker Desktop を起動します
+   - <strong>Mac</strong>: アプリケーションフォルダから「Docker」を開く
+   - <strong>Windows</strong>: スタートメニューから「Docker Desktop」を検索して開く</p>
+</li>
+<li>
+<p>画面上部（Mac）またはタスクバー右下（Windows）に <strong>クジラのアイコン</strong> が表示されたら準備完了です</p>
+</li>
+</ol>
+<blockquote>
+<p><strong>確認方法</strong>: クジラのアイコンが出ていれば OK。初回は起動に1〜2分かかることがあります。</p>
+</blockquote>
+<h4 id="_5">うまくいかないとき</h4>
+<table>
+<thead>
+<tr>
+<th>症状</th>
+<th>対処法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Windows で「WSL 2 が必要です」と出る</td>
+<td>PowerShell を「管理者として実行」→ <code>wsl --install</code> と入力 → パソコン再起動</td>
+</tr>
+<tr>
+<td>Windows で「仮想化が無効です」と出る</td>
+<td>「お使いのPC名 BIOS 仮想化 有効」で検索して設定を変更</td>
+</tr>
+<tr>
+<td>Mac で「システム拡張がブロックされました」</td>
+<td>「システム設定」→「プライバシーとセキュリティ」で許可</td>
+</tr>
+<tr>
+<td>クジラのアイコンが出てこない</td>
+<td>パソコンを再起動してからもう一度 Docker Desktop を開く</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="1-2-claude-desktop">1-2. Claude Desktop を入れる</h3>
+<p><strong>なぜ必要？</strong> — このシステムの操作はすべて Claude（AI アシスタント）に日本語で話しかけて行います。</p>
+<h4 id="_6">ダウンロードとインストール</h4>
+<ol>
+<li>
+<p>ブラウザで以下のページを開きます:
+   https://claude.ai/download</p>
+</li>
+<li>
+<p>お使いの OS 版をダウンロードしてインストールします</p>
+</li>
+<li>
+<p>Anthropic アカウントでログインします
+   - アカウントがない場合は、画面の指示に従って作成できます（メールアドレスが必要）</p>
+</li>
+</ol>
+<h4 id="_7">料金について</h4>
+<p>Claude Desktop の <strong>Pro プラン（月額 約3,000円）</strong> が必要です。
+無料プランでは Claude との会話はできますが、データベースへの接続機能が使えません。</p>
+<blockquote>
+<p><strong>補助金のご案内</strong>: ICT導入支援事業の補助金（補助率10/10）が活用できる場合があります。お住まいの自治体にお問い合わせください。</p>
+</blockquote>
+<h4 id="_8">うまくいかないとき</h4>
+<table>
+<thead>
+<tr>
+<th>症状</th>
+<th>対処法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ログインできない</td>
+<td>メールアドレスとパスワードを確認。「パスワードを忘れた場合」からリセット</td>
+</tr>
+<tr>
+<td>アプリが開かない</td>
+<td>パソコンを再起動してから試す</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="1-3-nodejs">1-3. Node.js を入れる</h3>
+<p><strong>なぜ必要？</strong> — Claude Desktop とデータベースを橋渡しする裏方のプログラムです。一度入れたら、あとは意識する必要はありません。</p>
+<h4 id="_9">ダウンロードとインストール</h4>
+<ol>
+<li>
+<p>ブラウザで以下のページを開きます:
+   https://nodejs.org/</p>
+</li>
+<li>
+<p><strong>「LTS」と書かれた緑色のボタン</strong> をクリック（「推奨版」という意味です）</p>
+</li>
+<li>
+<p>ダウンロードしたファイルを開いてインストールします
+   - すべてデフォルトのまま「Next」→「Next」→「Install」で OK です
+   - Windows で「Automatically install the necessary tools」と出たらチェックを入れておくと便利です</p>
+</li>
+<li>
+<p><strong>インストール後、パソコンを再起動してください</strong>（再起動しないと反映されない場合があります）</p>
+</li>
+</ol>
+<h4 id="_10">確認方法（やらなくても大丈夫ですが、心配な方向け）</h4>
+<p>Mac の方は「ターミナル」、Windows の方は「PowerShell」を開いて以下を入力:</p>
+<pre><code>node --version
+</code></pre>
+<p><code>v20.xx.x</code> のようなバージョン番号が表示されれば OK です。</p>
+<h4 id="_11">うまくいかないとき</h4>
+<table>
+<thead>
+<tr>
+<th>症状</th>
+<th>対処法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>command not found</code> と表示される</td>
+<td>パソコンを再起動してからもう一度試す</td>
+</tr>
+<tr>
+<td>どのバージョンか迷う</td>
+<td>必ず <strong>LTS（推奨版）</strong> を選ぶ</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="step-2-nest-support">Step 2: nest-support をダウンロードする</h2>
+<p><strong>なぜ必要？</strong> — nest-support のプログラム一式（データベースの設定・Claude への業務手順書など）をパソコンに取り込みます。</p>
+<h3 id="a-step-25">方法 A: ワンクリックインストーラーを使う（Step 2〜5 をまとめて実行）</h3>
+<p><strong>こちらがおすすめです。</strong> Step 2 から Step 5 までの作業を自動で行ってくれます。</p>
+<h4 id="mac">Mac の方</h4>
+<ol>
+<li>
+<p>「ターミナル」アプリを開きます
+   - 見つけ方: Launchpad（ロケットのアイコン）→ 検索欄に「ターミナル」と入力
+   - または: キーボードで <code>Command + スペース</code> →「ターミナル」と入力</p>
+</li>
+<li>
+<p>以下の1行をコピーして、ターミナルに貼り付けて、Enter キーを押します:</p>
+</li>
+</ol>
+<pre><code class="language-bash">curl -sL https://raw.githubusercontent.com/kazumasakawahara/nest-support/main/installer/install-mac.sh | bash
+</code></pre>
+<ol start="3">
+<li>
+<p>画面に質問が表示されたら「Y」を入力して Enter（「はい」という意味です）</p>
+</li>
+<li>
+<p>「セットアップが完了しました！」と表示されたら → <strong>Step 6 に進んでください</strong></p>
+</li>
+</ol>
+<h4 id="windows">Windows の方</h4>
+<ol>
+<li>
+<p>「PowerShell」を <strong>管理者として</strong> 開きます
+   - 見つけ方: スタートメニュー(画面左下)で「PowerShell」と検索
+   - 検索結果の「Windows PowerShell」を<strong>右クリック</strong> →「管理者として実行」</p>
+</li>
+<li>
+<p>以下の2行をコピーして貼り付け、Enter キーを押します:</p>
+</li>
+</ol>
+<pre><code class="language-powershell">Set-ExecutionPolicy Bypass -Scope Process -Force
+irm https://raw.githubusercontent.com/kazumasakawahara/nest-support/main/installer/install-windows.ps1 | iex
+</code></pre>
+<ol start="3">
+<li>
+<p>画面に質問が表示されたら「Y」を入力して Enter</p>
+</li>
+<li>
+<p>「セットアップが完了しました！」と表示されたら → <strong>Step 6 に進んでください</strong></p>
+</li>
+</ol>
+<h4 id="_12">うまくいかないとき</h4>
+<table>
+<thead>
+<tr>
+<th>症状</th>
+<th>対処法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>「permission denied」</td>
+<td>Mac: ターミナルで <code>chmod +x</code> をつけて実行 / Windows: 管理者で PowerShell を開く</td>
+</tr>
+<tr>
+<td>ダウンロードが途中で止まる</td>
+<td>インターネット接続を確認してもう一度実行</td>
+</tr>
+<tr>
+<td>「Docker が起動していません」</td>
+<td>Docker Desktop を起動してから再実行（Step 1-1 参照）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="b-a">方法 B: 手動でダウンロードする（方法 A がうまくいかない場合）</h3>
+<ol>
+<li>
+<p>ブラウザで以下のページを開きます:
+   https://github.com/kazumasakawahara/nest-support</p>
+</li>
+<li>
+<p>緑色の <strong>「Code」ボタン</strong> → <strong>「Download ZIP」</strong> をクリック</p>
+</li>
+<li>
+<p>ダウンロードした ZIP ファイルを展開（解凍）します
+   - Windows: ZIPファイルを右クリック →「すべて展開」
+   - Mac: ZIPファイルをダブルクリック</p>
+</li>
+<li>
+<p>展開したフォルダを <strong>「書類（Documents）」フォルダ</strong> に移動します
+   - 最終的に以下の場所にあれば OK:</p>
+<ul>
+<li>Mac: <code>~/Documents/nest-support/</code></li>
+<li>Windows: <code>C:\Users\あなたの名前\Documents\nest-support\</code></li>
+</ul>
+</li>
+</ol>
+<blockquote>
+<p><strong>フォルダ名に注意</strong>: 展開すると <code>nest-support-main</code> というフォルダ名になる場合があります。<code>nest-support</code> にリネームしてください。</p>
+</blockquote>
+<p>方法 B の場合は、続けて Step 3 に進みます。</p>
+<hr />
+<h2 id="step-3">Step 3: データベースを起動する</h2>
+<blockquote>
+<p><strong>方法 A（ワンクリックインストーラー）を使った方は、この Step は完了済みです。Step 6 に進んでください。</strong></p>
+</blockquote>
+<p><strong>なぜ必要？</strong> — クライアントの情報を保存するデータベース（Neo4j）を起動します。</p>
+<h4 id="mac_1">Mac の方</h4>
+<ol>
+<li>ターミナルを開きます</li>
+<li>以下を入力して Enter:</li>
+</ol>
+<pre><code class="language-bash">cd ~/Documents/nest-support
+chmod +x setup.sh
+./setup.sh
+</code></pre>
+<ol start="3">
+<li>「セットアップが完了しました！」と表示されるまで待ちます（初回は3〜5分かかることがあります）</li>
+</ol>
+<h4 id="windows_1">Windows の方</h4>
+<ol>
+<li>PowerShell を管理者として開きます</li>
+<li>以下を入力して Enter:</li>
+</ol>
+<pre><code class="language-powershell">cd $env:USERPROFILE\Documents\nest-support
+Set-ExecutionPolicy Bypass -Scope Process -Force
+.\setup.ps1
+</code></pre>
+<ol start="3">
+<li>「セットアップが完了しました！」と表示されるまで待ちます</li>
+</ol>
+<h4 id="_13">確認方法</h4>
+<p>ブラウザで以下のアドレスを開いてみてください:</p>
+<p>http://localhost:7474</p>
+<p>ログイン画面が表示されたら成功です:
+- ユーザー名: <code>neo4j</code>
+- パスワード: <code>password</code></p>
+<blockquote>
+<p>このログイン画面は「データベースの管理画面」です。普段使う必要はありません。
+データの操作は Claude を通じて行います。</p>
+</blockquote>
+<h4 id="_14">うまくいかないとき</h4>
+<table>
+<thead>
+<tr>
+<th>症状</th>
+<th>対処法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>「docker: command not found」</td>
+<td>Docker Desktop が起動しているか確認（Step 1-1）</td>
+</tr>
+<tr>
+<td>「port is already allocated」</td>
+<td>Docker Desktop の画面で他のコンテナが動いていないか確認。動いていれば停止してからやり直す</td>
+</tr>
+<tr>
+<td>ページが表示されない</td>
+<td>1〜2分待ってからもう一度アクセス。初回はデータベースの起動に時間がかかります</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="step-4-claude-mcp">Step 4: Claude にデータベースの場所を教える（MCP 設定）</h2>
+<blockquote>
+<p><strong>方法 A（ワンクリックインストーラー）を使った方は、この Step は完了済みです。Step 6 に進んでください。</strong></p>
+</blockquote>
+<p><strong>なぜ必要？</strong> — Claude Desktop に「データベースはここにありますよ」と教えてあげる設定です。</p>
+<h3 id="a">方法 A: 自動設定ツールを使う（推奨）</h3>
+<p><strong>Mac の方:</strong></p>
+<pre><code class="language-bash">cd ~/Documents/nest-support
+chmod +x installer/configure-claude.sh
+./installer/configure-claude.sh
+</code></pre>
+<p><strong>Windows の方:</strong></p>
+<pre><code class="language-powershell">cd $env:USERPROFILE\Documents\nest-support
+.\installer\configure-claude.ps1
+</code></pre>
+<p>「完了」と表示されたら → Step 5 に進みます。</p>
+<hr />
+<h3 id="b">方法 B: 手動で設定する</h3>
+<p>自動設定がうまくいかない場合はこちら。</p>
+<h4 id="4-b-1">4-B-1. 設定ファイルを開く</h4>
+<p><strong>Mac の方:</strong>
+1. Finder（ファイル管理）を開きます
+2. メニューバーの「移動」→「フォルダへ移動」をクリック
+3. 以下を入力して Enter:
+   <code>~/Library/Application Support/Claude/</code>
+4. フォルダの中にある <code>claude_desktop_config.json</code> をダブルクリックで開きます
+   - ファイルがない場合は、「テキストエディット」を開いて新しい空のファイルを作ります</p>
+<p><strong>Windows の方:</strong>
+1. キーボードで <code>Windows キー + R</code> を押します（「ファイル名を指定して実行」が開きます）
+2. 以下を貼り付けて OK:
+   <code>notepad %APPDATA%\Claude\claude_desktop_config.json</code>
+3. 「ファイルが見つかりません。新しく作成しますか？」と表示されたら「はい」を押します</p>
+<h4 id="4-b-2">4-B-2. 設定内容を貼り付ける</h4>
+<p>ファイルの中身を <strong>すべて消して</strong>、以下を <strong>丸ごとコピーして</strong> 貼り付けてください:</p>
+<pre><code class="language-json">{
+  &quot;mcpServers&quot;: {
+    &quot;neo4j&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [&quot;-y&quot;, &quot;@alanse/mcp-neo4j-server&quot;],
+      &quot;env&quot;: {
+        &quot;NEO4J_URI&quot;: &quot;bolt://localhost:7687&quot;,
+        &quot;NEO4J_USERNAME&quot;: &quot;neo4j&quot;,
+        &quot;NEO4J_PASSWORD&quot;: &quot;password&quot;
+      }
+    }
+  }
+}
+</code></pre>
+<blockquote>
+<p><strong>既に他の設定がある場合</strong>: 上書きせず、<code>"mcpServers"</code> の中に <code>"neo4j"</code> の部分だけを追加してください。不安な場合は、元のファイルをコピーしてバックアップしてから編集すると安心です。</p>
+</blockquote>
+<h4 id="4-b-3">4-B-3. ファイルを保存する</h4>
+<ul>
+<li><strong>Mac</strong>: <code>Command + S</code></li>
+<li><strong>Windows</strong>: <code>Ctrl + S</code></li>
+</ul>
+<blockquote>
+<p><strong>注意</strong>: Windows のメモ帳で保存するとき、ファイル名が <code>claude_desktop_config.json.txt</code> のように <code>.txt</code> が付いてしまうことがあります。「ファイルの種類」を「すべてのファイル」にして、ファイル名の末尾が <code>.json</code> で終わるようにしてください。</p>
+</blockquote>
+<h4 id="windows-npx">Windows で「npx が見つからない」と言われる場合</h4>
+<p>Windows では、npx の場所を直接指定する必要があることがあります:</p>
+<ol>
+<li>PowerShell を開いて以下を入力:
+   <code>where npx</code></li>
+<li>表示されたパス（例: <code>C:\Program Files\nodejs\npx.cmd</code>）を設定の <code>"command"</code> に使います:
+   <code>json
+   "command": "C:\\Program Files\\nodejs\\npx.cmd",</code><blockquote>
+<p>パスの <code>\</code> は <code>\\</code> と2つ重ねて書くのがポイントです。</p>
+</blockquote>
+</li>
+</ol>
+<hr />
+<h2 id="step-5-claude-skills">Step 5: Claude に業務手順書を渡す（Skills の設定）</h2>
+<blockquote>
+<p><strong>方法 A（ワンクリックインストーラー）を使った方は、この Step は完了済みです。Step 6 に進んでください。</strong></p>
+</blockquote>
+<p><strong>なぜ必要？</strong> — Skills（スキル）は、Claude に「このデータベースではこういう操作ができるよ」と教えるための業務手順書です。これがないと Claude はデータベースの使い方がわかりません。</p>
+<h4 id="mac-setupsh">Mac の方（setup.sh を実行済みなら完了しています）</h4>
+<p>Step 3 で <code>./setup.sh</code> を実行した場合、Skills は自動でインストールされています。
+手動で再インストールする場合:</p>
+<pre><code class="language-bash">cd ~/Documents/nest-support
+./setup.sh --skills
+</code></pre>
+<h4 id="windows_2">Windows の方</h4>
+<p>Skills のフォルダを手動でコピーします:</p>
+<ol>
+<li>
+<p>nest-support フォルダ内の <code>claude-skills</code> フォルダを開きます</p>
+</li>
+<li>
+<p>中にあるフォルダ（<code>neo4j-support-db</code>, <code>emergency-protocol</code> など13個）を<strong>すべてコピー</strong>します</p>
+</li>
+<li>
+<p>以下の場所に貼り付けます:
+   <code>C:\Users\あなたの名前\.claude\skills\</code></p>
+</li>
+</ol>
+<blockquote>
+<p><code>.claude</code> フォルダが見えない場合:
+エクスプローラーの上部メニュー「表示」→「隠しファイル」にチェックを入れてください</p>
+<p><code>skills</code> フォルダがない場合:
+<code>.claude</code> フォルダの中に <code>skills</code> という名前で新しいフォルダを作ってください</p>
+</blockquote>
+<ol start="4">
+<li>以下のようなフォルダ構造になっていれば OK:
+   <code>C:\Users\あなたの名前\.claude\skills\
+   ├── neo4j-support-db\         ← 障害福祉クライアント管理
+   ├── provider-search\          ← 事業所検索
+   ├── emergency-protocol\       ← 緊急時対応
+   ├── ecomap-generator\         ← エコマップ生成
+   ├── narrative-extractor\      ← テキスト→構造化データ
+   ├── onboarding-wizard\        ← 新規登録ウィザード
+   ├── visit-prep\               ← 訪問準備
+   ├── resilience-checker\       ← レジリエンス診断
+   ├── data-quality-agent\       ← データ品質チェック
+   ├── html-to-pdf\              ← PDF変換
+   ├── inheritance-calculator\   ← 相続計算
+   └── wamnet-provider-sync\     ← WAM NET同期</code></li>
+</ol>
+<hr />
+<h3 id="claude-desktop">Claude Desktop を再起動する</h3>
+<p><strong>ここまでの設定を反映するため、Claude Desktop を一度完全に終了して開き直します。</strong></p>
+<p><strong>Mac の方:</strong>
+1. 画面上部のメニューバーにある Claude のアイコンをクリック
+2. 「Quit Claude」をクリック
+3. アプリケーションフォルダから Claude を再度開く</p>
+<p><strong>Windows の方:</strong>
+1. 画面右下のタスクバー通知領域（<code>∧</code> マーク）にある Claude のアイコンを右クリック
+2. 「Quit」をクリック
+3. スタートメニューから Claude Desktop を再度開く</p>
+<blockquote>
+<p><strong>注意</strong>: ウィンドウの「×」ボタンだけではバックグラウンドで動いたままの場合があります。必ず「Quit」で完全終了してください。</p>
+</blockquote>
+<h3 id="_15">接続成功の確認</h3>
+<p>Claude Desktop を開き直したとき、チャット入力欄のあたりに <strong>ハンマーのようなアイコンと数字</strong> が表示されていれば、データベースとの接続が成功しています。</p>
+<hr />
+<h2 id="step-6-claude">Step 6: 動作確認 — Claude に話しかけてみる</h2>
+<p>いよいよ、セットアップがうまくいったか確認します。</p>
+<h3 id="1">テスト 1: データベースの接続確認</h3>
+<p>Claude Desktop を開いて、以下のように話しかけます:</p>
+<blockquote>
+<p>データベースの統計情報を教えて</p>
+</blockquote>
+<p>Claude がデータベースにアクセスし、「クライアント数: 0」のような統計情報を返してくれたら <strong>接続成功</strong> です。</p>
+<h3 id="2">テスト 2: はじめてのデータ登録</h3>
+<p>以下を Claude に入力してみましょう:</p>
+<blockquote>
+<p>以下の情報をデータベースに登録してください。</p>
+<p>名前: テスト太郎
+生年月日: 1990年4月1日
+血液型: A型
+特性: 自閉スペクトラム症
+禁忌事項: 後ろから急に声をかけないこと。パニックになる。
+推奨ケア: 声をかけるときは正面から、ゆっくり話す。</p>
+</blockquote>
+<p>Claude が情報を整理して確認してから、データベースに登録してくれます。</p>
+<h3 id="3">テスト 3: 登録した情報を確認する</h3>
+<blockquote>
+<p>テスト太郎さんのプロフィールを見せて</p>
+</blockquote>
+<p>先ほど登録した情報が表示されれば、<strong>セットアップは完了です！おめでとうございます！</strong></p>
+<h3 id="_16">テストデータの削除</h3>
+<p>動作確認が済んだら、テスト用のデータは削除しておきましょう:</p>
+<blockquote>
+<p>テスト太郎さんのデータをすべて削除してください</p>
+</blockquote>
+<h4 id="_17">うまくいかないとき</h4>
+<table>
+<thead>
+<tr>
+<th>症状</th>
+<th>対処法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>「データベースに接続できません」</td>
+<td>Docker Desktop が起動しているか確認。停止していれば起動してから Claude Desktop を再起動</td>
+</tr>
+<tr>
+<td>ツールアイコンに数字が出ない</td>
+<td>Step 4 の設定ファイルを確認。カンマ（<code>,</code>）の過不足が原因のことが多い</td>
+</tr>
+<tr>
+<td>「npx: command not found」</td>
+<td>Node.js がインストールされていない（Step 1-3 をやり直す）</td>
+</tr>
+<tr>
+<td>Claude が Skills を使ってくれない</td>
+<td>Step 5 の Skills フォルダが正しい場所にあるか確認</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="step-7-ok">Step 7: 練習用のデモデータを入れる（やらなくても OK）</h2>
+<p>操作に慣れるため、架空のデモデータで練習してみたい場合:</p>
+<p><strong>Mac の方:</strong></p>
+<pre><code class="language-bash">cd ~/Documents/nest-support
+chmod +x installer/load-demo-data.sh
+./installer/load-demo-data.sh
+</code></pre>
+<p><strong>Windows の方:</strong></p>
+<pre><code class="language-powershell">cd $env:USERPROFILE\Documents\nest-support
+.\installer\load-demo-data.ps1
+</code></pre>
+<p>デモデータ投入後、以下のように試せます:</p>
+<blockquote>
+<p>山本翔太さんの緊急情報を教えて</p>
+<p>鈴木花さんの禁忌事項を教えて</p>
+<p>更新期限が近い手帳・受給者証を確認して</p>
+</blockquote>
+<p><strong>感情シミュレーションデータも入れる場合（予兆検知の練習用）:</strong></p>
+<pre><code class="language-bash"># Mac — デモデータ + 1ヶ月分の感情データ
+./installer/load-demo-data.sh --simulation
+
+# Windows（PowerShell）
+.\installer\load-demo-data.ps1 -Simulation
+</code></pre>
+<p>シミュレーションデータ投入後、以下も試せます:</p>
+<blockquote>
+<p>山本翔太さんの最近の感情トレンドを分析して</p>
+<p>山本翔太さんのリスク評価を実行して</p>
+</blockquote>
+<p><strong>デモデータを削除する場合:</strong></p>
+<pre><code class="language-bash"># Mac
+./installer/load-demo-data.sh --remove
+
+# Windows（PowerShell）
+.\installer\load-demo-data.ps1 -Remove
+</code></pre>
+<hr />
+<h2 id="_18">セットアップ完了！ ここからの使い方</h2>
+<p>おめでとうございます！セットアップが完了しました。</p>
+<h3 id="5">まず試してほしい 5 つの操作</h3>
+<p>詳しくは <a href="./FIRST_5_OPERATIONS.md">FIRST_5_OPERATIONS.md</a> をご覧ください。</p>
+<table>
+<thead>
+<tr>
+<th>やりたいこと</th>
+<th>Claude にこう話しかける</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>クライアントを登録する</td>
+<td>「新しいクライアントを登録したい」</td>
+</tr>
+<tr>
+<td>緊急情報を確認する</td>
+<td>「〇〇さんの緊急情報を教えて」</td>
+</tr>
+<tr>
+<td>訪問前の準備をする</td>
+<td>「〇〇さんの訪問準備をして」</td>
+</tr>
+<tr>
+<td>支援記録を残す</td>
+<td>「〇〇さんの支援記録を追加:（内容）」</td>
+</tr>
+<tr>
+<td>更新期限を確認する</td>
+<td>「更新期限が近い手帳を確認して」</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_19">さらに使いこなしたい方</h3>
+<table>
+<thead>
+<tr>
+<th>やりたいこと</th>
+<th>Claude にこう話しかける</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>意味で検索する</td>
+<td>「入浴を嫌がるケースを検索して」（「お風呂拒否」もヒット）</td>
+</tr>
+<tr>
+<td>エコマップを作る</td>
+<td>「〇〇さんのエコマップを作成して」</td>
+</tr>
+<tr>
+<td>事業所を探す</td>
+<td>「北九州市の生活介護で空きのある事業所を検索して」</td>
+</tr>
+<tr>
+<td>データの健全性を確認</td>
+<td>「データ品質チェックをお願いします」</td>
+</tr>
+<tr>
+<td>親なき後の備えを診断</td>
+<td>「〇〇さんのレジリエンス診断をして」</td>
+</tr>
+<tr>
+<td>感情トレンドを分析する</td>
+<td>「〇〇さんの最近の変化を分析して」</td>
+</tr>
+<tr>
+<td>声で記録を残す</td>
+<td>音声ファイルを添付して「〇〇さんの支援記録として登録して」</td>
+</tr>
+<tr>
+<td>スマホから記録を入力</td>
+<td><code>http://localhost:8001/record</code> をスマホのブラウザで開く</td>
+</tr>
+<tr>
+<td>管理者ダッシュボードを見る</td>
+<td><code>http://localhost:8001/dashboard</code> をブラウザで開く</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>現場UI を使う場合</strong>: 事前にパソコン側で以下のコマンドを実行してサーバーを起動してください:
+<code>uv run uvicorn field-ui.server:app --host 0.0.0.0 --port 8001</code>
+スマホからは同じ Wi-Fi 内であれば <code>http://パソコンのIPアドレス:8001</code> でアクセスできます。</p>
+</blockquote>
+<h3 id="gemini-api">Gemini API の設定（音声・画像からの登録に必要）</h3>
+<p>音声ファイルの文字起こしや手書きメモの読み取りには、Google の Gemini API が必要です。</p>
+<ol>
+<li><a href="https://aistudio.google.com/apikey">Google AI Studio</a> にアクセスして API キーを取得（無料）</li>
+<li>プロジェクトフォルダの <code>.env</code> ファイルに追記:
+   <code>GEMINI_API_KEY=取得したキーをここに貼り付け</code></li>
+</ol>
+<blockquote>
+<p><strong>Note</strong>: Gemini API キーがなくても、テキスト入力での登録やデータ閲覧は問題なく使えます。</p>
+</blockquote>
+<p>詳しい録音の仕方は <a href="./VOICE_RECORDING_GUIDE.md">VOICE_RECORDING_GUIDE.md</a> を参照してください。</p>
+<blockquote>
+<p>Claude は「わからないことはわからない」と正直に答えます。「使い方がわからない」「どんなことができるか一覧を見せて」と聞いても大丈夫です。</p>
+</blockquote>
+<hr />
+<h2 id="_20">日常の起動手順（毎日やること）</h2>
+<p>セットアップは最初の1回だけです。普段は以下の手順だけで使えます:</p>
+<pre><code>1. パソコンを起動する
+2. Docker Desktop が起動していることを確認（クジラのアイコン）
+3. Claude Desktop を開く
+4. 話しかける
+</code></pre>
+<blockquote>
+<p><strong>便利な設定</strong>: Docker Desktop を「ログイン時に自動起動」にしておくと、手順 2 を省略できます。
+Docker Desktop → Settings（歯車アイコン）→ General → 「Start Docker Desktop when you sign in」にチェック</p>
+</blockquote>
+<h3 id="_21">パソコンをシャットダウンするとき</h3>
+<p>特別な操作は不要です。次にパソコンを起動したとき、データは自動的に復元されます。</p>
+<hr />
+<h2 id="_22">データのバックアップ</h2>
+<p>クライアントの情報は大切な資産です。<strong>月に1回はバックアップ</strong>することをお勧めします。</p>
+<h3 id="mac_2">Mac の方</h3>
+<pre><code class="language-bash">cd ~/Documents/nest-support
+docker compose stop
+cp -r neo4j_data neo4j_data_backup_$(date +%Y%m%d)
+docker compose start
+</code></pre>
+<h3 id="windows_3">Windows の方</h3>
+<pre><code class="language-powershell">cd $env:USERPROFILE\Documents\nest-support
+docker compose stop
+Copy-Item -Recurse neo4j_data &quot;neo4j_data_backup_$(Get-Date -Format yyyyMMdd)&quot;
+docker compose start
+</code></pre>
+<blockquote>
+<p>ターミナル操作が不安な方は、Docker Desktop を停止してから、<code>neo4j_data</code> フォルダをそのままコピーして別の場所に保存するだけでも OK です。</p>
+</blockquote>
+<hr />
+<h2 id="_23">プライバシーについて</h2>
+<h3 id="_24">データの保存場所</h3>
+<p>クライアントの情報は <strong>すべてお使いのパソコンの中</strong> に保存されます。外部のサーバーには送信されません。</p>
+<p>ただし、Claude Desktop を通じて会話するとき、<strong>入力した内容は Anthropic 社のサーバーに送信されます</strong>。</p>
+<p>個人情報を含むデータを入力する場合は、組織の個人情報保護方針と照らし合わせてご判断ください。</p>
+<blockquote>
+<p>詳しくは <a href="./PRIVACY_GUIDELINES.md">PRIVACY_GUIDELINES.md</a> をご確認ください。</p>
+</blockquote>
+<h3 id="_25">仮名化機能</h3>
+<p>研修やデモの場面で個人情報を表示したくない場合、「仮名化」機能があります。
+環境変数 <code>PSEUDONYMIZATION_ENABLED=true</code> を設定すると、表示時に名前が自動的にマスク（例: 山田→山●●）されます。データベース内の実データは変更されません。</p>
+<hr />
+<h2 id="_26">用語集</h2>
+<table>
+<thead>
+<tr>
+<th>用語</th>
+<th>やさしい説明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Docker Desktop</strong></td>
+<td>データベースを動かすためのアプリ。「箱の中でデータベースを安全に動かす」イメージ</td>
+</tr>
+<tr>
+<td><strong>Neo4j</strong></td>
+<td>人と人のつながりを記録するのが得意なデータベース。支援者・クライアント・医療機関の関係を自然に表現できる</td>
+</tr>
+<tr>
+<td><strong>Claude Desktop</strong></td>
+<td>Anthropic 社の AI アシスタント。日本語で話しかけるだけでデータベースを操作してくれる</td>
+</tr>
+<tr>
+<td><strong>Node.js / npx</strong></td>
+<td>Claude とデータベースをつなぐ裏方プログラム。一度設定したら意識不要</td>
+</tr>
+<tr>
+<td><strong>MCP</strong></td>
+<td>Claude がデータベースなどの外部ツールと連携するための仕組み（Model Context Protocol の略）</td>
+</tr>
+<tr>
+<td><strong>Skills</strong></td>
+<td>Claude に業務の手順を教える説明書ファイル。13種類が用意されている</td>
+</tr>
+<tr>
+<td><strong>ターミナル（Mac）</strong></td>
+<td>パソコンに直接命令を入力するアプリ。Launchpad で「ターミナル」と検索すると見つかる</td>
+</tr>
+<tr>
+<td><strong>PowerShell（Windows）</strong></td>
+<td>Windows 版のターミナル。スタートメニューで「PowerShell」と検索すると見つかる</td>
+</tr>
+<tr>
+<td><strong>ポート</strong></td>
+<td>パソコン内の通信口の番号。nest-support は 7474, 7687 を使用</td>
+</tr>
+<tr>
+<td><strong>JSON</strong></td>
+<td>設定ファイルの書き方のルール。カンマや波かっこの位置が1つでもずれると動かない</td>
+</tr>
+<tr>
+<td><strong>セマンティック検索</strong></td>
+<td>キーワードの一致ではなく「意味」で検索する機能。「入浴拒否」で検索すると「お風呂を嫌がる」もヒットする</td>
+</tr>
+<tr>
+<td><strong>embedding</strong></td>
+<td>文章を数値（ベクトル）に変換したもの。セマンティック検索の裏側で使われている技術</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_27">困ったときは</h2>
+<h3 id="claude">まず Claude に聞いてみる</h3>
+<p>Claude Desktop で以下のように話しかけてください:</p>
+<blockquote>
+<p>セットアップで困っています</p>
+<p>〇〇というエラーが出ました（エラーメッセージをそのまま伝える）</p>
+</blockquote>
+<p>Claude がトラブルの内容を分析して、解決策を提案してくれます。</p>
+<h3 id="_28">よくあるつまずきと解決法</h3>
+<table>
+<thead>
+<tr>
+<th>症状</th>
+<th>よくある原因</th>
+<th>解決法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Docker Desktop が起動しない</td>
+<td>インストールが完了していない</td>
+<td>パソコンを再起動 → Docker Desktop を開く</td>
+</tr>
+<tr>
+<td>「port is already allocated」</td>
+<td>前回のデータベースが残っている</td>
+<td>Docker Desktop でコンテナを停止 → 再起動</td>
+</tr>
+<tr>
+<td>Claude がデータベースにつながらない</td>
+<td>設定ファイルの記述ミス</td>
+<td>Step 4-B-2 の内容を丸ごとコピーし直す</td>
+</tr>
+<tr>
+<td>ツールアイコンに数字が出ない</td>
+<td>Claude Desktop を再起動していない</td>
+<td>Quit → 開き直し（×ボタンではなく Quit）</td>
+</tr>
+<tr>
+<td>「npx: command not found」</td>
+<td>Node.js 未インストール or 再起動していない</td>
+<td>Step 1-3 をやり直す → パソコン再起動</td>
+</tr>
+<tr>
+<td>JSON の書式エラー</td>
+<td>カンマの過不足</td>
+<td>Claude（claude.ai）に JSON を見せて「間違いがないか確認して」と聞く</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_29">それでも解決しない場合</h3>
+<ul>
+<li><a href="./FAQ.md">FAQ.md</a> — よくある質問と詳しいトラブルシューティング</li>
+<li>IT担当の方やシステム管理者にご相談ください</li>
+<li>GitHub Issues: https://github.com/kazumasakawahara/nest-support/issues</li>
+</ul>
+    <hr>
+    <p class="topnote">この HTML は <code>docs/SETUP_GUIDE.md</code> から自動生成されています。最新の内容は Markdown 版をご確認ください。</p>
+  </main>
+</div>
+</body>
+</html>

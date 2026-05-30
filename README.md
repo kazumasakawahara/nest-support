@@ -11,7 +11,7 @@
 ## 特徴
 
 - **Single Layer Architecture** — Claude が UI・分析・データ操作のすべてを担当。Streamlit への依存なし
-- **Skills-First** — 14の Claude Skills が Cypher テンプレートを提供し、汎用 Neo4j MCP 経由でクエリを実行
+- **Skills-First** — 13の Claude Skills が Cypher テンプレートを提供し、汎用 Neo4j MCP 経由でクエリを実行
 - **Safety First** — 緊急時は禁忌事項（NgAction）を最優先で提示し、二次被害を防止
 - **Guardian Layer** — スキーマバリデーション（camelCase 自動変換・廃止リレーション修正・列挙値検証）でデータ品質を担保
 - **Oracle Layer** — 感情トレンド分析・リスク予兆検知・ケアパターン自動発見で予防的支援を実現
@@ -28,7 +28,7 @@
 ```
 ユーザー → Claude Desktop / Claude Code
               ↓
-         Skills (SKILL.md)  ←  14のスキルがCypherテンプレートを提供
+         Skills (SKILL.md)  ←  13のスキルがCypherテンプレートを提供
               ↓
          Neo4j MCP (@alanse/mcp-neo4j-server)
               ↓
@@ -129,12 +129,11 @@ Claude Desktop を再起動し、以下のように話しかけてください:
 パニック時は静かな部屋に移動して背中をゆっくりさすると落ち着きます。
 ```
 
-## Skills 一覧（14スキル）
+## Skills 一覧（13スキル）
 
 | Skill | 対象業務 | 説明 |
 |-------|----------|------|
 | `neo4j-support-db` | 障害福祉クライアント管理 | プロフィール、支援記録、ケアパターン発見、更新期限チェック |
-| `livelihood-support` | 生活困窮者自立支援 | 訪問前ブリーフィング、引き継ぎサマリー、類似ケース検索 |
 | `provider-search` | 事業所検索・口コミ | サービス種類・地域・空き状況での検索、口コミ評価 |
 | `emergency-protocol` | 緊急時対応 | Safety First プロトコル（禁忌→推奨ケア→連絡先→医療→後見人）|
 | `ecomap-generator` | エコマップ・インサイト生成 | D3.js ハイブリッド・インサイト・ビュー、ノードクリックでAI相談 |
@@ -360,9 +359,8 @@ nest-support/
 │   ├── file_readers.py        # ファイル読み取り（docx/xlsx/pdf/画像 + OCR）
 │   ├── pseudonymizer.py       # 仮名化モジュール
 │   └── utils.py               # 日付パース（和暦対応）
-├── claude-skills/             # 14の Claude Skills
+├── claude-skills/             # 13の Claude Skills
 │   ├── neo4j-support-db/      # 障害福祉 DB
-│   ├── livelihood-support/    # 生活困窮者支援
 │   ├── provider-search/       # 事業所検索
 │   ├── emergency-protocol/    # 緊急時プロトコル（insight-agent 連動）
 │   ├── ecomap-generator/      # エコマップ・インサイト生成（D3.js ハイブリッドビュー）

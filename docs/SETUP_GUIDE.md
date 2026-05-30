@@ -374,21 +374,12 @@ cd $env:USERPROFILE\Documents\nest-support
         "NEO4J_USERNAME": "neo4j",
         "NEO4J_PASSWORD": "password"
       }
-    },
-    "livelihood-support-db": {
-      "command": "npx",
-      "args": ["-y", "@alanse/mcp-neo4j-server"],
-      "env": {
-        "NEO4J_URI": "bolt://localhost:7688",
-        "NEO4J_USERNAME": "neo4j",
-        "NEO4J_PASSWORD": "password"
-      }
     }
   }
 }
 ```
 
-> **既に他の設定がある場合**: 上書きせず、`"mcpServers"` の中に `"neo4j"` と `"livelihood-support-db"` の部分だけを追加してください。不安な場合は、元のファイルをコピーしてバックアップしてから編集すると安心です。
+> **既に他の設定がある場合**: 上書きせず、`"mcpServers"` の中に `"neo4j"` の部分だけを追加してください。不安な場合は、元のファイルをコピーしてバックアップしてから編集すると安心です。
 
 #### 4-B-3. ファイルを保存する
 
@@ -452,7 +443,6 @@ Skills のフォルダを手動でコピーします:
    ```
    C:\Users\あなたの名前\.claude\skills\
    ├── neo4j-support-db\         ← 障害福祉クライアント管理
-   ├── livelihood-support\       ← 生活困窮者自立支援
    ├── provider-search\          ← 事業所検索
    ├── emergency-protocol\       ← 緊急時対応
    ├── ecomap-generator\         ← エコマップ生成
@@ -675,7 +665,6 @@ cd $env:USERPROFILE\Documents\nest-support
 cd ~/Documents/nest-support
 docker compose stop
 cp -r neo4j_data neo4j_data_backup_$(date +%Y%m%d)
-cp -r neo4j_livelihood_data neo4j_livelihood_data_backup_$(date +%Y%m%d)
 docker compose start
 ```
 
@@ -685,11 +674,10 @@ docker compose start
 cd $env:USERPROFILE\Documents\nest-support
 docker compose stop
 Copy-Item -Recurse neo4j_data "neo4j_data_backup_$(Get-Date -Format yyyyMMdd)"
-Copy-Item -Recurse neo4j_livelihood_data "neo4j_livelihood_data_backup_$(Get-Date -Format yyyyMMdd)"
 docker compose start
 ```
 
-> ターミナル操作が不安な方は、Docker Desktop を停止してから、`neo4j_data` フォルダと `neo4j_livelihood_data` フォルダをそのままコピーして別の場所に保存するだけでも OK です。
+> ターミナル操作が不安な方は、Docker Desktop を停止してから、`neo4j_data` フォルダをそのままコピーして別の場所に保存するだけでも OK です。
 
 ---
 
@@ -721,10 +709,10 @@ docker compose start
 | **Claude Desktop** | Anthropic 社の AI アシスタント。日本語で話しかけるだけでデータベースを操作してくれる |
 | **Node.js / npx** | Claude とデータベースをつなぐ裏方プログラム。一度設定したら意識不要 |
 | **MCP** | Claude がデータベースなどの外部ツールと連携するための仕組み（Model Context Protocol の略）|
-| **Skills** | Claude に業務の手順を教える説明書ファイル。14種類が用意されている |
+| **Skills** | Claude に業務の手順を教える説明書ファイル。13種類が用意されている |
 | **ターミナル（Mac）** | パソコンに直接命令を入力するアプリ。Launchpad で「ターミナル」と検索すると見つかる |
 | **PowerShell（Windows）** | Windows 版のターミナル。スタートメニューで「PowerShell」と検索すると見つかる |
-| **ポート** | パソコン内の通信口の番号。nest-support は 7474, 7475, 7687, 7688 を使用 |
+| **ポート** | パソコン内の通信口の番号。nest-support は 7474, 7687 を使用 |
 | **JSON** | 設定ファイルの書き方のルール。カンマや波かっこの位置が1つでもずれると動かない |
 | **セマンティック検索** | キーワードの一致ではなく「意味」で検索する機能。「入浴拒否」で検索すると「お風呂を嫌がる」もヒットする |
 | **embedding** | 文章を数値（ベクトル）に変換したもの。セマンティック検索の裏側で使われている技術 |

@@ -25,17 +25,9 @@ Claude が SKILL.md に含まれるCypherテンプレートを参照し、汎用
 佐藤さんの最近の支援記録を分析して、効果的だったケアパターンを教えて
 ```
 
-### 2. livelihood-support（生活困窮者支援）
+### 2. livelihood-support（生活困窮者支援）⚠️ 非運用（2026-05 廃止）
 
-**対象**: 生活保護受給者の尊厳を守る支援情報管理
-**ポート**: `bolt://localhost:7688`
-
-**プロンプト例:**
-```
-田中さんの訪問前ブリーフィングをお願いします
-山田さんの引き継ぎサマリーを作成して
-佐藤さんと類似したリスクを持つ過去のケースを検索して
-```
+生活困窮者自立支援機能（port 7688）は 2026-05 に廃止しました。本スキル・Neo4j インスタンス・MCP サーバー（livelihood-support-db）は撤去済みで利用できません。詳細は `decommissioned/README.md` を参照してください。
 
 ### 3. provider-search（事業所検索）
 
@@ -174,8 +166,6 @@ result = generate_risk_assessment("山本翔太")
 | テキストからの情報抽出・登録 | `narrative-extractor` |
 | 支援記録の追加・分析 | `neo4j-support-db` |
 | 訪問前の準備（障害福祉） | `visit-prep` |
-| 訪問前の準備（生活困窮者） | `livelihood-support` |
-| 引き継ぎ資料の作成 | `livelihood-support` |
 | 事業所の検索・比較 | `provider-search` |
 | 緊急時の即時対応 | `emergency-protocol` |
 | 支援関係の可視化 | `ecomap-generator` |

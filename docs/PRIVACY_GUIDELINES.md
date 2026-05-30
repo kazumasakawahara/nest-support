@@ -19,8 +19,7 @@ nest-support のデータは**すべてローカル環境**（利用者のパソ
 ```
 [パソコン内]
 ├── Neo4j コンテナ (port 7687) ← 障害福祉データ
-├── Neo4j コンテナ (port 7688) ← 生活困窮者自立支援データ
-└── neo4j_data/, neo4j_livelihood_data/ ← 永続化ボリューム
+└── neo4j_data/ ← 永続化ボリューム
 ```
 
 ### 2.2 Claude Desktop を通じた通信
@@ -129,7 +128,6 @@ Neo4j はデフォルトで `localhost` のみリッスンします。同一ネ�
 # 定期バックアップ（推奨: 週次）
 docker compose stop
 cp -r neo4j_data neo4j_data_backup_$(date +%Y%m%d)
-cp -r neo4j_livelihood_data neo4j_livelihood_data_backup_$(date +%Y%m%d)
 docker compose start
 ```
 
@@ -208,7 +206,6 @@ nest-support は全ての操作を AuditLog ノードに記録しています。
 
 - **個人情報の保護に関する法律**（個人情報保護法）
 - **障害者の日常生活及び社会生活を総合的に支援するための法律**（障害者総合支援法）
-- **生活困窮者自立支援法**
 - **社会福祉法**
 
 ### 8.2 要配慮個人情報

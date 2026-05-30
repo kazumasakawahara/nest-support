@@ -26,7 +26,6 @@ ICT導入支援事業の補助金（補助率10/10）が活用できる場合が
 # Neo4j データのバックアップ
 docker compose stop
 cp -r neo4j_data neo4j_data_backup_$(date +%Y%m%d)
-cp -r neo4j_livelihood_data neo4j_livelihood_data_backup_$(date +%Y%m%d)
 docker compose start
 ```
 
@@ -34,7 +33,7 @@ docker compose start
 
 ### Q: データを別のパソコンに移行できますか？
 
-はい。`neo4j_data/` と `neo4j_livelihood_data/` フォルダをコピーすることで移行できます。
+はい。`neo4j_data/` フォルダをコピーすることで移行できます。
 
 ### Q: インターネット接続は必要ですか？
 
@@ -79,7 +78,6 @@ docker compose up -d
 
 # ログの確認
 docker logs nest-support-neo4j
-docker logs nest-support-neo4j-livelihood
 ```
 
 **よくある原因**:
@@ -166,7 +164,7 @@ cd nest-support
 **対処法**:
 1. Docker コンテナが起動しているか確認: `docker ps`
 2. ブラウザで http://localhost:7474 にアクセスできるか確認
-3. MCP 設定のポート番号が正しいか確認（7687 / 7688）
+3. MCP 設定のポート番号が正しいか確認（7687）
 4. Docker Desktop のリソース設定でメモリを確認（4GB以上推奨）
 
 ### デモデータの投入でエラーが出る

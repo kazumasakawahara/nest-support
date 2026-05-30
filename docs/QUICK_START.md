@@ -103,15 +103,6 @@ notepad "$env:APPDATA\Claude\claude_desktop_config.json"
         "NEO4J_USERNAME": "neo4j",
         "NEO4J_PASSWORD": "password"
       }
-    },
-    "livelihood-support-db": {
-      "command": "npx",
-      "args": ["-y", "@alanse/mcp-neo4j-server"],
-      "env": {
-        "NEO4J_URI": "bolt://localhost:7688",
-        "NEO4J_USERNAME": "neo4j",
-        "NEO4J_PASSWORD": "password"
-      }
     }
   }
 }
@@ -183,25 +174,25 @@ Claude Desktop で以下のように話しかけてみましょう:
 
 ---
 
-## 2つのデータベースについて
+## データベースについて
 
-nest-support は2つのNeo4jインスタンスで構成されています:
+nest-support は単一の Neo4j インスタンス（障害福祉クライアント管理）で構成されています:
 
 | インスタンス | Bolt | ブラウザUI | 用途 |
 |------------|------|-----------|------|
 | support-db | localhost:7687 | http://localhost:7474 | 障害福祉クライアント管理 |
-| livelihood-support | localhost:7688 | http://localhost:7475 | 生活困窮者自立支援 |
 
-`docker-compose.yml` で両方が自動起動されます。
+`docker-compose.yml` で起動されます。
+
+> 生活困窮者自立支援（livelihood-support / port 7688）は 2026-05 に廃止しました。
 
 ---
 
-## Skills の一覧（14スキル）
+## Skills の一覧（13スキル）
 
 | Skill | 用途 | Neo4j Port |
 |-------|------|------------|
 | `neo4j-support-db` | 障害福祉クライアント管理 | 7687 |
-| `livelihood-support` | 生活困窮者自立支援 | 7688 |
 | `provider-search` | 事業所検索・口コミ | 7687 |
 | `emergency-protocol` | 緊急時対応プロトコル | — |
 | `ecomap-generator` | エコマップ・インサイト生成 | — |
