@@ -284,3 +284,14 @@ def resolve_client(identifier: str) -> Optional[dict]:
 def get_clients_list():
     res = run_query("MATCH (c:Client) RETURN c.name as name ORDER BY c.name")
     return [r['name'] for r in res]
+
+def get_display_name(identifier: str, fallback: str = "不明") -> str:
+    """識別子から表示用の名前を取得する。
+
+    SOS 緊急通知サービス等が、clientId / displayCode / 通称などの
+    様々な識別子を人間可読な氏名へ解決するために使用する。
+    """
+    client = resolve_client(identifier)
+    if client:
+        return client.get('name') or client.get('displayCode') or fallback
+    return fallback
