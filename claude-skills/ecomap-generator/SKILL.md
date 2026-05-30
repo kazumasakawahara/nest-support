@@ -11,7 +11,7 @@ description: クライアントの支援ネットワークや現在の状態を�
 ## 使用するMCPツール
 | ツール | 用途 |
 |--------|------|
-| `neo4j:read_neo4j_cypher` | 可視化に必要なデータの読み取り |
+| `neo4j:execute_query` | 可視化に必要なデータの読み取り（読み取り専用利用） |
 | `bash:run_shell_command` | 可視化HTML生成スクリプトの実行 |
 
 ## 主な可視化内容

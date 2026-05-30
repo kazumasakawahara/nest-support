@@ -20,10 +20,10 @@
 対象クライアントを特定し、適切なSkillのCypherテンプレートを使用して緊急情報を取得する。
 
 **障害福祉クライアントの場合（port 7687）:**
-→ `neo4j-support-db` スキルのテンプレート2（クライアントプロフィール）を使用し、`neo4j` MCP の `read_neo4j_cypher` で実行。
+→ `neo4j-support-db` スキルのテンプレート2（クライアントプロフィール）を使用し、`neo4j` MCP の `execute_query` で実行。
 
 **生活保護受給者の場合（port 7688）:**
-→ `livelihood-support` スキルのテンプレート9（訪問前ブリーフィング）を使用し、`neo4j-livelihood` MCP の `read_neo4j_cypher` で実行。
+→ `livelihood-support` スキルのテンプレート9（訪問前ブリーフィング）を使用し、`livelihood-support-db` MCP の `execute_query` で実行。
 
 ### ステップ2：情報の優先順位表示
 
@@ -57,12 +57,12 @@
 緊急情報を提示した後、状況に応じて以下を判断する。
 
 - **パニック発作の場合:** 過去の支援記録から効果的だった対応パターンを検索
-  → `neo4j-support-db` スキルのテンプレート6（ケアパターン発見）を `neo4j` MCP の `read_neo4j_cypher` で実行
+  → `neo4j-support-db` スキルのテンプレート6（ケアパターン発見）を `neo4j` MCP の `execute_query` で実行
 
 - **親の急病・入院の場合:** → `protocols/parent_down.md` に移行
 
 - **経済的搾取の疑いがある場合:** → 経済リスクの詳細を確認
-  → `livelihood-support` スキルのテンプレート2a〜2d（クライアントプロフィール）を `neo4j-livelihood` MCP の `read_neo4j_cypher` で実行
+  → `livelihood-support` スキルのテンプレート2a〜2d（クライアントプロフィール）を `livelihood-support-db` MCP の `execute_query` で実行
 
 ---
 

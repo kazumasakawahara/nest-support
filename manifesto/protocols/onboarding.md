@@ -19,7 +19,7 @@
 
 まず、既に登録済みでないか確認する。
 
-→ `neo4j-support-db` スキルのテンプレート1（クライアント一覧）を `neo4j` MCP の `read_neo4j_cypher` で実行。
+→ `neo4j-support-db` スキルのテンプレート1（クライアント一覧）を `neo4j` MCP の `execute_query` で実行。
 
 名前の類似（漢字違い、旧姓等）にも注意する。
 
@@ -66,7 +66,7 @@
 
 ### ステップ3：データ登録
 
-収集した情報をSkillのCypherテンプレートを参考に、`neo4j` MCP の `write_neo4j_cypher` で登録する。
+収集した情報をSkillのCypherテンプレートを参考に、`neo4j` MCP の `execute_query` で登録する。
 
 **基本情報（port 7687）:**
 ```cypher
@@ -93,10 +93,10 @@ SET kp.phone = '電話番号', kp.relationship = '続柄', kp.role = '役割'
 MERGE (c)-[:HAS_KEY_PERSON {rank: 1}]->(kp)
 ```
 
-→ 上記は `neo4j` MCP の `write_neo4j_cypher` で実行する。
+→ 上記は `neo4j` MCP の `execute_query` で実行する。
 
 **livelihood-supportスキル固有の情報（port 7688）:**
-以下の情報は `livelihood-support` スキルのCypherテンプレートを参考に、`neo4j-livelihood` MCP の `write_neo4j_cypher` で登録する。
+以下の情報は `livelihood-support` スキルのCypherテンプレートを参考に、`livelihood-support-db` MCP の `execute_query` で登録する。
 - NgApproach（避けるべき関わり方）→ テンプレート5
 - EffectiveApproach（効果的な関わり方）→ テンプレート6
 - EconomicRisk（経済的リスク）→ テンプレート7
@@ -107,7 +107,7 @@ MERGE (c)-[:HAS_KEY_PERSON {rank: 1}]->(kp)
 
 登録した内容を確認する。
 
-→ `neo4j-support-db` スキルのテンプレート2（クライアントプロフィール）を `neo4j` MCP の `read_neo4j_cypher` で実行。
+→ `neo4j-support-db` スキルのテンプレート2（クライアントプロフィール）を `neo4j` MCP の `execute_query` で実行。
 
 不足している情報を一覧で提示し、次回の面接で確認すべき項目をリストアップする。
 
@@ -138,7 +138,7 @@ MERGE (c)-[:HAS_KEY_PERSON {rank: 1}]->(kp)
 - 緊急フラグ: 母の入院予定あり → Parent Down Trigger の事前準備
 ```
 
-支援記録の登録には `neo4j-support-db` スキルのテンプレート（支援記録登録）を参考に、`neo4j` MCP の `write_neo4j_cypher` で登録し、AIによる自動抽出を活用する。
+支援記録の登録には `neo4j-support-db` スキルのテンプレート（支援記録登録）を参考に、`neo4j` MCP の `execute_query` で登録し、AIによる自動抽出を活用する。
 
 ---
 

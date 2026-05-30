@@ -17,7 +17,7 @@
 ### 1. 訪問前ブリーフィングの取得
 
 **生活保護受給者の場合（port 7688）:**
-→ `livelihood-support` スキルのテンプレート9（訪問前ブリーフィング）を `neo4j-livelihood` MCP の `read_neo4j_cypher` で実行。
+→ `livelihood-support` スキルのテンプレート9（訪問前ブリーフィング）を `livelihood-support-db` MCP の `execute_query` で実行。
 
 このテンプレートは以下を優先順位付きで返す：
 1. ⚠️ 避けるべき関わり方（NgApproach） ← 最重要
@@ -27,12 +27,12 @@
 5. ✅ 効果的だった関わり方
 
 **障害福祉クライアントの場合（port 7687）:**
-→ `neo4j-support-db` スキルのテンプレート2（クライアントプロフィール）を `neo4j` MCP の `read_neo4j_cypher` で実行。
+→ `neo4j-support-db` スキルのテンプレート2（クライアントプロフィール）を `neo4j` MCP の `execute_query` で実行。
 
 ### 2. 最近の支援記録の確認
 
 直近の支援状況を把握する。
-→ `neo4j-support-db` スキルのテンプレート5（支援記録取得）を `neo4j` MCP の `read_neo4j_cypher` で実行。
+→ `neo4j-support-db` スキルのテンプレート5（支援記録取得）を `neo4j` MCP の `execute_query` で実行。
 
 確認ポイント：
 - 前回の訪問で何があったか
@@ -41,7 +41,7 @@
 
 ### 3. 効果的な対応パターンの確認
 
-→ `neo4j-support-db` スキルのテンプレート6（ケアパターン発見）を `neo4j` MCP の `read_neo4j_cypher` で実行。
+→ `neo4j-support-db` スキルのテンプレート6（ケアパターン発見）を `neo4j` MCP の `execute_query` で実行。
 
 特に訪問の目的に関連するパターンを抽出する。例：
 - 同行支援（外出）→ 外出時に効果的だった対応
@@ -50,7 +50,7 @@
 
 ### 4. 更新期限の確認（訪問時に手続きが必要な場合）
 
-→ `neo4j-support-db` スキルのテンプレート4（更新期限チェック）を `neo4j` MCP の `read_neo4j_cypher` で実行。
+→ `neo4j-support-db` スキルのテンプレート4（更新期限チェック）を `neo4j` MCP の `execute_query` で実行。
 
 手帳や受給者証の更新が近い場合、訪問時に書類を準備する。
 
@@ -100,7 +100,7 @@
 入力: 「佐々木まりさんの動向支援でデパートに行くことになりました。気を付けることを教えて下さい。」
 
 実行:
-1. neo4j-support-db テンプレート2 → 禁忌事項・推奨ケア（neo4j MCP の read_neo4j_cypher）
+1. neo4j-support-db テンプレート2 → 禁忌事項・推奨ケア（neo4j MCP の execute_query）
 2. neo4j-support-db テンプレート5 → 最近の支援記録（limit=5）
 3. neo4j-support-db テンプレート6 → 外出時のケアパターン
 4. ブリーフィング形式で出力

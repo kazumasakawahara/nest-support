@@ -19,7 +19,7 @@
 
 ### ステップ1：クライアント全体像の取得
 
-→ `neo4j-support-db` スキルのテンプレート2（クライアントプロフィール）を `neo4j` MCP の `read_neo4j_cypher` で実行。
+→ `neo4j-support-db` スキルのテンプレート2（クライアントプロフィール）を `neo4j` MCP の `execute_query` で実行。
 
 7本柱の全情報を把握する。特に以下に注目：
 - 親（Relative）の情報と健康状態
@@ -28,7 +28,7 @@
 
 ### ステップ2：親のCareRole一覧の取得
 
-以下のCypherを `neo4j` MCP の `read_neo4j_cypher` で実行:
+以下のCypherを `neo4j` MCP の `execute_query` で実行:
 ```cypher
 MATCH (c:Client {name: 'クライアント名'})<-[:IS_PARENT_OF|FAMILY_OF]-(r:Relative)
 OPTIONAL MATCH (r)-[:PERFORMS]->(cr:CareRole)
@@ -53,17 +53,17 @@ ORDER BY r.name, cr.priority DESC
 
 未カバーのCareRoleに対して、福祉サービスの候補を検索する。
 
-→ `provider-search` スキルのテンプレート1（事業所検索）を `neo4j` MCP の `read_neo4j_cypher` で実行。
+→ `provider-search` スキルのテンプレート1（事業所検索）を `neo4j` MCP の `execute_query` で実行。
   条件: service_type, city, availability, target_disability で絞り込み。
 
 口コミ情報がある場合は併せて確認：
-→ `provider-search` スキルのテンプレート6（口コミ検索）を `neo4j` MCP の `read_neo4j_cypher` で実行。
+→ `provider-search` スキルのテンプレート6（口コミ検索）を `neo4j` MCP の `execute_query` で実行。
 
 ### ステップ5：過去のナラティブからの洞察
 
 過去の支援記録から、親の機能に関連する情報を抽出する。
 
-→ `neo4j-support-db` スキルのテンプレート5（支援記録取得）を `neo4j` MCP の `read_neo4j_cypher` で実行（limit=30）。
+→ `neo4j-support-db` スキルのテンプレート5（支援記録取得）を `neo4j` MCP の `execute_query` で実行（limit=30）。
 
 例えば「食事準備」のCareRoleが未カバーの場合：
 - 過去の記録から食事に関するこだわり（特定の味付け、避けるべき食材）を抽出
