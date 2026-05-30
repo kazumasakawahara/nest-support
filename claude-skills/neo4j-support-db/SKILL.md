@@ -26,9 +26,10 @@ description: 知的障害・精神障害のある方の支援情報を包括的�
 
 | ツール | 用途 |
 |--------|------|
-| `neo4j:read_neo4j_cypher` | すべての読み取りクエリ |
-| `neo4j:write_neo4j_cypher` | データの登録・更新 |
-| `neo4j:get_neo4j_schema` | スキーマ確認（必要時のみ） |
+| `neo4j:execute_query` | すべての読み取り・登録・更新（読み書き兼用。`query` に Cypher、任意で `params`） |
+| `neo4j:create_node` / `neo4j:create_relationship` | 単純なノード/リレーション作成（任意。通常は execute_query で足りる） |
+
+> スキーマ確認が必要なときは `execute_query` で `CALL db.schema.visualization()` 等を実行する（専用のスキーマ取得ツールは無い）。
 
 ---
 
@@ -315,7 +316,7 @@ LIMIT $limit
 
 ## データ登録パターン（書き込みクエリ）
 
-データの登録・更新には `neo4j:write_neo4j_cypher` を使用する。
+データの登録・更新には `neo4j:execute_query` を使用する（読み取りと同じツール。書き込み Cypher を `query` に渡す）。
 
 ### 支援記録の登録
 

@@ -10,7 +10,7 @@ description: 福祉サービス事業所の検索・管理・口コミ評価を�
 
 ## 対象Neo4jインスタンス
 - **support-db**: `bolt://localhost:7687`（HTTP: 7474）
-- neo4j MCPの `read_neo4j_cypher` / `write_neo4j_cypher` を使用
+- neo4j MCPの `execute_query`（読み書き兼用の単一ツール。`query` に Cypher、任意で `params`）を使用
 
 ## データモデル
 
@@ -115,7 +115,7 @@ COALESCE(sp.serviceType, sp.service_type, '') AS serviceType
 
 ## Cypherテンプレート
 
-### ── 読み取り系（read_neo4j_cypher） ──
+### ── 読み取り系（execute_query / 読み取りクエリ） ──
 
 ### テンプレート1: 事業所検索（基本）
 
@@ -311,7 +311,7 @@ LIMIT $limit
 - サービス種類: `AND COALESCE(sp.serviceType, sp.service_type, '') CONTAINS $serviceType`
 - 地域: `AND sp.city CONTAINS $city`
 
-### ── 書き込み系（write_neo4j_cypher） ──
+### ── 書き込み系（execute_query / 書き込みクエリ） ──
 
 ### テンプレート7: クライアントと事業所の紐付け
 

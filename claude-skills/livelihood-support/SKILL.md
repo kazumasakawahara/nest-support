@@ -24,9 +24,10 @@ description: 生活保護受給者尊厳支援データベース。7本柱モデ
 
 | ツール | 用途 |
 |--------|------|
-| `neo4j:read_neo4j_cypher` | すべての読み取りクエリ |
-| `neo4j:write_neo4j_cypher` | データの登録・更新 |
-| `neo4j:get_neo4j_schema` | スキーマ確認（必要時のみ） |
+| `livelihood-support-db:execute_query` | すべての読み取り・登録・更新（読み書き兼用。`query` に Cypher、任意で `params`） |
+| `livelihood-support-db:create_node` / `livelihood-support-db:create_relationship` | 単純なノード/リレーション作成（任意） |
+
+> **接続先に注意**: livelihood-support は **port 7688** の `livelihood-support-db` MCP サーバー（ツールは `mcp__livelihood-support-db__*`）を使う。port 7687 の `neo4j` サーバーではない。スキーマ確認は `execute_query` で `CALL db.schema.visualization()` 等。
 
 ---
 
