@@ -10,7 +10,9 @@ This file provides guidance to Claude Code / Claude Desktop when working with th
 
 **nest-support: Claude-Native 親なき後支援データベース**
 
-Neo4j グラフデータベースに蓄積された障害福祉支援情報を、**Claude Desktop / Claude Code + Skills + Neo4j MCP** のみで運用するシステム。Streamlit UI や Gemini API への依存を完全に排除した Single Layer アーキテクチャ。
+Neo4j グラフデータベースに蓄積された障害福祉支援情報を、**Claude Desktop / Claude Code + Skills + Neo4j MCP** を中核に運用するシステム。Streamlit UI への依存を排除し、日常運用は Claude との対話だけで完結する。
+
+> **依存についての正確な記述**: テキストの構造化抽出（narrative-extractor）・照会・分析・ブリーフィング生成といった**日常運用は Claude のみで完結**する（Single Layer）。一方、**セマンティック検索の embedding 生成・音声文字起こし・手書き OCR は Gemini API（`lib/embedding.py`）に依存**する補助機能であり、`GEMINI_API_KEY` 未設定でもスキップされるだけで中核機能は動作する。「Claude 主体 + 検索系は外部 embedding 依存あり」が正確なアーキテクチャ像である。
 
 ### Core Manifesto (5 Values + 7 Pillars)
 
@@ -36,13 +38,21 @@ See `manifesto/MANIFESTO.md` for the complete v4.0 manifesto.
 
 ## Architecture
 
-### Single Layer Design
+### アーキテクチャ：Claude ハブ + 補助サービス
+
+中核は単層（Single Layer）— Claude が SKILL.md の Cypher テンプレートを参照し、汎用 Neo4j MCP でクエリを実行する。これに、Claude を介さず Neo4j を直接読む独立サービス（field-ui / sos）が疎結合でぶら下がる構成。
 
 ```
+【中核 = Single Layer】
 ユーザー → Claude Desktop / Claude Code → Skills (SKILL.md) → Neo4j MCP → Neo4j DB
+
+【補助サービス（独立 FastAPI・Claude を経由しない）】
+現場スタッフのスマホ → field-ui (port 8001) ──┐
+緊急時の通報         → sos (port 8000) ───────┼─→ Neo4j DB
+                                              └─→ 外部API（Gemini / LINE）
 ```
 
-Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎用 Neo4j MCP の `read_neo4j_cypher` / `write_neo4j_cypher` ツールでクエリを実行する。
+Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎用 Neo4j MCP の `read_neo4j_cypher` / `write_neo4j_cypher` ツールでクエリを実行する。field-ui と sos は現場のモバイル UX・緊急通報のための独立サービスで、中核の Single Layer とは別系統で動作する。
 
 ### System Components
 
