@@ -12,7 +12,7 @@
 | エントリーポイント | 担当 | 書き込み方式 | 規約準拠の強制力 |
 |---|---|---|---|
 | Claude Skills (SKILL.md) | Claude Desktop / Code | neo4j MCP の read/write_neo4j_cypher | **中**（Guardian Layer 非経由・LLMの判断＋本規約に依存） |
-| `lib/db_new_operations.py` / `lib/db_operations.py` | Python（field-ui・scripts 等が呼ぶ） | `register_to_database()` 等。書込前に Guardian Layer（`lib/schema_validator.py`）が camelCase 変換・廃止リレーション補正・列挙値検証を実行 | **強**（コードで固定） |
+| `lib/db_operations.py` | Python（field-ui・scripts 等が呼ぶ） | `register_to_database()` 等。書込前に Guardian Layer（`lib/schema_validator.py`）が camelCase 変換・廃止リレーション補正・列挙値検証を実行 | **強**（コードで固定） |
 | `scripts/multi_importer.py` | Gemini（構造化）→ Python 登録 | extract → `register_to_database()` | **強**（Guardian Layer 経由） |
 | 将来のエージェント | 任意のLLM | 未定 | **弱**（このドキュメントが唯一のガイド） |
 

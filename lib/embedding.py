@@ -479,8 +479,8 @@ def ocr_and_embed(
 # =============================================================================
 
 def _run_query(query: str, params: dict = None) -> list:
-    """Neo4j クエリ実行（db_new_operations を遅延インポート）"""
-    from lib.db_new_operations import run_query
+    """Neo4j クエリ実行（db_operations を遅延インポート）"""
+    from lib.db_operations import run_query
     return run_query(query, params)
 
 
