@@ -8,7 +8,7 @@
 ユーザー → Claude Desktop / Claude Code → Skills（SKILL.md）→ Neo4j MCP → Neo4j DB
 ```
 
-Claude が SKILL.md に含まれるCypherテンプレートを参照し、汎用 Neo4j MCP の `read_neo4j_cypher` / `write_neo4j_cypher` ツールでクエリを実行します。
+Claude が SKILL.md に含まれるCypherテンプレートを参照し、汎用 Neo4j MCP の `execute_query` ツール（読み書き兼用）でクエリを実行します。
 
 ---
 

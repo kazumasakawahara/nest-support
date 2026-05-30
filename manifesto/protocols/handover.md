@@ -20,7 +20,7 @@
 対象クライアントの包括的な引き継ぎ資料を生成する。
 
 **生活保護受給者の場合（port 7688）:**
-→ `livelihood-support` スキルのテンプレート10（引き継ぎサマリー）を `neo4j-livelihood` MCP の `read_neo4j_cypher` で実行。
+→ `livelihood-support` スキルのテンプレート10（引き継ぎサマリー）を `livelihood-support-db` MCP の `execute_query` で実行。
 
 このテンプレートは以下の情報を優先順位付きで提供する：
 1. ⚠️ 避けるべき関わり方（NgApproach） ← 新担当者が最初に知るべき
@@ -32,13 +32,13 @@
 7. 🤝 連携している機関
 
 **障害福祉クライアントの場合（port 7687）:**
-→ `neo4j-support-db` スキルのテンプレート2（クライアントプロフィール）を `neo4j` MCP の `read_neo4j_cypher` で実行。
+→ `neo4j-support-db` スキルのテンプレート2（クライアントプロフィール）を `neo4j` MCP の `execute_query` で実行。
 
 ### ステップ2：支援記録の要約
 
 過去の支援記録から重要なパターンを抽出する。
 
-→ `neo4j-support-db` スキルのテンプレート5（支援記録取得）およびテンプレート6（ケアパターン発見）を `neo4j` MCP の `read_neo4j_cypher` で実行。
+→ `neo4j-support-db` スキルのテンプレート5（支援記録取得）およびテンプレート6（ケアパターン発見）を `neo4j` MCP の `execute_query` で実行。
 
 **要約に含めるべきポイント:**
 - 効果的だった対応トップ3
@@ -99,7 +99,7 @@
 
 引き継ぎ時に期限切れ・期限間近の証明書がないか確認する。
 
-→ `neo4j-support-db` スキルのテンプレート4（更新期限チェック）を `neo4j` MCP の `read_neo4j_cypher` で実行。
+→ `neo4j-support-db` スキルのテンプレート4（更新期限チェック）を `neo4j` MCP の `execute_query` で実行。
 
 期限切れが発見された場合は、引き継ぎ資料の冒頭に赤字で警告を追加する。
 

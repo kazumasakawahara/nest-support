@@ -16,7 +16,7 @@
 
 ### ステップ1：全クライアントの期限チェック
 
-→ `neo4j-support-db` スキルのテンプレート4（更新期限チェック）を `neo4j` MCP の `read_neo4j_cypher` で実行（days_ahead=90）。
+→ `neo4j-support-db` スキルのテンプレート4（更新期限チェック）を `neo4j` MCP の `execute_query` で実行（days_ahead=90）。
 
 90日以内に更新期限を迎える全ての証明書を取得する。
 
@@ -59,7 +59,7 @@
 
 特定のクライアントの期限のみ確認する場合：
 
-→ `neo4j-support-db` スキルのテンプレート4（更新期限チェック）を `neo4j` MCP の `read_neo4j_cypher` で実行（特定クライアント名で絞り込み）。
+→ `neo4j-support-db` スキルのテンプレート4（更新期限チェック）を `neo4j` MCP の `execute_query` で実行（特定クライアント名で絞り込み）。
 
 ---
 
@@ -108,6 +108,6 @@
 
 更新手続きの漏れがないか、操作履歴からも確認できる。
 
-→ `neo4j-support-db` スキルのテンプレート7（監査ログ取得）を `neo4j` MCP の `read_neo4j_cypher` で実行。
+→ `neo4j-support-db` スキルのテンプレート7（監査ログ取得）を `neo4j` MCP の `execute_query` で実行。
 
 更新関連の操作が記録されているか、特に期限が近いクライアントについて確認する。

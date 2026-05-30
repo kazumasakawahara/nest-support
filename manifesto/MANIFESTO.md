@@ -134,7 +134,7 @@ v4.0では、中核5Skills（neo4j-support-db / livelihood-support / provider-se
 
 **Neo4j MCP:**
 - `neo4j`（port 7687）: neo4j-support-db, provider-search スキル用
-- `neo4j-livelihood`（port 7688）: livelihood-support スキル用
+- `livelihood-support-db`（port 7688）: livelihood-support スキル用
 
 → 全Skillの使い分けとルーティング判断フロー: `CLAUDE.md`「Skills 一覧と使い分けガイド」
 

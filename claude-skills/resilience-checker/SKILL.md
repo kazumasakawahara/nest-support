@@ -28,8 +28,7 @@ description: 「もし親が倒れたら」をシミュレーションし、親�
 
 | ツール | 用途 |
 |--------|------|
-| `neo4j:read_neo4j_cypher` | CareRole・代替手段・事業所の読み取り |
-| `neo4j:write_neo4j_cypher` | CareRole の登録・更新（必要時） |
+| `neo4j:execute_query` | CareRole・代替手段・事業所の読み取り、および CareRole の登録・更新（必要時）。読み書き兼用ツール |
 
 ---
 

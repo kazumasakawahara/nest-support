@@ -30,8 +30,7 @@ description: Neo4jデータベースの品質を定期的に監視し、更新�
 
 | ツール | 用途 |
 |--------|------|
-| `neo4j:read_neo4j_cypher` | port 7687（障害福祉DB）からの読み取り |
-| `neo4j:write_neo4j_cypher` | 使用しない（読み取り専用スキル） |
+| `neo4j:execute_query` | port 7687（障害福祉DB）からの読み取り（このスキルは読み取り専用。データ品質チェックのため書き込みは行わない） |
 
 ---
 

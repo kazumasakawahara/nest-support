@@ -52,7 +52,7 @@ See `manifesto/MANIFESTO.md` for the complete v4.0 manifesto.
                                               └─→ 外部API（Gemini / LINE）
 ```
 
-Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎用 Neo4j MCP の `read_neo4j_cypher` / `write_neo4j_cypher` ツールでクエリを実行する。field-ui と sos は現場のモバイル UX・緊急通報のための独立サービスで、中核の Single Layer とは別系統で動作する。
+Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎用 Neo4j MCP の `execute_query` ツール（読み書き兼用。`query` に Cypher、任意で `params`）でクエリを実行する。field-ui と sos は現場のモバイル UX・緊急通報のための独立サービスで、中核の Single Layer とは別系統で動作する。
 
 ### System Components
 

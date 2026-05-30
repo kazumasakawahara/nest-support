@@ -1,10 +1,15 @@
+---
+name: narrative-extractor
+description: 母親・支援者の語り（ナラティブ）や添付ファイルから、支援に必要な構造化データを抽出し Neo4j に登録するスキル。抽出は Claude 自身が行い、外部 LLM API は不要。「テキストから抽出」「情報を抽出して」「ナラティブから登録」「この文章を構造化して」「データベースに登録して」「面談記録を入力」「聞き取り内容を登録」などの発言時、および .docx/.xlsx/.pdf/.txt ファイル添付時に必ずこのスキルを使用すること。
+---
+
 # narrative-extractor: テキストから構造化データを抽出するスキル
 
 ## 概要
 
 母親・支援者の語り（ナラティブ）やファイルから、支援に必要な構造化データをJSON形式で抽出し、Neo4jデータベースに登録するためのスキル。
 
-構造化抽出は **Claude 自身がこの SKILL.md の指示に従って直接行う**（外部 LLM API は不要）。Claude が抽出した JSON を、neo4j MCP の `write_neo4j_cypher` で本スキルの Cypher テンプレートを使って登録する。
+構造化抽出は **Claude 自身がこの SKILL.md の指示に従って直接行う**（外部 LLM API は不要）。Claude が抽出した JSON を、neo4j MCP の `execute_query`（書き込みクエリ）で本スキルの Cypher テンプレートを使って登録する。
 
 ## トリガーワード
 
@@ -144,7 +149,7 @@
 
 ### Step 4: Neo4jへの登録
 
-確認後、neo4j MCP の `write_neo4j_cypher` を使って以下のCypherテンプレートで登録する。
+確認後、neo4j MCP の `execute_query` を使って以下のCypherテンプレートで登録する（書き込みクエリも同じ `execute_query` ツールを使う）。
 
 #### Cypherテンプレート
 

@@ -1,6 +1,6 @@
 ---
 name: provider-search
-description: 福祉サービス事業所の検索・管理・口コミ評価を行うスキル。WAM NETから取得した事業所情報（ServiceProvider）と支援者による口コミ（ProviderFeedback）をNeo4jグラフデータベースで管理する。汎用neo4j MCPツールでCypherクエリを実行。
+description: 福祉サービス事業所の検索・管理・口コミ評価を行うスキル。WAM NETから取得した事業所情報（ServiceProvider）と支援者による口コミ（ProviderFeedback）をNeo4jグラフデータベース（port 7687）で管理する。「事業所を探す」「事業所検索」「サービス事業所」「事業所の口コミ」「事業所の評価」「空き状況」「〇〇市の事業所」「通所先を探す」などの発言時に必ずこのスキルを使用すること。汎用neo4j MCPツール（execute_query）でCypherを実行する。
 ---
 
 # provider-search スキル
@@ -10,7 +10,7 @@ description: 福祉サービス事業所の検索・管理・口コミ評価を�
 
 ## 対象Neo4jインスタンス
 - **support-db**: `bolt://localhost:7687`（HTTP: 7474）
-- neo4j MCPの `read_neo4j_cypher` / `write_neo4j_cypher` を使用
+- neo4j MCPの `execute_query`（読み書き兼用の単一ツール。`query` に Cypher、任意で `params`）を使用
 
 ## データモデル
 
@@ -115,7 +115,7 @@ COALESCE(sp.serviceType, sp.service_type, '') AS serviceType
 
 ## Cypherテンプレート
 
-### ── 読み取り系（read_neo4j_cypher） ──
+### ── 読み取り系（execute_query / 読み取りクエリ） ──
 
 ### テンプレート1: 事業所検索（基本）
 
@@ -311,7 +311,7 @@ LIMIT $limit
 - サービス種類: `AND COALESCE(sp.serviceType, sp.service_type, '') CONTAINS $serviceType`
 - 地域: `AND sp.city CONTAINS $city`
 
-### ── 書き込み系（write_neo4j_cypher） ──
+### ── 書き込み系（execute_query / 書き込みクエリ） ──
 
 ### テンプレート7: クライアントと事業所の紐付け
 
