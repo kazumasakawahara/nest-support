@@ -80,12 +80,16 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 
 ## Skills 一覧と使い分けガイド
 
-### 14 Skills
+### 13 Skills（運用中）＋ 1 廃止
+
+> ⚠️ `livelihood-support`（生活困窮者自立支援 / port 7688）は **2026-05 に廃止**。
+> Skill は `decommissioned/` へ退避し、MCP（`livelihood-support-db`）・Docker サービス
+> （7688）・`~/.claude/skills/` の symlink をすべて撤去済み。下表の取消線は廃止分。
 
 | Skill | 対象業務 | Neo4j Port | Templates |
 |-------|----------|-----------|-----------|
 | `neo4j-support-db` | 障害福祉クライアント管理 | 7687 | 10 read |
-| `livelihood-support` | 生活困窮者自立支援 | 7688 | 12 read |
+| ~~`livelihood-support`~~ | 生活困窮者自立支援 | ~~7688~~ | **非運用（2026-05 廃止）** |
 | `provider-search` | 事業所検索・口コミ管理 | 7687 | 6 read + 3 write |
 | `emergency-protocol` | 緊急時対応プロトコル（insight-agent連動） | N/A | N/A |
 | `ecomap-generator` | エコマップ・インサイト生成（D3.jsハイブリッドビュー） | N/A | N/A |
@@ -113,14 +117,8 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 ├─ クライアント名が含まれる？
 │  └─ YES → neo4j-support-db（port 7687）
 │
-├─ 受給者名＋経済リスク・金銭管理の話題？
-│  └─ YES → livelihood-support（port 7688）
-│
 ├─ 事業所検索・口コミの話題？
 │  └─ YES → provider-search
-│
-├─ 訪問前ブリーフィング・引き継ぎ？
-│  └─ YES → livelihood-support
 │
 ├─ エコマップ・ネットワーク図？
 │  └─ YES → ecomap-generator
@@ -156,9 +154,9 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 | インスタンス | Bolt | HTTP | 対象スキル |
 |------------|------|------|-----------|
 | support-db | localhost:7687 | localhost:7474 | neo4j-support-db, provider-search, narrative-extractor |
-| livelihood-support | localhost:7688 | localhost:7475 | livelihood-support |
+| ~~livelihood-support~~ | ~~localhost:7688~~ | ~~localhost:7475~~ | **非運用（2026-05 廃止）** |
 
-**`neo4j` MCP のデフォルト接続先は port 7687。** livelihood-support のクエリは `livelihood-support-db` MCP サーバー（port 7688）経由の専用ツール群（`mcp__livelihood-support-db__*`）を使用すること。
+**`neo4j` MCP のデフォルト接続先は port 7687。**（`livelihood-support` / port 7688 は 2026-05 に廃止し、`livelihood-support-db` MCP サーバーは撤去済み。）
 
 ---
 
@@ -181,7 +179,7 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 
 `Client`, `Condition`, `NgAction`, `CarePreference`, `KeyPerson`, `Guardian`, `Hospital`, `Certificate`, `PublicAssistance`, `Organization`, `Supporter`, `SupportLog`, `MeetingRecord`, `AuditLog`, `LifeHistory`, `Wish`, `Identity`, `ServiceProvider`, `ProviderFeedback`
 
-### 主要ノードラベル（生活困窮者自立支援 port 7688）
+### 主要ノードラベル（生活困窮者自立支援 port 7688）⚠️ 非運用（2026-05 廃止・記録目的で残置）
 
 `Recipient`, `CaseRecord`, `HomeVisit`, `Strength`, `Challenge`, `MentalHealthStatus`, `NgApproach`, `EffectiveApproach`, `EconomicRisk`, `MoneyManagement`, `KeyPerson`, `Hospital`, `SupportOrganization`, `CollaborationRecord`, `AuditLog`
 
@@ -288,11 +286,11 @@ See `docs/QUICK_START.md` for detailed setup instructions.
 ```
 
 チェック項目（21項目・All PASS が健全状態）:
-1. Docker コンテナ（`nest-support-neo4j`, `nest-support-neo4j-livelihood`）が running か
-2. Bolt ポート 7687 / 7688 が疎通するか
-3. `~/.claude/skills/` の 14 Skills が本プロジェクトの `claude-skills/` を指しているか
-4. プロジェクトの `.mcp.json` が port 7687/7688 の neo4j / livelihood-support-db を定義しているか
-5. Claude Desktop 設定にも neo4j / livelihood-support-db があるか（情報のみ）
+1. Docker コンテナ（`nest-support-neo4j`、port 7687）が running か（別名コンテナが 7687 を提供する現状維持構成も許容）
+2. Bolt ポート 7687 が疎通するか
+3. `~/.claude/skills/` の 13 Skills が本プロジェクトの `claude-skills/` を指しているか
+4. プロジェクトの `.mcp.json` が port 7687 の neo4j を定義しているか（`livelihood-support-db` は廃止・除去済み）
+5. Claude Desktop 設定にも neo4j があるか（情報のみ）
 
 ---
 
@@ -335,7 +333,7 @@ nest-support/
 │   └── utils.py                   # 日付パース等ユーティリティ
 ├── claude-skills/                 # Skills (→ ~/.claude/skills/ へ symlink)
 │   ├── neo4j-support-db/
-│   ├── livelihood-support/
+│   ├── (livelihood-support → decommissioned/ へ移設・2026-05 廃止)
 │   ├── provider-search/
 │   ├── emergency-protocol/        # 緊急時対応（insight-agent連動）
 │   ├── ecomap-generator/          # エコマップ・インサイト生成（D3.jsハイブリッドビュー）

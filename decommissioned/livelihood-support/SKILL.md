@@ -1,6 +1,15 @@
 ---
 name: livelihood-support
-description: 生活保護・生活困窮者（受給者）の尊厳支援データベース（port 7688、別インスタンス）。7本柱モデルに基づき、二次被害防止と経済的安全を最優先に支援情報を管理する。受給者名＋経済リスク・金銭管理・債務・搾取・ケース記録・家庭訪問が話題のとき、「生活保護」「生活困窮」「受給者」「経済的リスク」「金銭管理」「ケース記録」「家庭訪問」「自立支援」などの発言時に必ずこのスキルを使用すること。livelihood-support-db MCP（execute_query, port 7688）でCypherを実行する。
+description: "⚠️【非運用 / DECOMMISSIONED 2026-05】この生活困窮者自立支援スキルは廃止され、運用していません。決して使用・発火しないでください。対応する Neo4j（port 7688）・MCP サーバー（livelihood-support-db）も撤去済みで、クエリは通りません。ユーザーが生活困窮支援を明示的に要求した場合は、本機能が非運用である旨を伝えてください。"
+---
+
+> ⚠️ **このスキルは 2026-05 に廃止（DECOMMISSIONED）されました。**
+> 生活困窮者自立支援機能は今後使用しないため、`claude-skills/` から本ディレクトリ
+> （`decommissioned/`）へ退避し、`~/.claude/skills/` の symlink・Docker サービス
+> （port 7688）・`.mcp.json` の `livelihood-support-db` をすべて撤去しています。
+> 以下は記録目的で残した旧仕様です。**実行しないでください。**（再開手順は
+> `decommissioned/README.md` を参照）
+
 ---
 
 # 生活保護受給者尊厳支援データベース スキル

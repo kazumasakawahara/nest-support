@@ -23,21 +23,26 @@ services:
 
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   # Neo4j データベース（生活困窮者自立支援）
+  # ⚠️ 非運用（2026-05 廃止）: 生活困窮支援機能は使用しないため無効化。
+  #   誤起動防止のためサービス定義をコメントアウトしている。
+  #   再開する場合は以下のコメントを解除し、Skill を decommissioned/ から
+  #   claude-skills/ へ戻したうえで .mcp.json に livelihood-support-db を再追加する。
+  #   （詳細は decommissioned/README.md を参照）
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  neo4j-livelihood:
-    image: neo4j:5.15-community
-    container_name: nest-support-neo4j-livelihood
-    ports:
-      - "7475:7474" # HTTP Browser UI
-      - "7688:7687" # Bolt/Neo4j Protocol
-    environment:
-      - NEO4J_AUTH=neo4j/password
-      - NEO4J_server_memory_pagecache_size=512M
-      - NEO4J_server_memory_heap_initial__size=512M
-      - NEO4J_server_memory_heap_max__size=512M
-      - NEO4J_PLUGINS=["apoc"]
-    volumes:
-      - ./neo4j_livelihood_data:/data
-      - ./neo4j_livelihood_logs:/logs
-      - ./neo4j_livelihood_plugins:/plugins
-    restart: unless-stopped
+  # neo4j-livelihood:
+  #   image: neo4j:5.15-community
+  #   container_name: nest-support-neo4j-livelihood
+  #   ports:
+  #     - "7475:7474" # HTTP Browser UI
+  #     - "7688:7687" # Bolt/Neo4j Protocol
+  #   environment:
+  #     - NEO4J_AUTH=neo4j/password
+  #     - NEO4J_server_memory_pagecache_size=512M
+  #     - NEO4J_server_memory_heap_initial__size=512M
+  #     - NEO4J_server_memory_heap_max__size=512M
+  #     - NEO4J_PLUGINS=["apoc"]
+  #   volumes:
+  #     - ./neo4j_livelihood_data:/data
+  #     - ./neo4j_livelihood_logs:/logs
+  #     - ./neo4j_livelihood_plugins:/plugins
+  #   restart: unless-stopped
