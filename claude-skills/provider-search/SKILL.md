@@ -1,6 +1,6 @@
 ---
 name: provider-search
-description: 福祉サービス事業所の検索・管理・口コミ評価を行うスキル。WAM NETから取得した事業所情報（ServiceProvider）と支援者による口コミ（ProviderFeedback）をNeo4jグラフデータベースで管理する。汎用neo4j MCPツールでCypherクエリを実行。
+description: 福祉サービス事業所の検索・管理・口コミ評価を行うスキル。WAM NETから取得した事業所情報（ServiceProvider）と支援者による口コミ（ProviderFeedback）をNeo4jグラフデータベース（port 7687）で管理する。「事業所を探す」「事業所検索」「サービス事業所」「事業所の口コミ」「事業所の評価」「空き状況」「〇〇市の事業所」「通所先を探す」などの発言時に必ずこのスキルを使用すること。汎用neo4j MCPツール（execute_query）でCypherを実行する。
 ---
 
 # provider-search スキル
