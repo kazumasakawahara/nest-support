@@ -6,7 +6,7 @@
 
 前提条件:
     - GEMINI_API_KEY 環境変数が設定されていること（.env ファイル or export）
-      → Gemini 2.0 Flash による音声文字起こし・画像OCR・テキスト構造化に必須
+      → Gemini 生成モデル（既定 gemini-2.5-pro）による音声文字起こし・画像OCR・テキスト構造化に必須
     - Neo4j が起動していること（docker compose up -d）
 
 Usage:
@@ -126,7 +126,7 @@ def structurize_with_gemini(
     グラフデータを生成する。
     """
     try:
-        from lib.embedding import get_genai_client
+        from lib.embedding import get_genai_client, GENERATION_MODEL
     except ImportError:
         _log("lib.embedding が利用できません", "ERROR")
         return None
@@ -154,7 +154,7 @@ def structurize_with_gemini(
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=GENERATION_MODEL,
             contents=[full_prompt],
         )
         response_text = response.text.strip()

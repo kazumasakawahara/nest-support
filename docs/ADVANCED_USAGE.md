@@ -182,7 +182,7 @@ result = generate_risk_assessment("山本翔太")
 
 音声・画像・PDF・テキストから感情データを含む構造化データを一括登録するスクリプトです。
 
-**前提**: `GEMINI_API_KEY` 環境変数が必要です（Gemini 2.0 Flash による音声文字起こし・画像OCR・テキスト構造化に使用）。
+**前提**: `GEMINI_API_KEY` 環境変数が必要です（Gemini 生成モデル（既定 gemini-2.5-pro）による音声文字起こし・画像OCR・テキスト構造化に使用）。
 
 ```bash
 # 単一ファイル

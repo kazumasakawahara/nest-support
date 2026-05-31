@@ -444,7 +444,7 @@ Gemini Embedding 2（`gemini-embedding-2-preview`）による768次元ベクト�
 
 **音声・面談記録関数（`lib/embedding.py`）:**
 - `embed_audio(audio_path)` — 音声ファイルからembeddingベクトルを生成（最大80秒）
-- `transcribe_audio(audio_path)` — Gemini 2.0 Flash で音声をテキストに文字起こし
+- `transcribe_audio(audio_path)` — Gemini 生成モデル（既定 gemini-2.5-pro）で音声をテキストに文字起こし
 - `register_meeting_record(audio_path, client_name, supporter_name, date, ...)` — 音声面談記録の一括登録（文字起こし + dual embedding + Neo4j登録）
 
 **クライアント類似度分析関数（`lib/embedding.py`）:**

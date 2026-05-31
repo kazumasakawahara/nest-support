@@ -21,8 +21,16 @@ load_dotenv()
 # 定数
 # =============================================================================
 
-# Gemini Embedding 2 モデル名（Public Preview）
-EMBEDDING_MODEL = "gemini-embedding-2-preview"
+# Gemini 埋め込みモデル名（GA）
+# 注: 旧既定 gemini-embedding-2-preview は実在しないモデル名で、ベクトル生成が
+#     失敗していた。gemini-embedding-001（GA・768次元出力対応）へ修正。
+EMBEDDING_MODEL = os.getenv("GEMINI_EMBED_MODEL", "gemini-embedding-001")
+
+# 生成モデル（OCR・音声文字起こし・テキスト構造化に使用）
+# 既定 gemini-2.5-pro（GA・高精度）。GEMINI_GENERATION_MODEL で上書き可
+# （速度/コスト優先なら gemini-2.5-flash 等）。
+# 注: gemini-2.0-flash は 2026-06-01 に提供終了のため既定から除外。
+GENERATION_MODEL = os.getenv("GEMINI_GENERATION_MODEL", "gemini-2.5-pro")
 
 # デフォルト出力次元数
 # 768: ストレージ効率優先（本番推奨）
@@ -304,7 +312,7 @@ def transcribe_audio(
     instruction: str = "この音声を正確に文字起こししてください。話者が複数いる場合は区別してください。",
 ) -> Optional[str]:
     """
-    Gemini 2.0 Flash で音声をテキストに文字起こし
+    Gemini 生成モデル（既定 gemini-2.5-pro）で音声をテキストに文字起こし
 
     Args:
         audio_path: 音声ファイルパス
@@ -330,7 +338,7 @@ def transcribe_audio(
             audio_bytes = f.read()
 
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=GENERATION_MODEL,
             contents=[
                 types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
                 instruction,
@@ -398,7 +406,7 @@ def embed_texts_batch(
 
 
 # =============================================================================
-# 手書きPDF / スキャン画像 OCR（Gemini 2.0 Flash）
+# 手書きPDF / スキャン画像 OCR（Gemini 生成モデル）
 # =============================================================================
 
 def ocr_with_gemini(
@@ -406,7 +414,7 @@ def ocr_with_gemini(
     instruction: str = "この文書のすべてのテキストを正確に抽出してください。手書き部分も含めて読み取ってください。",
 ) -> Optional[str]:
     """
-    Gemini 2.0 Flash でスキャンPDF/手書き画像からテキストを抽出
+    Gemini 生成モデル（既定 gemini-2.5-pro）でスキャンPDF/手書き画像からテキストを抽出
 
     Args:
         file_path: PDF または画像ファイルのパス
@@ -434,7 +442,7 @@ def ocr_with_gemini(
             file_bytes = f.read()
 
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=GENERATION_MODEL,
             contents=[
                 instruction,
                 types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
