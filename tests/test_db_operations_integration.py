@@ -44,7 +44,11 @@ class _QueryRecorder:
 def recorder():
     """run_query と embedding 系をモックした状態で register_to_database を動かす。"""
     rec = _QueryRecorder()
+    # register_to_database の主要書き込みは execute_write 経由（失敗を握り潰さない）、
+    # 監査ログ等のベストエフォート書き込みは run_query 経由。両方を同じ recorder で
+    # 捕捉し、発行 Cypher を検証する。
     with patch("lib.db_operations.run_query", side_effect=rec), \
+         patch("lib.db_operations.execute_write", side_effect=rec), \
          patch("lib.embedding.embed_texts_batch", return_value=[]), \
          patch("lib.embedding.embed_client_summary", return_value=None):
         yield rec

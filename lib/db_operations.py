@@ -71,6 +71,21 @@ def run_query(query, params=None):
         log(f"クエリ実行エラー: {e}", "ERROR")
         return []
 
+def execute_write(query, params=None):
+    """書き込みクエリを実行し、失敗時は例外を送出する（握り潰さない）。
+
+    読み取り用 run_query が失敗時に [] を返すのと異なり、書き込みの失敗を
+    呼び出し側へ伝播させる。安全に関わる NgAction / Client 等の登録が静かに
+    失敗したまま「成功」と誤報告されるのを防ぐため、register_to_database の
+    主要な登録経路で使用する。
+    """
+    driver = get_driver()
+    if driver is None:
+        raise RuntimeError("Neo4j ドライバーを取得できません（接続失敗）")
+    with driver.session() as session:
+        result = session.run(query, params or {})
+        return [record.data() for record in result]
+
 # =============================================================================
 # 登録エンジン構成
 # =============================================================================
@@ -141,48 +156,58 @@ def register_to_database(extracted_graph: dict, user_name: str = "system") -> di
             client_name_context = node.get("properties", {}).get("name", "Unknown")
             break
 
-    # 1. ノードの処理
-    for node in extracted_graph.get("nodes", []):
-        temp_id = node.get("temp_id")
-        label = node.get("label")
-        props = node.get("properties", {})
+    # 書き込み（ノード・リレーション）は失敗を握り潰さず error を返す
+    try:
+        # 1. ノードの処理
+        for node in extracted_graph.get("nodes", []):
+            temp_id = node.get("temp_id")
+            label = node.get("label")
+            props = node.get("properties", {})
 
-        if not temp_id or not label: continue
+            if not temp_id or not label: continue
 
-        internal_id = None
-        action_type = "CREATE"
+            internal_id = None
+            action_type = "CREATE"
 
-        if label in MERGE_KEYS:
-            match_props = {k: props[k] for k in MERGE_KEYS[label] if k in props}
-            if match_props:
-                match_clause = ", ".join([f"{k}: ${k}" for k in match_props.keys()])
-                cypher = f"MERGE (n:{label} {{{match_clause}}}) SET n += $props RETURN elementId(n) AS id"
-                params = {**match_props, "props": props}
-                result = run_query(cypher, params)
+            if label in MERGE_KEYS:
+                match_props = {k: props[k] for k in MERGE_KEYS[label] if k in props}
+                if match_props:
+                    match_clause = ", ".join([f"{k}: ${k}" for k in match_props.keys()])
+                    cypher = f"MERGE (n:{label} {{{match_clause}}}) SET n += $props RETURN elementId(n) AS id"
+                    params = {**match_props, "props": props}
+                    result = execute_write(cypher, params)
+                    if result: internal_id = result[0]['id']
+                    action_type = "MERGE/UPDATE"
+
+            if not internal_id:
+                cypher = f"CREATE (n:{label}) SET n = $props RETURN elementId(n) AS id"
+                result = execute_write(cypher, {"props": props})
                 if result: internal_id = result[0]['id']
-                action_type = "MERGE/UPDATE"
-        
-        if not internal_id:
-            cypher = f"CREATE (n:{label}) SET n = $props RETURN elementId(n) AS id"
-            result = run_query(cypher, {"props": props})
-            if result: internal_id = result[0]['id']
 
-        if internal_id:
-            temp_id_map[temp_id] = internal_id
-            registered_labels.append(label)
-            _audit_node_creation(user_name, label, props, action_type, client_name_context)
+            if internal_id:
+                temp_id_map[temp_id] = internal_id
+                registered_labels.append(label)
+                _audit_node_creation(user_name, label, props, action_type, client_name_context)
 
-    # 2. リレーションシップの処理
-    for rel in extracted_graph.get("relationships", []):
-        source_id = temp_id_map.get(rel.get("source_temp_id"))
-        target_id = temp_id_map.get(rel.get("target_temp_id"))
-        if source_id and target_id and rel.get("type"):
-            run_query(f"""
-                MATCH (s) WHERE elementId(s) = $sid
-                MATCH (t) WHERE elementId(t) = $tid
-                MERGE (s)-[r:{rel['type']}]->(t)
-                SET r += $props
-            """, {"sid": source_id, "tid": target_id, "props": rel.get("properties", {})})
+        # 2. リレーションシップの処理
+        for rel in extracted_graph.get("relationships", []):
+            source_id = temp_id_map.get(rel.get("source_temp_id"))
+            target_id = temp_id_map.get(rel.get("target_temp_id"))
+            if source_id and target_id and rel.get("type"):
+                execute_write(f"""
+                    MATCH (s) WHERE elementId(s) = $sid
+                    MATCH (t) WHERE elementId(t) = $tid
+                    MERGE (s)-[r:{rel['type']}]->(t)
+                    SET r += $props
+                """, {"sid": source_id, "tid": target_id, "props": rel.get("properties", {})})
+    except Exception as e:
+        log(f"グラフ登録に失敗しました: {e}", "ERROR")
+        return {
+            "status": "error",
+            "message": str(e),
+            "client_name": client_name_context,
+            "partial_count": len(registered_labels),
+        }
 
     # 3. 事後処理 (チェーン構築・Embedding)
     if "SupportLog" in registered_labels:
