@@ -631,6 +631,39 @@ def embed_support_log(log_data: dict) -> bool:
 # セマンティック検索
 # =============================================================================
 
+# ベクトルインデックス名は運用 DB により異なる。特に SupportLog は
+# 同一スキーマ (:SupportLog {embedding}) にベクトル索引を1つしか作れないため、
+# 環境によって名前が違う:
+#   - nest-support 正典: support_log_embedding
+#   - 間借り中の agno-agent 由来 DB: support_log_vector_index
+# 指定名が無ければ同一ラベル・プロパティの実在索引名へフォールバックする。
+_vector_index_cache: dict = {}
+
+
+def resolve_vector_index(preferred_name: str) -> str:
+    """指定インデックス名が無ければ、同一ラベル・プロパティの実在ベクトル索引名を返す"""
+    if preferred_name in _vector_index_cache:
+        return _vector_index_cache[preferred_name]
+    config = VECTOR_INDEXES.get(preferred_name)
+    chosen = preferred_name
+    try:
+        if config:
+            rows = _run_query(
+                "SHOW INDEXES YIELD name, type, labelsOrTypes, properties "
+                "WHERE type = 'VECTOR' AND labelsOrTypes = [$label] "
+                "AND properties = [$prop] RETURN name",
+                {"label": config["label"], "prop": config["property"]},
+            )
+            names = [r["name"] for r in rows]
+            if preferred_name not in names and names:
+                chosen = names[0]
+                log(f"インデックス '{preferred_name}' が無いため '{chosen}' を使用")
+    except Exception as e:
+        log(f"インデックス解決に失敗（{preferred_name} をそのまま使用）: {e}", "WARN")
+    _vector_index_cache[preferred_name] = chosen
+    return chosen
+
+
 def semantic_search(
     query_text: str,
     index_name: str = "support_log_embedding",
@@ -665,7 +698,7 @@ def semantic_search(
         ORDER BY score DESC
         """,
         {
-            "index_name": index_name,
+            "index_name": resolve_vector_index(index_name),
             "top_k": top_k,
             "query_embedding": query_embedding,
         },
@@ -701,7 +734,7 @@ def search_support_logs_semantic(
     if client_name:
         results = _run_query(
             """
-            CALL db.index.vector.queryNodes('support_log_embedding', $top_k, $query_embedding)
+            CALL db.index.vector.queryNodes($index_name, $top_k, $query_embedding)
             YIELD node, score
             MATCH (s:Supporter)-[:LOGGED]->(node)-[:ABOUT]->(c:Client)
             WHERE c.name CONTAINS $client_name
@@ -716,6 +749,7 @@ def search_support_logs_semantic(
             ORDER BY score DESC
             """,
             {
+                "index_name": resolve_vector_index("support_log_embedding"),
                 "top_k": top_k * 3,  # フィルタ前に多めに取得
                 "query_embedding": query_embedding,
                 "client_name": client_name,
@@ -724,7 +758,7 @@ def search_support_logs_semantic(
     else:
         results = _run_query(
             """
-            CALL db.index.vector.queryNodes('support_log_embedding', $top_k, $query_embedding)
+            CALL db.index.vector.queryNodes($index_name, $top_k, $query_embedding)
             YIELD node, score
             MATCH (s:Supporter)-[:LOGGED]->(node)-[:ABOUT]->(c:Client)
             RETURN node.date AS 日付,
@@ -738,6 +772,7 @@ def search_support_logs_semantic(
             ORDER BY score DESC
             """,
             {
+                "index_name": resolve_vector_index("support_log_embedding"),
                 "top_k": top_k,
                 "query_embedding": query_embedding,
             },
