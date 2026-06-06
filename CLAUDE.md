@@ -179,12 +179,6 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 
 `Client`, `Condition`, `NgAction`, `CarePreference`, `KeyPerson`, `Guardian`, `Hospital`, `Certificate`, `PublicAssistance`, `Organization`, `Supporter`, `SupportLog`, `MeetingRecord`, `AuditLog`, `LifeHistory`, `Wish`, `Identity`, `ServiceProvider`, `ProviderFeedback`
 
-### 主要ノードラベル（生活困窮者自立支援 port 7688）⚠️ 非運用（2026-05 廃止・記録目的で残置）
-
-`Recipient`, `CaseRecord`, `HomeVisit`, `Strength`, `Challenge`, `MentalHealthStatus`, `NgApproach`, `EffectiveApproach`, `EconomicRisk`, `MoneyManagement`, `KeyPerson`, `Hospital`, `SupportOrganization`, `CollaborationRecord`, `AuditLog`
-
-> 詳細は `docs/SCHEMA_CONVENTION.md` の「livelihood-support スキーマ」セクションを参照。
-
 ### 主要リレーション
 
 ```cypher
@@ -313,7 +307,7 @@ See `docs/QUICK_START.md` for detailed setup instructions.
 ```
 nest-support/
 ├── CLAUDE.md                      # このファイル
-├── docker-compose.yml             # Neo4j (port 7687 + 7688)
+├── docker-compose.yml             # Neo4j (port 7687)
 ├── pyproject.toml                 # 最小依存
 ├── .env.example                   # 環境変数テンプレート
 ├── .python-version                # 3.12

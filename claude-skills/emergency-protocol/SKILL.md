@@ -356,7 +356,6 @@ ORDER BY c.name
 |--------|---------------|
 | `insight-agent` | **リスク「高」判定時に本スキルを自動起動** |
 | `neo4j-support-db` | 緊急対応後の支援記録追加 |
-| `livelihood-support` | 経済的リスクの確認（生活保護受給者の場合） |
 | `ecomap-generator` | 支援ネットワーク図の生成 |
 | `resilience-checker` | 親なき後のバックアップ体制確認 |
 

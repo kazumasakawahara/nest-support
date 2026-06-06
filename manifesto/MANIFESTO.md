@@ -31,7 +31,7 @@
 
 ## 2. データモデルの7本柱 (The 7 Data Pillars)
 
-v4.0では、中核5Skills（neo4j-support-db / livelihood-support / provider-search / emergency-protocol / ecomap-generator）が扱う領域を統一的に整理した。その後 narrative-extractor / visit-prep / resilience-checker / onboarding-wizard / data-quality-agent / insight-agent / wamnet-provider-sync / inheritance-calculator / html-to-pdf を追加し、現在は計14 Skills（最新は `CLAUDE.md` を参照）。以下の7本柱はこれら全Skillに通底するデータモデルである。
+v4.0では、中核Skills（neo4j-support-db / provider-search / emergency-protocol / ecomap-generator）が扱う領域を統一的に整理した。その後 narrative-extractor / visit-prep / resilience-checker / onboarding-wizard / data-quality-agent / insight-agent / wamnet-provider-sync / inheritance-calculator / html-to-pdf を追加し、現在は計14 Skills（最新は `CLAUDE.md` を参照）。以下の7本柱はこれら全Skillに通底するデータモデルである。
 
 ### 第1の柱：本人性 (Identity & Narrative)
 「その人は誰か」を定義する。属性だけでなく、人生の物語を含む。
@@ -75,14 +75,12 @@ v4.0では、中核5Skills（neo4j-support-db / livelihood-support / provider-se
 
 - **主要ノード:** `MoneyManagement`, `EconomicRisk`
 - **マニフェスト価値:** 権利擁護 (Advocacy), 安全 (Safety)
-- **スキル:** livelihood-support（port 7688）
 
 ### 第7の柱：多機関連携 (Multi-Agency Collaboration)
 「社会全体で支える」を定義する。連携支援機関と協働履歴。
 
 - **主要ノード:** `SupportOrganization`, `CollaborationRecord`
 - **マニフェスト価値:** 継続性 (Continuity), 強靭性 (Resilience)
-- **スキル:** livelihood-support（port 7688）
 
 ---
 
@@ -114,18 +112,17 @@ v4.0では、中核5Skills（neo4j-support-db / livelihood-support / provider-se
 ### ルール4：ケース記録の品質管理
 支援記録の中に指導的・支配的な表現（「指導した」「約束させた」等）が含まれる場合、より適切な表現への変換を提案すること。
 
-→ 詳細: `livelihood-support` スキルのCypherテンプレートを参照し、ケース記録内の表現を確認する
+→ 表現の言い換え提案は `data-quality-agent` スキル等を用い、記録内の表現を確認する
 
 ---
 
 ## 4. Skills & Neo4j MCP 構成
 
-このシステムは複数のSkills（現在14個）と2つの汎用Neo4j MCPで構成される。データモデルの中心を担う代表的なSkillを以下に示す（全Skillの一覧・ルーティング判断フローは `CLAUDE.md` を正典とする）。
+このシステムは複数のSkills（現在14個）と汎用Neo4j MCP（`neo4j`, port 7687）で構成される。データモデルの中心を担う代表的なSkillを以下に示す（全Skillの一覧・ルーティング判断フローは `CLAUDE.md` を正典とする）。
 
 | スキル | 対象業務 | 柱の対応 | Neo4j ポート |
 |--------|----------|---------|-------------|
 | **neo4j-support-db** | 計画相談支援（障害福祉サービス） | 第1〜5の柱 | 7687 |
-| **livelihood-support** | 生活困窮者自立支援 | 第1〜7の柱（第6・7を追加） | 7688 |
 | **provider-search** | 事業所検索・口コミ管理 | 第4の柱（法的基盤） | 7687 |
 | **emergency-protocol** | 緊急時対応プロトコル | 第2の柱（ケアの暗黙知） | — |
 | **ecomap-generator** | 支援ネットワーク可視化 | 第3の柱（危機管理） | — |
@@ -134,7 +131,6 @@ v4.0では、中核5Skills（neo4j-support-db / livelihood-support / provider-se
 
 **Neo4j MCP:**
 - `neo4j`（port 7687）: neo4j-support-db, provider-search スキル用
-- `livelihood-support-db`（port 7688）: livelihood-support スキル用
 
 → 全Skillの使い分けとルーティング判断フロー: `CLAUDE.md`「Skills 一覧と使い分けガイド」
 

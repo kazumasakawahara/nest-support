@@ -55,15 +55,6 @@
 - 親が担っているタスク（CareRole）の洗い出し
 - 各タスクの代替手段の確認
 
-#### 優先度：通常 - 支援開始後に順次
-
-**第6の柱：金銭的安全 (Financial Safety)** ※livelihood-supportスキル
-- 金銭管理の状況
-- 経済的リスクの有無
-
-**第7の柱：多機関連携 (Multi-Agency Collaboration)** ※livelihood-supportスキル
-- 連携している支援機関の情報
-
 ### ステップ3：データ登録
 
 収集した情報をSkillのCypherテンプレートを参考に、`neo4j` MCP の `execute_query` で登録する。
@@ -94,14 +85,6 @@ MERGE (c)-[:HAS_KEY_PERSON {rank: 1}]->(kp)
 ```
 
 → 上記は `neo4j` MCP の `execute_query` で実行する。
-
-**livelihood-supportスキル固有の情報（port 7688）:**
-以下の情報は `livelihood-support` スキルのCypherテンプレートを参考に、`livelihood-support-db` MCP の `execute_query` で登録する。
-- NgApproach（避けるべき関わり方）→ テンプレート5
-- EffectiveApproach（効果的な関わり方）→ テンプレート6
-- EconomicRisk（経済的リスク）→ テンプレート7
-- MoneyManagement（金銭管理状況）→ テンプレート8
-- SupportOrg（連携支援機関）→ テンプレート11
 
 ### ステップ4：登録内容の確認
 
