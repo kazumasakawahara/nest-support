@@ -1,62 +1,80 @@
-# Neo4j スキーマ命名規則（Naming Convention）
+<!-- AUTO-GENERATED COPY — DO NOT EDIT.
+  Synced from ~/Dev-Work/shared-schema/SCHEMA_CONVENTION.md
+  Edit the master there and run sync-schema.sh. (synced: 20260606-123624) -->
 
-> **このドキュメントは、本プロジェクトの Neo4j データベースにおけるノードラベル・リレーションシップタイプ・プロパティ名の唯一の正典（Single Source of Truth）です。**
-> すべての LLM（Gemini, Claude, その他エージェント）およびすべてのコード（Python, Cypher テンプレート, Skills）は、このドキュメントに従ってください。
+<!--
+  ============================================================================
+  これは唯一の正典（マスター）です。編集はこのファイル（shared-schema）でのみ行うこと。
+  各プロジェクト（neo4j-agno-agent / nest-support / oyagami-local）配下のコピーは
+  sync-schema.sh による read-only 同期物であり、直接編集してはなりません。
+  実行時に実際に強制力を持つ allowlist の正値は GET /api/narrative/schema を参照。
+  ============================================================================
+-->
+
+# Neo4j スキーマ命名規則（Naming Convention）— 統一正典 v3.0
+
+> **このドキュメントは、support-db（障害福祉支援DB, port 7687）のノードラベル・リレーションシップタイプ・プロパティ名の唯一の正典（Single Source of Truth）です。**
+> すべての LLM（Claude, Gemini, Hermes/その他エージェント）およびすべてのコード（Python, Cypher テンプレート, Skills）は、このドキュメントに従ってください。
+>
+> **編集ルール**: 本ファイル（`~/Dev-Work/shared-schema/SCHEMA_CONVENTION.md`）が唯一の編集点です。各プロジェクト内のコピーは同期物なので編集しないこと。
+> **実行時の権威**: 機械が従う「実際の値」は `GET /api/narrative/schema`（agno バックエンド）が返します。本ドキュメントはその「あるべき仕様」を記述します。両者は常に一致させてください。
 
 ---
 
-## 目的
+## 0. 適用範囲と対象DB
 
-本プロジェクトでは、複数のエントリーポイントが Neo4j データベースへの読み書きを行います：
-
-| エントリーポイント | 担当 | 書き込み方式 | 規約準拠の強制力 |
-|---|---|---|---|
-| Claude Skills (SKILL.md) | Claude Desktop / Code | neo4j MCP の execute_query（読み書き兼用） | **中**（Guardian Layer 非経由・LLMの判断＋本規約に依存） |
-| `lib/db_operations.py` | Python（field-ui・scripts 等が呼ぶ） | `register_to_database()` 等。書込前に Guardian Layer（`lib/schema_validator.py`）が camelCase 変換・廃止リレーション補正・列挙値検証を実行 | **強**（コードで固定） |
-| `scripts/multi_importer.py` | Gemini（構造化）→ Python 登録 | extract → `register_to_database()` | **強**（Guardian Layer 経由） |
-| 将来のエージェント | 任意のLLM | 未定 | **弱**（このドキュメントが唯一のガイド） |
-
-**リスク**: Skills 経由や将来のエージェントが ad-hoc な Cypher を生成する際、命名規則に準拠しないリレーションやプロパティが作成される可能性があります（Skills は Guardian Layer を経由しないため）。このドキュメントはその防止策です。
+- **対象**: 障害福祉支援DB（**port 7687**, コンテナ `support-db-neo4j`）のみ。
+- **対象外**: 生活困窮者自立支援DB（旧 port 7688 / `livelihood-support`）は **2026-05 に廃止**。本正典では扱いません。歴史的記録が必要な場合は `nest-support/decommissioned/` および各リポのGit履歴を参照してください。
 
 ---
 
-## 命名規則の原則
+## 1. 命名規則の原則
 
-### 1. ノードラベル → **PascalCase**
-
+### 1.1 ノードラベル → **PascalCase**
 ```
 ✅ 正: Client, NgAction, CarePreference, KeyPerson, SupportLog
 ❌ 誤: client, ng_action, care_preference, key_person, support_log
 ```
 
-### 2. リレーションシップタイプ → **UPPER_SNAKE_CASE**
-
+### 1.2 リレーションシップタイプ → **UPPER_SNAKE_CASE**
 ```
 ✅ 正: MUST_AVOID, HAS_KEY_PERSON, IN_CONTEXT, HAS_CERTIFICATE
 ❌ 誤: MustAvoid, must_avoid, hasKeyPerson, Has_Key_Person
 ```
 
-### 3. プロパティ名 → **camelCase**
-
+### 1.3 プロパティ名 → **camelCase**
 ```
 ✅ 正: bloodType, riskLevel, nextRenewalDate, clientId, displayCode
 ❌ 誤: blood_type, risk_level, next_renewal_date, client_id, display_code
 ```
 
-### 4. 列挙値（Enum Values）→ **PascalCase（英語）**
-
+### 1.4 列挙値（Enum Values）→ **PascalCase（英語）**
 ```
 ✅ 正: LifeThreatening, Panic, Discomfort, Active, Effective, High, Medium, Low
 ❌ 誤: life_threatening, PANIC, active, "効果的"
 ```
-
-> **例外**: `CarePreference.category` と `SupportLog.situation` の値は日本語を許容します（例: 食事, 入浴, パニック時）。これはユーザー向け表示と直結するためです。
+> **例外**: `CarePreference.category` と `SupportLog.situation` の値は日本語を許容します（例: 食事, 入浴, パニック時）。ユーザー向け表示と直結するためです。
 
 ---
 
-## 正式なノードラベル一覧
+## 2. 書き込み経路と規約準拠の強制力（消費者マップ）
 
-### 障害福祉支援DB（port 7687）
+同一の support-db（7687）に対して、現在は複数の入口が読み書きします。**入口ごとに規約の強制力が異なる**ため、弱い経路ほど本ドキュメント＋人間レビューに依存します。
+
+| エントリーポイント | 担当 | 書き込み方式 | 規約準拠の強制力 |
+|---|---|---|---|
+| **agno `/api/narrative/intake`**（FastAPI） | Python パイプライン | `register_to_database()` ＋ allowlist二重検証・normalize・dedup・embedding・監査 | **強**（コードで固定） |
+| **nest `lib/db_operations.py`**（field-ui・multi_importer・scripts） | Python ＋ **Guardian Layer** | `register_to_database()`。書込前に `schema_validator.py` が camelCase変換・廃止リレ補正・列挙値検証 | **強**（コードで固定） |
+| **oyagami バックエンド** | FastAPI ＋ Agno(Ollama) | Validator エージェント検証 → 登録 | **強〜中**（検証エージェント依存） |
+| **Hermes narrative-intake スキル**（gemini） | gemini → agno API | `/api/narrative/intake` 経由（dryRun→承認→本登録） | **強**（書込はAPI側が保証。スキル自体の準拠は中） |
+| **nest Claude Skills**（SKILL.md） | Claude Desktop/Code | neo4j MCP `execute_query` 直接 | **中**（Guardian Layer 非経由・LLM判断＋本規約） |
+| **直接 Cypher / 将来エージェント** | 任意のLLM | `execute_query` 直接 | **弱**（本ドキュメントが唯一のガイド） |
+
+> **リスク**: 「中」「弱」の経路が ad-hoc な Cypher を生成すると、命名規則違反のリレーション・プロパティが混入し得ます。本ドキュメントと、後述の正規化／重複防止フレームワークがその防止策です。
+
+---
+
+## 3. 正式なノードラベル一覧（support-db, port 7687）
 
 | ノードラベル | 柱 | 説明 | 主要プロパティ |
 |---|---|---|---|
@@ -80,31 +98,13 @@
 | `ServiceProvider` | 多機関連携 | 福祉サービス事業所 | name, corporateName, serviceType, wamnetId |
 | `ProviderFeedback` | 多機関連携 | 事業所口コミ | feedbackId, category, content, rating |
 
-### 生活保護受給者DB（port 7688）⚠️ 非運用（2026-05 廃止・記録目的で残置）
-
-| ノードラベル | 説明 | 主要プロパティ |
-|---|---|---|
-| `Recipient` | 受給者（中心ノード） | name, caseNumber, dob, gender |
-| `CaseRecord` | ケース記録 | date, category, content, caseworker |
-| `HomeVisit` | 家庭訪問記録 | date, observations, recipientCondition |
-| `Strength` | 強み | description, discoveredDate, context |
-| `Challenge` | 課題 | description, severity, currentStatus |
-| `MentalHealthStatus` | 精神疾患 | diagnosis, currentStatus, symptoms |
-| `EffectiveApproach` | 効果的関わり方 | description, context, frequency |
-| `NgApproach` | 避けるべき関わり方 | description, reason, riskLevel |
-| `EconomicRisk` | 経済的搾取リスク | type, perpetrator, severity, status |
-| `MoneyManagementStatus` | 金銭管理状況 | capability, pattern, riskLevel |
-| `KeyPerson` | キーパーソン | name, relationship, phone, role |
-
 ---
 
-## 正式なリレーションシップタイプ一覧
-
-### 障害福祉支援DB（port 7687）
+## 4. 正式なリレーションシップタイプ一覧（support-db, port 7687）
 
 | リレーション | 方向 | プロパティ | 説明 |
 |---|---|---|---|
-| `HAS_CONDITION` | Client → Condition | diagnosedDate | 特性・診断の紐付け |
+| `HAS_CONDITION` | Client → Condition | diagnosedDate, severity | 特性・診断の紐付け |
 | `MUST_AVOID` | Client → NgAction | — | **禁忌事項（最重要）** |
 | `IN_CONTEXT` | NgAction → Condition | — | 禁忌の文脈（関連特性） |
 | `REQUIRES` | Client → CarePreference | — | 推奨ケアの紐付け |
@@ -128,96 +128,13 @@
 | `HAS_FEEDBACK` | ServiceProvider → ProviderFeedback | — | 口コミ |
 | `WROTE` | Supporter → ProviderFeedback | — | 口コミ作成者 |
 
-### 生活保護受給者DB（port 7688）⚠️ 非運用（2026-05 廃止・記録目的で残置）
-
-| リレーション | 方向 | 説明 |
-|---|---|---|
-| `HAS_RECORD` | Recipient → CaseRecord | ケース記録 |
-| `HAS_VISIT` | Recipient → HomeVisit | 家庭訪問 |
-| `HAS_STRENGTH` | Recipient → Strength | 強み |
-| `HAS_CHALLENGE` | Recipient → Challenge | 課題 |
-| `HAS_MENTAL_HEALTH` | Recipient → MentalHealthStatus | 精神状態 |
-| `RESPONDS_WELL_TO` | Recipient → EffectiveApproach | 効果的関わり |
-| `MUST_AVOID` | Recipient → NgApproach | 避けるべき関わり |
-| `HAS_ECONOMIC_RISK` | Recipient → EconomicRisk | 経済的リスク |
-| `HAS_MONEY_MGMT` | Recipient → MoneyManagementStatus | 金銭管理 |
-| `HAS_KEY_PERSON` | Recipient → KeyPerson | キーパーソン |
-| `HOLDS` | Recipient → Certificate | 証明書 |
-
 ---
 
-## インデックスと制約
-
-### UNIQUE 制約
-
-| 制約名 | ノード | プロパティ | 備考 |
-|--------|--------|-----------|------|
-| `constraint_client_name_unique` | Client | name | 自動的にRANGEインデックスを含む |
-
-### RANGE インデックス
-
-| インデックス名 | ノード | プロパティ |
-|---------------|--------|-----------|
-| `idx_hospital_name` | Hospital | name |
-| `idx_supporter_name` | Supporter | name |
-| `idx_keyperson_name` | KeyPerson | name |
-| `idx_condition_name` | Condition | name |
-| `idx_ngaction_risklevel` | NgAction | riskLevel |
-| `idx_carepreference_category` | CarePreference | category |
-| `idx_supportlog_date` | SupportLog | date |
-| `idx_supportlog_type` | SupportLog | type |
-| `idx_certificate_renewal` | Certificate | nextRenewalDate |
-| `idx_auditlog_timestamp` | AuditLog | timestamp |
-| `idx_auditlog_clientname` | AuditLog | clientName |
-| `idx_auditlog_user` | AuditLog | user |
-
-### FULLTEXT インデックス
-
-| インデックス名 | ノード | プロパティ | 備考 |
-|---------------|--------|-----------|------|
-| `idx_supportlog_fulltext` | SupportLog | situation, action, note | 日本語は単語単位で検索可 |
-| `idx_lifehistory_fulltext` | LifeHistory | episode | 生育歴エピソード検索 |
-
-### VECTOR インデックス
-
-Gemini Embedding 2（`gemini-embedding-2-preview`）による768次元ベクトルを格納し、セマンティック検索を実現。
-
-| インデックス名 | ノード | プロパティ | 次元 | 類似度 |
-|---------------|--------|-----------|------|--------|
-| `support_log_embedding` | SupportLog | embedding | 768 | cosine |
-| `care_preference_embedding` | CarePreference | embedding | 768 | cosine |
-| `ng_action_embedding` | NgAction | embedding | 768 | cosine |
-| `client_summary_embedding` | Client | summaryEmbedding | 768 | cosine |
-| `meeting_record_embedding` | MeetingRecord | embedding | 768 | cosine |
-| `meeting_record_text_embedding` | MeetingRecord | textEmbedding | 768 | cosine |
-
-> **注意**: ベクトルプロパティは `db.create.setNodeVectorProperty()` で設定すること。通常の `SET n.embedding = $vec` ではベクトルインデックスに認識されない。
-
-> **注意**: NOT NULL 制約は Community Edition では非対応。`validate_client_uniqueness()` でアプリケーションレベルの複合一意性チェックを実施。
-
-### マイグレーションスクリプト
-
-```bash
-# インデックス・制約・リレーション改善の一括実行
-uv run python scripts/migrate_schema_v2.py
-
-# 特定フェーズのみ実行
-uv run python scripts/migrate_schema_v2.py --phase 1
-
-# ドライラン（変更を適用せず確認のみ）
-uv run python scripts/migrate_schema_v2.py --dry-run
-```
-
----
-
-## 廃止されたリレーション名（使用禁止）
-
-以下のリレーション名はプロジェクト初期に使用されていましたが、現在は**廃止**されています。
-**新規作成時には絶対に使用しないでください。**
+## 5. 廃止されたリレーション名（書き込み禁止）
 
 | 廃止名 | 正式名 | 備考 |
 |---|---|---|
-| ~~`PROHIBITED`~~ | `MUST_AVOID` | データベースに旧名が残存している可能性あり |
+| ~~`PROHIBITED`~~ | `MUST_AVOID` | DBに旧名が残存している可能性あり |
 | ~~`PREFERS`~~ | `REQUIRES` | 同上 |
 | ~~`EMERGENCY_CONTACT`~~ | `HAS_KEY_PERSON` | 同上 |
 | ~~`RELATES_TO`~~ | `IN_CONTEXT` | NgAction → Condition の文脈紐付け |
@@ -225,9 +142,7 @@ uv run python scripts/migrate_schema_v2.py --dry-run
 | ~~`HOLDS`~~ | `HAS_CERTIFICATE` | 手帳リレーション |
 
 ### 読み取りクエリでの後方互換性
-
-旧名でデータが残存している可能性があるため、**読み取り**クエリでは以下のパターンで両方を対象にしてください：
-
+旧名でデータが残存している可能性があるため、**読み取り**クエリでは新旧両方を対象に：
 ```cypher
 -- 読み取り時: 新旧両方にマッチ（推奨）
 MATCH (c:Client)-[:MUST_AVOID|PROHIBITED]->(ng:NgAction)
@@ -236,16 +151,15 @@ MATCH (c:Client)-[:HAS_KEY_PERSON|EMERGENCY_CONTACT]->(kp:KeyPerson)
 MATCH (ng:NgAction)-[:IN_CONTEXT|RELATES_TO]->(cond:Condition)
 
 -- 書き込み時: 正式名のみ使用（厳守）
-CREATE (c)-[:MUST_AVOID]->(ng)         // ✅
-CREATE (c)-[:PROHIBITED]->(ng)         // ❌ 使用禁止
+CREATE (c)-[:MUST_AVOID]->(ng)   // ✅
+CREATE (c)-[:PROHIBITED]->(ng)   // ❌ 使用禁止
 ```
 
 ---
 
-## プロパティ命名の詳細規則
+## 6. プロパティ命名の詳細規則
 
-### 共通プロパティ
-
+### 6.1 共通プロパティ
 | プロパティ | 型 | 説明 | 例 |
 |---|---|---|---|
 | `name` | String | 名称 | "山田太郎" |
@@ -253,30 +167,23 @@ CREATE (c)-[:PROHIBITED]->(ng)         // ❌ 使用禁止
 | `status` | String | 状態 | "Active" |
 | `date` | Date | 記録日 | date("2025-12-01") |
 
-### 日付型プロパティの命名パターン
-
+### 6.2 日付型プロパティの命名パターン
 ```
 単一の日付: date, dob
-特定用途の日付: issueDate, startDate, endDate, diagnosisDate
+特定用途: issueDate, startDate, endDate, diagnosisDate
 更新・期限: nextRenewalDate, updatedAt
 タイムスタンプ: timestamp (AuditLog用)
 ```
 
-### ID系プロパティの命名パターン
-
+### 6.3 ID系プロパティ
 ```
-clientId     → Client の一意識別子
-displayCode  → 表示用コード
-wamnetId     → WAM NET 連携用ID
-feedbackId   → 口コミの一意識別子
+clientId → Client の一意識別子 / displayCode → 表示用コード
+wamnetId → WAM NET 連携用ID / feedbackId → 口コミの一意識別子
 ```
 
-### ServiceProvider のプロパティ統一
-
-WAM NET インポート時期によりレガシーの snake_case プロパティが残存しています。
-**新規作成時は camelCase のみを使用してください。**
-
-| 正式名（camelCase） | レガシー名（snake_case） | 対応方法 |
+### 6.4 ServiceProvider のプロパティ統一
+WAM NET インポート時期によりレガシーの snake_case が残存。**新規作成時は camelCase のみ**。
+| 正式名（camelCase） | レガシー名（snake_case） | 読み取り対応 |
 |---|---|---|
 | `name` | `office_name` | COALESCE(sp.name, sp.office_name) |
 | `corporateName` | `corp_name` | COALESCE(sp.corporateName, sp.corp_name) |
@@ -288,110 +195,179 @@ WAM NET インポート時期によりレガシーの snake_case プロパティ
 
 ---
 
-## riskLevel 列挙値
+## 7. 列挙値（Enum）
 
-NgAction の riskLevel プロパティで使用する値（優先度順）：
-
+### 7.1 NgAction.riskLevel（優先度順）
 | 値 | 意味 | 説明 |
 |---|---|---|
 | `LifeThreatening` | 生命に関わる | アレルギー、誤嚥リスク等 |
 | `Panic` | パニック誘発 | 大きな音、特定の状況等 |
 | `Discomfort` | 不快・ストレス | 嫌がる行為、苦手な環境等 |
 
----
+### 7.2 SupportLog.effectiveness
+`Effective` / `Ineffective` / `Neutral` / `Unknown`
 
-## LLM・エージェント向けガイドライン
-
-### Cypher 書き込み時の必須チェックリスト
-
-1. **ノードラベル**: PascalCase か？ → `Client` ✅ / `client` ❌
-2. **リレーション**: UPPER_SNAKE_CASE か？ → `MUST_AVOID` ✅ / `MustAvoid` ❌
-3. **リレーション名**: 正式名を使用しているか？ → `MUST_AVOID` ✅ / `PROHIBITED` ❌
-4. **プロパティ**: camelCase か？ → `riskLevel` ✅ / `risk_level` ❌
-5. **パラメータ化**: Cypher インジェクション対策で `$param` を使用しているか？
-6. **MERGE vs CREATE**: 重複防止が必要なノードには `MERGE` を使用しているか？
-7. **監査ログ**: 書き込み操作は `AuditLog` に記録しているか？
-
-### Skills（SKILL.md）でのテンプレート記述時の注意
-
-- 書き込みテンプレートでは**正式なリレーション名のみ**を使用する
-- 読み取りテンプレートでは**新旧両方**を `[:NEW|OLD]` 構文で対象にする
-- テンプレートにコメントで「正式名: XXX」を明記する
-
-### 新しいノードラベル・リレーションを追加する場合
-
-1. まずこのドキュメントに追記する
-2. 命名規則（PascalCase / UPPER_SNAKE_CASE / camelCase）に従う
-3. 関連する SKILL.md を更新する
-4. `lib/db_operations.py` に対応する register 関数を追加する
+### 7.3 SupportLog.type
+| 値 | 意味 |
+|---|---|
+| `日常記録` | 日常の支援記録（デフォルト） |
+| `インシデント` | 事故・トラブル等 |
+| `会議` | ケース会議記録 |
+| `引き継ぎ` | 担当交代時の申し送り |
 
 ---
 
-## マイグレーション方針
+## 8. インデックスと制約
 
-### 旧リレーションの完全移行（将来実施）
+### 8.1 UNIQUE 制約
+| 制約名 | ノード | プロパティ | 備考 |
+|---|---|---|---|
+| `constraint_client_name_unique` | Client | name | 自動的にRANGEインデックスを含む |
 
-旧名のリレーションが残存するデータベースを正式名に移行するための Cypher:
+> Community Edition は複合 NODE KEY 非対応のため、`Client(name + dob)` の複合一意性はアプリ層（`validate_client_uniqueness()`）で検証。NOT NULL 制約も非対応のためアプリ層で必須チェック（`Client.name`, `Client.dob`, `SupportLog.date`）。
 
+### 8.2 RANGE インデックス
+`idx_hospital_name`, `idx_supporter_name`, `idx_keyperson_name`, `idx_condition_name`,
+`idx_ngaction_risklevel`, `idx_carepreference_category`, `supportlog_date`, `idx_supportlog_type`,
+`certificate_renewal`, `auditlog_timestamp`, `idx_auditlog_clientname`, `idx_auditlog_user`,
+`supportlog_sourcehash_idx`, `meetingrecord_sourcehash_idx`, `lifehistory_sourcehash_idx`, `wish_sourcehash_idx`
+
+### 8.3 VECTOR インデックス（Gemini Embedding 2, 768次元, cosine）
+| インデックス名 | ノード | プロパティ |
+|---|---|---|
+| `support_log_embedding` | SupportLog | embedding |
+| `care_preference_embedding` | CarePreference | embedding |
+| `ng_action_embedding` | NgAction | embedding |
+| `client_summary_embedding` | Client | summaryEmbedding |
+| `meeting_record_embedding` | MeetingRecord | embedding |
+| `meeting_record_text_embedding` | MeetingRecord | textEmbedding |
+
+> ベクトルは `db.create.setNodeVectorProperty()` で設定（通常の `SET` ではインデックスに認識されない）。バックフィルは各プロジェクトの `scripts/backfill_embeddings.py --all`。
+
+### 8.4 FULLTEXT インデックス
+| インデックス名 | ノード | プロパティ |
+|---|---|---|
+| `idx_supportlog_fulltext` | SupportLog | situation, action, note |
+| `idx_lifehistory_fulltext` | LifeHistory | episode |
+
+---
+
+## 9. Guardian Layer（書き込み時バリデーション）
+
+nest-support 系の Python 書き込み経路では、`lib/schema_validator.py`（**Guardian Layer**）が `register_to_database()` の前段で自動補正・検証を行う。
+
+- **camelCase 自動変換**: snake_case プロパティを camelCase に補正
+- **廃止リレーション補正**: `PROHIBITED→MUST_AVOID` 等を正式名へ自動置換
+- **列挙値検証**: `riskLevel` / `effectiveness` / `status` の値域チェック
+
+> Guardian Layer は Python 経路（field-ui・multi_importer・scripts）には効くが、**Claude Skills の neo4j MCP 直叩きには効かない**（§2 の「中」経路）。Skills 経由の書き込みは本ドキュメント遵守が頼り。
+
+---
+
+## 10. 正規化・重複防止フレームワーク（agno バックエンドが実装）
+
+`/api/narrative/intake` を含む agno の Python パイプラインが、登録前に以下を自動実行する。Hermes の narrative-intake スキルもこの恩恵を受ける。
+
+### 10.1 テキスト正規化（MERGE 前処理）
+| ラベル | 正規化方式 | 例 |
+|---|---|---|
+| Client | `normalize_name()` ＋ `name_to_kana()`（kana 自動生成） | "田中太郎" → name="田中太郎", kana="たなかたろう" |
+| Supporter/KeyPerson/Guardian/Hospital/Organization/ServiceProvider | `normalize_name()`: NFC ＋ 全角→半角 ＋ 空白正規化 ＋ 敬称除去 | "田中太郎さん" → "田中太郎" |
+| Condition | `normalize_condition()`: 上記 ＋ 医学用語エイリアス解決 | "ASD" → "自閉症スペクトラム障害" |
+| NgAction/CarePreference/Certificate 等 | `normalize_text()`: NFC ＋ 全角→半角 ＋ 空白正規化 | "  大きな　音  " → "大きな 音" |
+
+### 10.2 sourceHash 冪等性
+`SupportLog`/`MeetingRecord`/`LifeHistory`/`Wish` は CREATE 時に `sourceHash`(SHA256) を自動生成。同一プロパティから決定的に同じハッシュ → 重複登録をスキップ。`AuditLog`/`PublicAssistance` は除外。
+
+### 10.3 MERGE キー戦略
+- **Certificate**: 複合キー `["type","grade"]`（療育手帳A と B は別ノード。grade 未指定は "不明"）
+- **ServiceProvider**: `wamnetId` があれば優先 MERGE（名前の表記揺れに強い）。なければ `name` でフォールバック。
+
+### 10.4 セマンティック重複検出
+既存ベクトルインデックスで意味的に類似するノードを検出（「大きな音」と「騒音」等）。
+- **NgAction**: 閾値 0.85 で **409 ブロッキング**（安全に直結するため `confirmDuplicates:true` での確認必須）
+- **CarePreference**: 閾値 0.85 で **警告のみ**
+
+### 10.5 読み仮名（kana）ファジーマッチ
+Client/KeyPerson/Supporter/Guardian の kana を `SequenceMatcher` で比較（閾値 0.8）。同音異字の重複（「田中」と「多中」）を検出。
+
+### 10.6 登録前重複チェック API
+`POST /api/dedup/check` が ①完全一致 ②kana ファジー ③セマンティック類似 の3段でチェック。
+
+### 10.7 医学用語エイリアス（`CONDITION_ALIASES`）
+| 正式名 | エイリアス |
+|---|---|
+| 自閉症スペクトラム障害 | ASD, 自閉スペクトラム, 自閉症, アスペルガー症候群, PDD 等 |
+| 注意欠如多動症 | ADHD, ADD, 注意欠陥多動性障害 等 |
+| 知的障害 | 知的発達症, 精神遅滞 等 |
+| てんかん | 癲癇, epilepsy |
+| ダウン症候群 | ダウン症, 21トリソミー |
+| 脳性麻痺 | CP, 脳性まひ |
+
+### 10.8 重複検出・マージツール
+`scripts/detect_merge_duplicates.py --scan / --merge --label <Label> [--dry-run]`
+
+---
+
+## 11. LLM・エージェント向けガイドライン
+
+### 11.1 Cypher 書き込み時の必須チェックリスト
+1. ノードラベルは PascalCase か（`Client` ✅ / `client` ❌）
+2. リレーションは UPPER_SNAKE_CASE か（`MUST_AVOID` ✅）
+3. リレーション名は正式名か（`MUST_AVOID` ✅ / `PROHIBITED` ❌）
+4. プロパティは camelCase か（`riskLevel` ✅ / `risk_level` ❌）
+5. `$param` でパラメータ化しているか（インジェクション対策）
+6. 重複防止が必要なノードに `MERGE` を使っているか
+7. 書き込みを `AuditLog` に記録しているか
+8. **実行時の allowlist 正値は `GET /api/narrative/schema` で確認したか**
+
+### 11.2 新しいラベル・リレーションを追加する場合
+1. **本マスター（shared-schema）に追記** → 2. 命名規則に従う → 3. 関連 SKILL.md / プロンプトを更新 → 4. `lib/db_operations.py`（および allowlist）に対応を追加 → 5. `sync-schema.sh` で各リポへ反映
+
+### 11.3 No Fabrication
+データ欠損時に情報を補完・推測してはならない。推測を述べる場合は必ず推測である旨を明記する。
+
+---
+
+## 12. マイグレーション（参考）
+
+### 12.1 旧リレーションの完全移行
 ```cypher
-// 移行前にバックアップを取得すること
-
-// PROHIBITED → MUST_AVOID
+// バックアップ取得後に実行
 MATCH (c:Client)-[old:PROHIBITED]->(ng:NgAction)
-WHERE NOT (c)-[:MUST_AVOID]->(ng)
-CREATE (c)-[:MUST_AVOID]->(ng)
-DELETE old;
-
-// PREFERS → REQUIRES
+WHERE NOT (c)-[:MUST_AVOID]->(ng) CREATE (c)-[:MUST_AVOID]->(ng) DELETE old;
 MATCH (c:Client)-[old:PREFERS]->(cp:CarePreference)
-WHERE NOT (c)-[:REQUIRES]->(cp)
-CREATE (c)-[:REQUIRES]->(cp)
-DELETE old;
-
-// EMERGENCY_CONTACT → HAS_KEY_PERSON
+WHERE NOT (c)-[:REQUIRES]->(cp) CREATE (c)-[:REQUIRES]->(cp) DELETE old;
 MATCH (c:Client)-[old:EMERGENCY_CONTACT]->(kp:KeyPerson)
 WHERE NOT (c)-[:HAS_KEY_PERSON]->(kp)
-CREATE (c)-[r:HAS_KEY_PERSON]->(kp)
-SET r.rank = COALESCE(old.rank, 99)
-DELETE old;
-
-// RELATES_TO → IN_CONTEXT
+CREATE (c)-[r:HAS_KEY_PERSON]->(kp) SET r.rank = COALESCE(old.rank, 99) DELETE old;
 MATCH (ng:NgAction)-[old:RELATES_TO]->(cond:Condition)
-WHERE NOT (ng)-[:IN_CONTEXT]->(cond)
-CREATE (ng)-[:IN_CONTEXT]->(cond)
-DELETE old;
-
-// 移行後の確認
+WHERE NOT (ng)-[:IN_CONTEXT]->(cond) CREATE (ng)-[:IN_CONTEXT]->(cond) DELETE old;
+// 確認（0件なら完了）
 MATCH ()-[r:PROHIBITED|PREFERS|EMERGENCY_CONTACT|RELATES_TO]->()
 RETURN type(r) AS oldRelation, count(r) AS remaining;
-// → 0件であれば移行完了
 ```
 
-### ServiceProvider プロパティの統一移行（将来実施）
-
+### 12.2 ServiceProvider プロパティ統一
 ```cypher
-// snake_case → camelCase への移行
 MATCH (sp:ServiceProvider)
 WHERE sp.office_name IS NOT NULL AND sp.name IS NULL
-SET sp.name = sp.office_name,
-    sp.corporateName = sp.corp_name,
-    sp.serviceType = sp.service_type,
-    sp.wamnetId = sp.office_number,
-    sp.closedDays = sp.closed_days,
-    sp.hoursWeekday = sp.hours_weekday,
-    sp.updatedAt = sp.updated_at
-REMOVE sp.office_name, sp.corp_name, sp.service_type,
-       sp.office_number, sp.closed_days, sp.hours_weekday,
-       sp.updated_at;
+SET sp.name=sp.office_name, sp.corporateName=sp.corp_name, sp.serviceType=sp.service_type,
+    sp.wamnetId=sp.office_number, sp.closedDays=sp.closed_days,
+    sp.hoursWeekday=sp.hours_weekday, sp.updatedAt=sp.updated_at
+REMOVE sp.office_name, sp.corp_name, sp.service_type, sp.office_number,
+       sp.closed_days, sp.hours_weekday, sp.updated_at;
 ```
 
 ---
 
 ## 変更履歴
 
-| 日付 | 変更内容 |
-|---|---|
-| 2026-03-12 | MeetingRecordノード・RECORDEDリレーション追加、VECTORインデックス4→6（meeting_record_embedding, meeting_record_text_embedding追加）、client_summary_embeddingプロパティをsummaryEmbeddingに修正、Client summaryEmbedding自動付与 |
-| 2026-03-12 | VECTORインデックスセクション追加、embeddingプロパティをClient/SupportLog/NgAction/CarePreferenceに追加 |
-| 2026-03-09 | インデックス・制約セクション追加、FOLLOWS/AUDIT_FORリレーション追加、リレーションプロパティ拡張、SupportLog.type/duration/nextAction追加 |
-| 2026-02-16 | 初版作成。正式リレーション名の確定、廃止リレーションの明記、LLM向けガイドライン追加 |
+| 日付 | バージョン | 変更内容 |
+|---|---|---|
+| 2026-06-06 | **v3.0** | **統一正典化**。neo4j-agno-agent 版（v2.6）をベースに、(1) 7688/生活保護DBを全削除し7687専用に、(2) nest の Guardian Layer 記述を §9 に統合、(3) §2 を4経路＋将来エージェントの「強制力マップ」に刷新、(4) 実行時の権威=`/api/narrative/schema` を明記、(5) shared-schema をマスターとする編集ルール・同期前提を冒頭に追加 |
+| 2026-04-14 | v2.6 | 根本的重複防止（全書込パス正規化統一・NgAction確認付きブロッキング・重複検出マージツール） |
+| 2026-04-14 | v2.3–2.5 | 正規化・Conditionエイリアス・sourceHash・セマンティック重複検出・kanaファジー・登録前重複チェックAPI |
+| 2026-03-12 | v2.1–2.2 | ベクトルインデックス（Gemini Embedding 2, 768次元）、MeetingRecord/RECORDED 追加 |
+| 2026-03-09 | v2.0 | インデックス13本・UNIQUE制約・AUDIT_FOR/FOLLOWS・SupportLog拡張・全文検索 |
+| 2026-02-16 | v1.0 | 初版 |
