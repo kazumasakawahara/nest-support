@@ -117,7 +117,7 @@ Pythonスクリプトのインストールは不要です。
 
 1. **CSVファイルを読み込み**（filesystem MCPツール使用）
 2. **データを正規化**（サービス種類名の統一など）
-3. **Neo4jに登録**（support-db:run_cypher_query使用）
+3. **Neo4jに登録**（neo4j MCP の `execute_query` 使用）
 4. **結果を報告**（登録件数、エラーなど）
 
 ### Cypher登録クエリ例
@@ -367,6 +367,7 @@ WAM NETの次回更新は **2025年10月頃** の予定です。
 
 ## 関連スキル
 
+- **provider-search**: 事業所検索・口コミ・空き状況管理（ServiceProvider / ProviderFeedback の正典）
 - **neo4j-support-db**: 親なき後支援データベース本体
 - **ecomap-generator**: エコマップ生成（ServiceProvider連携予定）
 
@@ -394,52 +395,18 @@ WAM NETの次回更新は **2025年10月頃** の予定です。
 支援者間で事業所の情報を共有するための機能です。
 「行動障害への対応が難しかった」「送迎が柔軟」などの口コミ情報を記録・検索できます。
 
-### 追加されたツール
+> **正典は `provider-search` スキル**です。ProviderFeedback のデータモデル・口コミカテゴリ・
+> 評価基準・Cypherテンプレートはすべて `provider-search` の SKILL.md を参照してください。
+> 旧カスタムMCPツール（`add_provider_feedback` / `get_provider_feedbacks` /
+> `search_providers_by_feedback` / `update_provider_availability`）は**廃止済み**。
+> すべて neo4j MCP の `execute_query` ＋ 以下のテンプレートで実行します。
 
-| ツール名 | 説明 |
+| やりたいこと | 使用するテンプレート（provider-search） |
 |---------|------|
-| `add_provider_feedback` | 事業所への口コミ・評価を登録 |
-| `get_provider_feedbacks` | 事業所の口コミ一覧を取得 |
-| `search_providers_by_feedback` | 口コミ評価で事業所を検索 |
-| `update_provider_availability` | 事業所の空き状況を更新 |
-
-### ProviderFeedbackノードスキーマ
-
-```
-:ProviderFeedback (事業所口コミ・評価)
-  - feedbackId: string      // 一意識別子
-  - category: string        // カテゴリ
-  - content: string         // 口コミ内容
-  - rating: string          // 評価
-  - source: string          // 情報源
-  - date: date              // 登録日
-  - isConfirmed: boolean    // 確認済みか
-
-リレーション:
-(:ServiceProvider)-[:HAS_FEEDBACK]->(:ProviderFeedback)
-(:Supporter)-[:WROTE]->(:ProviderFeedback)  // 任意
-```
-
-### 口コミカテゴリ
-
-| カテゴリ | 説明 |
-|----------|------|
-| 行動障害対応 | パニック、自傷、他害等への対応力 |
-| コミュニケーション | 利用者との意思疎通、家族への連絡 |
-| 環境 | 施設の清潔さ、バリアフリー、静けさ |
-| 送迎 | 柔軟性、対応範囲、時間帯 |
-| 食事 | アレルギー対応、形態食、嫌いなもの対応 |
-| 医療連携 | 通院介助、急変時対応 |
-| その他 | 上記以外 |
-
-### 評価基準
-
-| 評価 | 意味 | スコア |
-|------|------|--------|
-| ◎良い | おすすめできる | 4 |
-| ○普通 | 特に問題なし | 3 |
-| △課題あり | 改善の余地あり | 2 |
-| ×不可 | 推奨できない | 1 |
+| 口コミ・評価を登録 | テンプレート8 |
+| 事業所の口コミ一覧・評価サマリーを取得 | テンプレート4・5 |
+| 口コミ評価で事業所を検索 | テンプレート6 |
+| 事業所の空き状況を更新 | テンプレート9 |
 
 ### AIへの依頼例
 
@@ -491,15 +458,15 @@ WAM NETの次回更新は **2025年10月頃** の予定です。
 
 ```
 1. クライアントの特性を確認（例: 行動障害あり）
-2. search_providers_by_feedback で該当カテゴリの評価が高い事業所を検索
-3. search_service_providers で空き状況を確認
+2. provider-search テンプレート6 で該当カテゴリの評価が高い事業所を検索
+3. provider-search テンプレート1 で空き状況を確認
 4. 候補をリストアップ
 ```
 
 #### 2. 支援者間の情報共有
 
 ```
-1. 利用後に口コミを登録（add_provider_feedback）
+1. 利用後に口コミを登録（provider-search テンプレート8）
 2. 引き継ぎ時に口コミを参照
 3. ケース会議で事業所情報を共有
 ```
@@ -508,6 +475,6 @@ WAM NETの次回更新は **2025年10月頃** の予定です。
 
 ```
 1. 事業所訪問時に空き状況を確認
-2. update_provider_availability で更新
+2. provider-search テンプレート9 で更新
 3. 定期的に古い情報をリフレッシュ
 ```
