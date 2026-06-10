@@ -107,7 +107,7 @@ ORDER BY negativePercent DESC
 ```cypher
 // 効果的なケアパターンの自動発見
 MATCH (c:Client {name: $clientName})<-[:ABOUT]-(log:SupportLog)
-WHERE log.effectiveness IN ['Effective', 'High']
+WHERE log.effectiveness = 'Effective'
   AND log.action IS NOT NULL
   AND log.action <> ''
 WITH log.triggerTag AS triggerTag,
