@@ -102,8 +102,21 @@ MERGE_KEYS = {
     "ServiceProvider": ["name"],
     "Hospital": ["name"],
     "Guardian": ["name"],
-    "Certificate": ["type"]
+    "Certificate": ["type"],
+    "Wish": ["content"],
+    "LifeHistory": ["episode"]
 }
+
+# Client 配下の子ノードラベル。一致キーが弱い（action / type / name のみ等）ため、
+# グローバル MERGE では複数クライアントの同種ノードが 1 ノードに収斂し
+# `SET n += $props` で互いのプロパティを上書きし合う。これを防ぐため、
+# 登録時は Client とのリレーションを含むパターン MERGE にスコープする。
+# Supporter / Hospital / Organization / ServiceProvider / Condition は
+# 実体共有が正しいためグローバル MERGE を維持する。
+CLIENT_SCOPED_LABELS = frozenset({
+    "NgAction", "CarePreference", "Certificate", "Wish", "LifeHistory",
+    "KeyPerson", "Guardian",
+})
 
 # Embedding生成用のテキスト構築ルール（感情・タグ・文脈を包含）
 _EMBEDDING_TEXT_BUILDERS = {
@@ -150,16 +163,31 @@ def register_to_database(extracted_graph: dict, user_name: str = "system") -> di
     registered_labels = []
     client_name_context = "Unknown"
 
-    # クライアント名の特定（コンテキスト把握）
-    for node in extracted_graph.get("nodes", []):
+    nodes = extracted_graph.get("nodes", [])
+    relationships = extracted_graph.get("relationships", [])
+
+    # クライアント名の特定（コンテキスト把握）と Client temp_id の収集
+    client_temp_ids = set()
+    for node in nodes:
         if node.get("label") == "Client":
-            client_name_context = node.get("properties", {}).get("name", "Unknown")
-            break
+            client_temp_ids.add(node.get("temp_id"))
+            if client_name_context == "Unknown":
+                client_name_context = node.get("properties", {}).get("name", "Unknown")
+
+    # Client を親とする子ノードの紐付けを relationships から先に解決する
+    # （CLIENT_SCOPED_LABELS のスコープ付きパターン MERGE 用）
+    parent_link = {}
+    for rel in relationships:
+        if rel.get("source_temp_id") in client_temp_ids and rel.get("type"):
+            parent_link.setdefault(rel.get("target_temp_id"), rel)
+
+    # スコープ付き MERGE で同時に作成済みのリレーション（2. で再作成しない）
+    consumed_rel_ids = set()
 
     # 書き込み（ノード・リレーション）は失敗を握り潰さず error を返す
     try:
-        # 1. ノードの処理
-        for node in extracted_graph.get("nodes", []):
+        # 1. ノードの処理（子ノードのスコープ解決のため Client を先に登録）
+        for node in sorted(nodes, key=lambda n: 0 if n.get("label") == "Client" else 1):
             temp_id = node.get("temp_id")
             label = node.get("label")
             props = node.get("properties", {})
@@ -173,11 +201,34 @@ def register_to_database(extracted_graph: dict, user_name: str = "system") -> di
                 match_props = {k: props[k] for k in MERGE_KEYS[label] if k in props}
                 if match_props:
                     match_clause = ", ".join([f"{k}: ${k}" for k in match_props.keys()])
-                    cypher = f"MERGE (n:{label} {{{match_clause}}}) SET n += $props RETURN elementId(n) AS id"
-                    params = {**match_props, "props": props}
-                    result = execute_write(cypher, params)
-                    if result: internal_id = result[0]['id']
-                    action_type = "MERGE/UPDATE"
+                    if label in CLIENT_SCOPED_LABELS:
+                        link = parent_link.get(temp_id)
+                        parent_id = temp_id_map.get(link.get("source_temp_id")) if link else None
+                        if parent_id:
+                            cypher = f"""
+                                MATCH (c) WHERE elementId(c) = $parentId
+                                MERGE (c)-[r:{link['type']}]->(n:{label} {{{match_clause}}})
+                                SET n += $props, r += $relProps
+                                RETURN elementId(n) AS id
+                            """
+                            params = {**match_props, "parentId": parent_id,
+                                      "props": props,
+                                      "relProps": link.get("properties") or {}}
+                            result = execute_write(cypher, params)
+                            if result:
+                                internal_id = result[0]['id']
+                                consumed_rel_ids.add(id(link))
+                            action_type = "MERGE/UPDATE"
+                        else:
+                            # Client への紐付きが無い子ノードはグローバル MERGE せず
+                            # CREATE へフォールバック（クライアント間の収斂を防ぐ）
+                            log(f"{label} に Client との紐付きが無いため CREATE 登録します", "WARN")
+                    else:
+                        cypher = f"MERGE (n:{label} {{{match_clause}}}) SET n += $props RETURN elementId(n) AS id"
+                        params = {**match_props, "props": props}
+                        result = execute_write(cypher, params)
+                        if result: internal_id = result[0]['id']
+                        action_type = "MERGE/UPDATE"
 
             if not internal_id:
                 cypher = f"CREATE (n:{label}) SET n = $props RETURN elementId(n) AS id"
@@ -190,7 +241,8 @@ def register_to_database(extracted_graph: dict, user_name: str = "system") -> di
                 _audit_node_creation(user_name, label, props, action_type, client_name_context)
 
         # 2. リレーションシップの処理
-        for rel in extracted_graph.get("relationships", []):
+        for rel in relationships:
+            if id(rel) in consumed_rel_ids: continue
             source_id = temp_id_map.get(rel.get("source_temp_id"))
             target_id = temp_id_map.get(rel.get("target_temp_id"))
             if source_id and target_id and rel.get("type"):
