@@ -1,6 +1,6 @@
 <!-- AUTO-GENERATED COPY — DO NOT EDIT.
   Synced from ~/Dev-Work/shared-schema/SCHEMA_CONVENTION.md
-  Edit the master there and run sync-schema.sh. (synced: 20260611-075624) -->
+  Edit the master there and run sync-schema.sh. (synced: 20260611-081922) -->
 
 <!--
   ============================================================================
@@ -176,7 +176,7 @@ CREATE (c)-[:PROHIBITED]->(ng)   // ❌ 使用禁止
 ### 6.2 日付型プロパティの命名パターン
 ```
 単一の日付: date, dob
-特定用途: issueDate, startDate, endDate, diagnosisDate
+特定用途: issuedDate, startDate, endDate, diagnosisDate
 更新・期限: nextRenewalDate, updatedAt
 タイムスタンプ: timestamp (AuditLog用)
 ```

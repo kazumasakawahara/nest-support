@@ -138,7 +138,7 @@ Claude Desktop を再起動し、以下のように話しかけてください:
 | `emergency-protocol` | 緊急時対応 | Safety First プロトコル（禁忌→推奨ケア→連絡先→医療→後見人）|
 | `ecomap-generator` | エコマップ・インサイト生成 | D3.js ハイブリッド・インサイト・ビュー、ノードクリックでAI相談 |
 | `narrative-extractor` | テキスト→構造化データ | 母親の語りやファイルから JSON 抽出→Neo4j 登録 |
-| `html-to-pdf` | HTML→PDF 変換 | Chrome 印刷機能を利用した PDF 生成 |
+| `html-to-pdf` | HTML→PDF 変換 | ヘッドレス Chrome による全自動 PDF 変換（手動操作不要） |
 | `inheritance-calculator` | 法定相続計算 | 日本民法に基づく相続人・相続分の計算 |
 | `wamnet-provider-sync` | WAM NET 同期 | 障害福祉サービス情報公表システムからのデータ同期 |
 | `data-quality-agent` | データ品質チェック | 更新期限アラート・データ欠損・スキーマ違反の検出 |
@@ -255,6 +255,9 @@ Claude Desktop を再起動し、以下のように話しかけてください:
     (:Client)-[:HAS_LEGAL_REP]->(:Guardian)     # 法定代理人
     (:Supporter)-[:LOGGED]->(:SupportLog)-[:ABOUT]->(:Client)  # 支援記録
     (:Supporter)-[:RECORDED]->(:MeetingRecord)-[:ABOUT]->(:Client)  # 面談記録（音声）
+    (:Relative)-[:IS_PARENT_OF|FAMILY_OF]->(:Client)            # 家族（第5の柱）
+    (:Relative)-[:PERFORMS]->(:CareRole)                        # 親が担う機能
+    (:CareRole)-[:CAN_BE_PERFORMED_BY]->(:ServiceProvider)      # 代替手段（レジリエンス診断）
 ```
 
 ## セマンティック検索（Embedding & Vector Search）

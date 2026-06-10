@@ -69,19 +69,23 @@ RETURN c
 ```
 
 **禁忌事項の登録:**
+
+クライアント配下のノードとしてリレーションごと MERGE する（グローバルな
+`MERGE (ng:NgAction {action})` は別クライアントとノードを共有し riskLevel を
+相互に上書きするため禁止。onboarding-wizard スキルのテンプレートと同一パターン）。
+
 ```cypher
 MATCH (c:Client {name: '氏名'})
-MERGE (ng:NgAction {action: '具体的な禁忌行動'})
-SET ng.reason = '理由', ng.riskLevel = 'リスクレベル'
-MERGE (c)-[:MUST_AVOID]->(ng)
+MERGE (c)-[:MUST_AVOID]->(ng:NgAction {action: '具体的な禁忌行動'})
+ON CREATE SET ng.reason = '理由', ng.riskLevel = 'リスクレベル'
 ```
 
 **キーパーソンの登録:**
 ```cypher
 MATCH (c:Client {name: '氏名'})
-MERGE (kp:KeyPerson {name: '連絡先氏名'})
-SET kp.phone = '電話番号', kp.relationship = '続柄', kp.role = '役割'
-MERGE (c)-[:HAS_KEY_PERSON {rank: 1}]->(kp)
+MERGE (c)-[r:HAS_KEY_PERSON]->(kp:KeyPerson {name: '連絡先氏名'})
+SET kp.phone = '電話番号', kp.relationship = '続柄', kp.role = '役割',
+    r.rank = 1
 ```
 
 → 上記は `neo4j` MCP の `execute_query` で実行する。
