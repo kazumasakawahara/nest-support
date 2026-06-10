@@ -66,11 +66,53 @@ description: 日本の民法に基づいて法定相続人と相続分を計算�
 5. **直系尊属の情報**（父母、祖父母など）
 6. **兄弟姉妹の情報**
 
-### ステップ2: スクリプトの実行
+### ステップ2: 入力JSONの作成とスクリプトの実行
+
+聞き取った情報を以下のスキーマで `/tmp/inheritance_input.json` に書き出してから実行する。
+
+#### 入力JSONスキーマ
+
+```jsonc
+{
+  "deceased_name": "山田太郎",          // 必須: 被相続人の氏名
+  "has_simultaneous_death": false,      // 必須: 同時死亡の推定（民法32条の2）を適用するか
+  "spouse": {                           // 任意: 配偶者（いなければ省略 or null）
+    "name": "山田花子",
+    "status": "alive",                  // alive / deceased / simultaneous_death / unknown
+    "renounced": false                  // 相続放棄したか
+  },
+  "children": [                         // 任意: 子（第1順位）
+    {
+      "name": "山田一郎",
+      "status": "deceased",
+      "renounced": false,
+      "children": [                     // 死亡した子の子（孫）= 代襲相続人。世代を超えて再帰可
+        { "name": "山田太一", "status": "alive", "renounced": false }
+      ]
+    }
+  ],
+  "parents": [                          // 任意: 直系尊属（第2順位。代襲なし）
+    { "name": "山田富夫", "status": "alive", "renounced": false }
+  ],
+  "siblings": [                         // 任意: 兄弟姉妹（第3順位）
+    {
+      "name": "山田次郎",
+      "status": "alive",
+      "renounced": false,
+      "blood_relation": "full",         // full（全血）/ half（半血。相続分は全血の1/2）
+      "children": []                    // 代襲は一代限り（甥・姪まで）
+    }
+  ]
+}
+```
+
+#### 実行コマンド
 
 ```bash
-python3 claude-skills/inheritance-calculator/inheritance_calculator.py --pretty /tmp/inheritance_input.json
+python3 ~/.claude/skills/inheritance-calculator/inheritance_calculator.py --pretty /tmp/inheritance_input.json
 ```
+
+標準入力から渡す場合は `--stdin` を使用する。出力は法定相続人と相続分（分数・パーセント）のJSON。
 
 ### ステップ3: 結果の解釈と提示
 

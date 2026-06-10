@@ -10,7 +10,7 @@
     python inheritance_calculator.py --help   # ヘルプ表示
 
 入力:
-    JSON形式の相続情報（詳細はforms.mdを参照）
+    JSON形式の相続情報（スキーマの詳細は SKILL.md「入力JSONスキーマ」を参照）
 
 出力:
     計算結果をJSON形式で標準出力に出力
