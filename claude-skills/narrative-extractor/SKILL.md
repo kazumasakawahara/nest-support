@@ -171,28 +171,36 @@ MERGE (c)-[:HAS_CONDITION]->(con)
 ```
 
 **禁忌事項（NgAction）- 最重要:**
+
+クライアント配下のノードとしてリレーションごと MERGE する（再実行で重複せず、他クライアントとノードを共有しない）。
+
 ```cypher
 MATCH (c:Client {name: $client})
-CREATE (ng:NgAction {action: $action, reason: $reason, riskLevel: $risk})
-CREATE (c)-[:MUST_AVOID]->(ng)
+MERGE (c)-[:MUST_AVOID]->(ng:NgAction {action: $action})
+ON CREATE SET ng.reason = $reason, ng.riskLevel = $risk
+ON MATCH SET  ng.reason = COALESCE($reason, ng.reason),
+              ng.riskLevel = COALESCE($risk, ng.riskLevel)
 ```
 
 **推奨ケア（CarePreference）:**
 ```cypher
 MATCH (c:Client {name: $client})
-CREATE (cp:CarePreference {category: $cat, instruction: $inst, priority: $pri})
-CREATE (c)-[:REQUIRES]->(cp)
+MERGE (c)-[:REQUIRES]->(cp:CarePreference {category: $cat, instruction: $inst})
+ON CREATE SET cp.priority = $pri
+ON MATCH SET  cp.priority = COALESCE($pri, cp.priority)
 ```
 
 **手帳・受給者証（Certificate）:**
+
+手帳種別（type）ごとにクライアント1人1ノード。更新時は等級・更新期限を上書きする。
+発行日・状態はスキーマ規約どおりリレーション側（`HAS_CERTIFICATE {issuedDate, status}`）に持つ。
+
 ```cypher
 MATCH (c:Client {name: $client})
-CREATE (cert:Certificate {
-    type: $type,
-    grade: $grade,
-    nextRenewalDate: CASE WHEN $renewal IS NOT NULL THEN date($renewal) ELSE NULL END
-})
-CREATE (c)-[:HAS_CERTIFICATE]->(cert)
+MERGE (c)-[r:HAS_CERTIFICATE]->(cert:Certificate {type: $type})
+SET cert.grade = COALESCE($grade, cert.grade),
+    cert.nextRenewalDate = CASE WHEN $renewal IS NOT NULL THEN date($renewal) ELSE cert.nextRenewalDate END,
+    r.status = COALESCE(r.status, 'Active')
 ```
 
 **キーパーソン（KeyPerson）:**

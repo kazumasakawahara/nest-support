@@ -115,12 +115,15 @@ RETURN c.name AS 氏名
 
 #### 禁忌事項（最重要）
 
+クライアント配下のノードとしてリレーションごと MERGE する（再実行で重複せず、他クライアントとノードを共有しない。
+グローバルな `MERGE (ng:NgAction {action})` は同文の禁忌を持つ別クライアントとノードを共有し、riskLevel を相互に上書きするため禁止）。
+
 ```cypher
 MATCH (c:Client {name: $clientName})
-MERGE (ng:NgAction {action: $action})
-SET ng.reason = $reason,
-    ng.riskLevel = $riskLevel
-MERGE (c)-[:MUST_AVOID]->(ng)
+MERGE (c)-[:MUST_AVOID]->(ng:NgAction {action: $action})
+ON CREATE SET ng.reason = $reason, ng.riskLevel = $riskLevel
+ON MATCH SET  ng.reason = COALESCE($reason, ng.reason),
+              ng.riskLevel = COALESCE($riskLevel, ng.riskLevel)
 RETURN ng.action AS 禁忌事項, ng.riskLevel AS リスクレベル
 ```
 
@@ -128,9 +131,9 @@ RETURN ng.action AS 禁忌事項, ng.riskLevel AS リスクレベル
 
 ```cypher
 MATCH (c:Client {name: $clientName})
-MERGE (cp:CarePreference {category: $category, instruction: $instruction})
-SET cp.priority = $priority
-MERGE (c)-[:REQUIRES]->(cp)
+MERGE (c)-[:REQUIRES]->(cp:CarePreference {category: $category, instruction: $instruction})
+ON CREATE SET cp.priority = $priority
+ON MATCH SET  cp.priority = COALESCE($priority, cp.priority)
 RETURN cp.category AS カテゴリ
 ```
 
@@ -170,12 +173,18 @@ RETURN h.name AS 医療機関
 
 #### 手帳・受給者証
 
+手帳種別（type）ごとにクライアント1人1ノード。発行日・状態はスキーマ規約どおり
+リレーション側（`HAS_CERTIFICATE {issuedDate, status}`）に持つ。
+
 ```cypher
 MATCH (c:Client {name: $clientName})
-MERGE (cert:Certificate {type: $certType, grade: $grade})
-SET cert.nextRenewalDate = date($nextRenewalDate),
-    cert.issueDate = date($issueDate)
-MERGE (c)-[:HAS_CERTIFICATE]->(cert)
+MERGE (c)-[r:HAS_CERTIFICATE]->(cert:Certificate {type: $certType})
+SET cert.grade = COALESCE($grade, cert.grade),
+    cert.nextRenewalDate = CASE WHEN $nextRenewalDate IS NOT NULL
+                                THEN date($nextRenewalDate) ELSE cert.nextRenewalDate END,
+    r.issuedDate = CASE WHEN $issuedDate IS NOT NULL
+                        THEN date($issuedDate) ELSE r.issuedDate END,
+    r.status = COALESCE(r.status, 'Active')
 RETURN cert.type AS 種類, cert.grade AS 等級
 ```
 

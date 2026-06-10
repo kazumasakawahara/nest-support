@@ -318,6 +318,10 @@ LIMIT $limit
 
 データの登録・更新には `neo4j:execute_query` を使用する（読み取りと同じツール。書き込み Cypher を `query` に渡す）。
 
+> **書き込み時のクライアント照合は完全一致 `{name: $clientName}` を使うこと。**
+> 部分一致（`CONTAINS`）は複数クライアントにヒットした場合、全員にデータが付与される事故につながる。
+> 書き込み前にテンプレート1または2で正確な氏名を確定してから実行する。
+
 ### 支援記録の登録
 
 #### ★重要: AI構造化プロセス
@@ -384,35 +388,30 @@ RETURN log.date AS 日付, log.situation AS 状況
 
 #### 禁忌事項（NgAction）の追加登録
 
+クライアント配下のノードとしてリレーションごと MERGE する（再実行で重複せず、他クライアントとノードを共有しない）。
+
 ```cypher
-MATCH (c:Client)
-WHERE c.name CONTAINS $clientName
-MERGE (ng:NgAction {
-    action: $action,
-    reason: $reason,
-    riskLevel: $riskLevel
-})
-MERGE (c)-[:MUST_AVOID]->(ng)
+MATCH (c:Client {name: $clientName})
+MERGE (c)-[:MUST_AVOID]->(ng:NgAction {action: $action})
+ON CREATE SET ng.reason = $reason, ng.riskLevel = $riskLevel
+ON MATCH SET  ng.reason = COALESCE($reason, ng.reason),
+              ng.riskLevel = COALESCE($riskLevel, ng.riskLevel)
 RETURN ng.action AS 禁忌事項, ng.riskLevel AS リスクレベル
 ```
 
-**パラメータ**: `$clientName`, `$action`, `$reason`, `$riskLevel` (LifeThreatening / Panic / Discomfort)
+**パラメータ**: `$clientName`（完全一致）, `$action`, `$reason`, `$riskLevel` (LifeThreatening / Panic / Discomfort)
 
 #### 推奨ケア（CarePreference）の追加登録
 
 ```cypher
-MATCH (c:Client)
-WHERE c.name CONTAINS $clientName
-MERGE (cp:CarePreference {
-    category: $category,
-    instruction: $instruction,
-    priority: $priority
-})
-MERGE (c)-[:REQUIRES]->(cp)
+MATCH (c:Client {name: $clientName})
+MERGE (c)-[:REQUIRES]->(cp:CarePreference {category: $category, instruction: $instruction})
+ON CREATE SET cp.priority = $priority
+ON MATCH SET  cp.priority = COALESCE($priority, cp.priority)
 RETURN cp.category AS カテゴリ, cp.instruction AS 手順
 ```
 
-**パラメータ**: `$clientName`, `$category`, `$instruction`, `$priority` (High / Medium / Low)
+**パラメータ**: `$clientName`（完全一致）, `$category`, `$instruction`, `$priority` (High / Medium / Low)
 
 #### キーパーソンの登録
 
@@ -433,17 +432,22 @@ RETURN kp.name AS 名前, kp.relationship AS 続柄
 
 #### 手帳・受給者証の登録
 
+手帳種別（type）ごとにクライアント1人1ノード。更新時は同じノードの等級・更新期限を上書きする。
+発行日・状態はスキーマ規約どおりリレーション側（`HAS_CERTIFICATE {issuedDate, status}`）に持つ。
+
 ```cypher
-MATCH (c:Client)
-WHERE c.name CONTAINS $clientName
-MERGE (cert:Certificate {
-    type: $type,
-    grade: $grade,
-    nextRenewalDate: date($nextRenewalDate)
-})
-MERGE (c)-[:HAS_CERTIFICATE]->(cert)
+MATCH (c:Client {name: $clientName})
+MERGE (c)-[r:HAS_CERTIFICATE]->(cert:Certificate {type: $type})
+SET cert.grade = COALESCE($grade, cert.grade),
+    cert.nextRenewalDate = CASE WHEN $nextRenewalDate IS NOT NULL
+                                THEN date($nextRenewalDate) ELSE cert.nextRenewalDate END,
+    r.issuedDate = CASE WHEN $issuedDate IS NOT NULL
+                        THEN date($issuedDate) ELSE r.issuedDate END,
+    r.status = COALESCE($status, r.status, 'Active')
 RETURN cert.type AS 種類, cert.grade AS 等級, cert.nextRenewalDate AS 更新日
 ```
+
+**パラメータ**: `$clientName`（完全一致）, `$type`, `$grade`, `$nextRenewalDate`, `$issuedDate`（任意・nullで省略可）, `$status`（任意・nullで省略可）
 
 #### 監査ログの記録
 
