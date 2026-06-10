@@ -206,17 +206,20 @@ SET cert.grade = COALESCE($grade, cert.grade),
 **キーパーソン（KeyPerson）:**
 ```cypher
 MATCH (c:Client {name: $client})
-MERGE (kp:KeyPerson {name: $name, phone: $phone})
-SET kp.relationship = $rel, kp.role = $role
-MERGE (c)-[r:HAS_KEY_PERSON]->(kp)
-SET r.rank = $rank
+MERGE (c)-[r:HAS_KEY_PERSON]->(kp:KeyPerson {name: $name})
+SET kp.phone = COALESCE($phone, kp.phone),
+    kp.relationship = COALESCE($rel, kp.relationship),
+    kp.role = COALESCE($role, kp.role),
+    r.rank = COALESCE($rank, r.rank)
 ```
 
 **後見人（Guardian）:**
 ```cypher
 MATCH (c:Client {name: $client})
-CREATE (g:Guardian {name: $name, type: $type, phone: $phone, organization: $org})
-CREATE (c)-[:HAS_LEGAL_REP]->(g)
+MERGE (c)-[:HAS_LEGAL_REP]->(g:Guardian {name: $name})
+SET g.type = COALESCE($type, g.type),
+    g.phone = COALESCE($phone, g.phone),
+    g.organization = COALESCE($org, g.organization)
 ```
 
 **医療機関（Hospital）:**

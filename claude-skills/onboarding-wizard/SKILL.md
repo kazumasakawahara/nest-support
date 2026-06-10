@@ -151,11 +151,11 @@ RETURN con.name AS 特性
 
 ```cypher
 MATCH (c:Client {name: $clientName})
-MERGE (kp:KeyPerson {name: $kpName})
-SET kp.phone = $phone,
-    kp.relationship = $relationship,
-    kp.role = $role
-MERGE (c)-[:HAS_KEY_PERSON {rank: $rank}]->(kp)
+MERGE (c)-[r:HAS_KEY_PERSON]->(kp:KeyPerson {name: $kpName})
+SET kp.phone = COALESCE($phone, kp.phone),
+    kp.relationship = COALESCE($relationship, kp.relationship),
+    kp.role = COALESCE($role, kp.role),
+    r.rank = COALESCE($rank, r.rank)
 RETURN kp.name AS キーパーソン
 ```
 
@@ -192,11 +192,10 @@ RETURN cert.type AS 種類, cert.grade AS 等級
 
 ```cypher
 MATCH (c:Client {name: $clientName})
-MERGE (g:Guardian {name: $guardianName})
-SET g.type = $guardianType,
-    g.phone = $phone,
-    g.organization = $organization
-MERGE (c)-[:HAS_LEGAL_REP]->(g)
+MERGE (c)-[:HAS_LEGAL_REP]->(g:Guardian {name: $guardianName})
+SET g.type = COALESCE($guardianType, g.type),
+    g.phone = COALESCE($phone, g.phone),
+    g.organization = COALESCE($organization, g.organization)
 RETURN g.name AS 後見人
 ```
 

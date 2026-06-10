@@ -416,19 +416,16 @@ RETURN cp.category AS カテゴリ, cp.instruction AS 手順
 #### キーパーソンの登録
 
 ```cypher
-MATCH (c:Client)
-WHERE c.name CONTAINS $clientName
-MERGE (kp:KeyPerson {
-    name: $name,
-    relationship: $relationship,
-    phone: $phone,
-    role: $role
-})
-MERGE (c)-[:HAS_KEY_PERSON {rank: $rank}]->(kp)
+MATCH (c:Client {name: $clientName})
+MERGE (c)-[r:HAS_KEY_PERSON]->(kp:KeyPerson {name: $name})
+SET kp.relationship = COALESCE($relationship, kp.relationship),
+    kp.phone = COALESCE($phone, kp.phone),
+    kp.role = COALESCE($role, kp.role),
+    r.rank = COALESCE($rank, r.rank)
 RETURN kp.name AS 名前, kp.relationship AS 続柄
 ```
 
-**パラメータ**: `$clientName`, `$name`, `$relationship`, `$phone`, `$role`, `$rank`（優先順位番号）
+**パラメータ**: `$clientName`（完全一致）, `$name`, `$relationship`, `$phone`, `$role`, `$rank`（優先順位番号）
 
 #### 手帳・受給者証の登録
 
