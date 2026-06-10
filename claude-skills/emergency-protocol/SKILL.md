@@ -105,7 +105,7 @@ NgActionには3段階のリスクレベルがあり、以下の順で表示す�
 MATCH (c:Client)
 WHERE c.name CONTAINS $clientName
 OPTIONAL MATCH (c)-[:MUST_AVOID|PROHIBITED]->(ng:NgAction)
-OPTIONAL MATCH (ng)-[:IN_CONTEXT]->(ngCond:Condition)
+OPTIONAL MATCH (ng)-[:IN_CONTEXT|RELATES_TO]->(ngCond:Condition)
 WITH c, collect(DISTINCT {
     action: ng.action,
     reason: ng.reason,
@@ -165,7 +165,7 @@ RETURN
 ```cypher
 MATCH (c:Client)-[:MUST_AVOID|PROHIBITED]->(ng:NgAction)
 WHERE c.name CONTAINS $clientName
-OPTIONAL MATCH (ng)-[:IN_CONTEXT]->(cond:Condition)
+OPTIONAL MATCH (ng)-[:IN_CONTEXT|RELATES_TO]->(cond:Condition)
 RETURN DISTINCT
     c.name AS clientName,
     ng.action AS action,
@@ -192,7 +192,7 @@ WHERE c.name CONTAINS $clientName
 // 状況に関連する禁忌事項
 OPTIONAL MATCH (c)-[:MUST_AVOID|PROHIBITED]->(ng:NgAction)
 WHERE ng.action CONTAINS $situation OR ng.reason CONTAINS $situation
-OPTIONAL MATCH (ng)-[:IN_CONTEXT]->(ngCond:Condition)
+OPTIONAL MATCH (ng)-[:IN_CONTEXT|RELATES_TO]->(ngCond:Condition)
 WITH c, collect(DISTINCT {
     action: ng.action,
     reason: ng.reason,
@@ -394,7 +394,8 @@ ORDER BY c.name
 | `HAS_KEY_PERSON` | Client → KeyPerson | rankプロパティで優先順位 |
 | `TREATED_AT` | Client → Hospital | — |
 | `HAS_LEGAL_REP` | Client → Guardian | — |
-| `IN_CONTEXT` | NgAction → Condition | 禁忌の文脈（関連特性） |
+| `IN_CONTEXT` | NgAction → Condition | **正式名**。禁忌の文脈（関連特性） |
+| ~~`RELATES_TO`~~ | NgAction → Condition | **廃止**（読み取り時のみ後方互換で対応） |
 | `ADDRESSES` | CarePreference → Condition | ケアの対象特性 |
 
 ---
