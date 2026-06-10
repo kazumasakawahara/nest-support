@@ -239,6 +239,31 @@ RETURN
     '有効値: LifeThreatening, Panic, Discomfort' AS 期待値
 ```
 
+### Check 6: 全体統計サマリー
+
+データベース全体の概況を把握する。
+
+```cypher
+MATCH (c:Client)
+OPTIONAL MATCH (c)-[:MUST_AVOID|PROHIBITED]->(ng:NgAction)
+OPTIONAL MATCH (c)-[:HAS_KEY_PERSON|EMERGENCY_CONTACT]->(kp:KeyPerson)
+OPTIONAL MATCH (c)-[:TREATED_AT]->(hosp:Hospital)
+OPTIONAL MATCH (c)-[:HAS_CONDITION]->(con:Condition)
+OPTIONAL MATCH (c)-[:HAS_CERTIFICATE]->(cert:Certificate)
+OPTIONAL MATCH (c)-[:REQUIRES|PREFERS]->(cp:CarePreference)
+
+RETURN
+    count(DISTINCT c) AS クライアント総数,
+    count(DISTINCT ng) AS 禁忌事項総数,
+    count(DISTINCT kp) AS キーパーソン総数,
+    count(DISTINCT hosp) AS 医療機関総数,
+    count(DISTINCT con) AS 特性総数,
+    count(DISTINCT cert) AS 証明書総数,
+    count(DISTINCT cp) AS 配慮事項総数
+```
+
+---
+
 ### Check 7: 重み構造違反（Warning）— 優先度・ランクの整合性
 
 リレーションやノードに付与された「重み」（rank / riskLevel / priority / effectiveness）が、構造的に整合しているかをチェックする。
@@ -384,31 +409,6 @@ uv run python scripts/check_weight_consistency.py --client "テスト太郎"
 - `GEMINI_API_KEY` 環境変数が設定されていること
 - NgAction / CarePreference に embedding が付与されていること
   - 未付与の場合: `uv run python scripts/backfill_embeddings.py --label NgAction`
-
----
-
-### Check 6: 全体統計サマリー
-
-データベース全体の概況を把握する。
-
-```cypher
-MATCH (c:Client)
-OPTIONAL MATCH (c)-[:MUST_AVOID|PROHIBITED]->(ng:NgAction)
-OPTIONAL MATCH (c)-[:HAS_KEY_PERSON|EMERGENCY_CONTACT]->(kp:KeyPerson)
-OPTIONAL MATCH (c)-[:TREATED_AT]->(hosp:Hospital)
-OPTIONAL MATCH (c)-[:HAS_CONDITION]->(con:Condition)
-OPTIONAL MATCH (c)-[:HAS_CERTIFICATE]->(cert:Certificate)
-OPTIONAL MATCH (c)-[:REQUIRES|PREFERS]->(cp:CarePreference)
-
-RETURN
-    count(DISTINCT c) AS クライアント総数,
-    count(DISTINCT ng) AS 禁忌事項総数,
-    count(DISTINCT kp) AS キーパーソン総数,
-    count(DISTINCT hosp) AS 医療機関総数,
-    count(DISTINCT con) AS 特性総数,
-    count(DISTINCT cert) AS 証明書総数,
-    count(DISTINCT cp) AS 配慮事項総数
-```
 
 ---
 
