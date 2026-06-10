@@ -97,9 +97,10 @@ MERGE (c1)-[:TREATED_AT]->(h1);
 // 手帳
 MERGE (cert1:Certificate {type: '療育手帳', grade: 'B1'})
 SET cert1.nextRenewalDate = date('2027-03-31'),
-    cert1.issueDate = date('2024-04-01'),
     cert1.isDemo = true;
-MERGE (c1)-[:HAS_CERTIFICATE]->(cert1);
+MERGE (c1)-[r1cert:HAS_CERTIFICATE]->(cert1)
+SET r1cert.issuedDate = date('2024-04-01'),
+    r1cert.status = 'Active';
 
 // 後見人
 MERGE (g1:Guardian {name: '佐藤法律事務所 佐藤弁護士'})
@@ -186,9 +187,10 @@ MERGE (c2)-[:TREATED_AT]->(h2);
 // 手帳
 MERGE (cert2:Certificate {type: '療育手帳', grade: 'B2'})
 SET cert2.nextRenewalDate = date('2026-08-31'),
-    cert2.issueDate = date('2023-09-01'),
     cert2.isDemo = true;
-MERGE (c2)-[:HAS_CERTIFICATE]->(cert2);
+MERGE (c2)-[r2cert:HAS_CERTIFICATE]->(cert2)
+SET r2cert.issuedDate = date('2023-09-01'),
+    r2cert.status = 'Active';
 
 // 願い
 MERGE (w3:Wish {content: 'パン屋さんで働きたい。パンを作るのが好き'})
@@ -206,7 +208,7 @@ SET sup1.role = '計画相談支援専門員',
 CREATE (sl1:SupportLog {
     date: date('2026-02-15'),
     content: '訪問時、翔太さんが新しい絵を見せてくれた。水彩画で季節の花を描いており、とても丁寧な仕上がり。母によると、毎日2時間ほど集中して描いているとのこと。作業所のアート活動への参加を検討。',
-    effectiveness: 'Positive',
+    effectiveness: 'Effective',
     isDemo: true
 })
 WITH sl1
@@ -218,7 +220,7 @@ MERGE (sl1)-[:ABOUT]->(c1);
 CREATE (sl2:SupportLog {
     date: date('2026-02-20'),
     content: '電話対応。母から相談：翔太が昨日パニックを起こした。原因は隣の部屋の工事音。イヤーマフを使用したところ15分で落ち着いた。今後、騒音が予想される場合は事前にイヤーマフを準備することを確認。',
-    effectiveness: 'Positive',
+    effectiveness: 'Effective',
     isDemo: true
 })
 WITH sl2
@@ -230,7 +232,7 @@ MERGE (sl2)-[:ABOUT]->(c1);
 CREATE (sl3:SupportLog {
     date: date('2026-03-01'),
     content: '花さんの作業所見学に同行。パン工房「ひまわり」を見学。花さんは積極的にスタッフに質問し、とても意欲的だった。体験利用を来月から開始予定。',
-    effectiveness: 'Positive',
+    effectiveness: 'Effective',
     isDemo: true
 })
 WITH sl3
