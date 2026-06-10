@@ -369,7 +369,7 @@ def generate_mermaid_ecomap(
             risk_label = {"LifeThreatening": "⚠️", "Panic": "🔴", "Discomfort": "🟡"}.get(ng.get("riskLevel"), "")
             label = f"{risk_label}{ng['action']}"
             ng_id = generator.add_node("NgAction", label)
-            generator.add_edge(client_id, ng_id, "PROHIBITED")
+            generator.add_edge(client_id, ng_id, "MUST_AVOID")
 
     # 推奨ケア
     if template in ["full_view", "support_meeting", "emergency", "handover"]:
@@ -378,7 +378,7 @@ def generate_mermaid_ecomap(
                 continue
             label = f"{cp.get('category', '')}: {cp['instruction']}"
             cp_id = generator.add_node("CarePreference", label)
-            generator.add_edge(client_id, cp_id, "PREFERS")
+            generator.add_edge(client_id, cp_id, "REQUIRES")
 
     # キーパーソン
     if template in ["full_view", "support_meeting", "emergency", "handover"]:
@@ -392,7 +392,7 @@ def generate_mermaid_ecomap(
         for g in data.get("guardians", []):
             label = f"{g['name']}({g.get('type', '後見人')})"
             g_id = generator.add_node("Guardian", label)
-            generator.add_edge(client_id, g_id, "HAS_GUARDIAN")
+            generator.add_edge(client_id, g_id, "HAS_LEGAL_REP")
 
     # 手帳
     if template in ["full_view", "support_meeting", "handover"]:
