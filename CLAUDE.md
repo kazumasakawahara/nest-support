@@ -177,7 +177,7 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 
 ### 主要ノードラベル（障害福祉 port 7687）
 
-`Client`, `Condition`, `NgAction`, `CarePreference`, `KeyPerson`, `Guardian`, `Hospital`, `Certificate`, `PublicAssistance`, `Organization`, `Supporter`, `SupportLog`, `MeetingRecord`, `AuditLog`, `LifeHistory`, `Wish`, `Identity`, `ServiceProvider`, `ProviderFeedback`
+`Client`, `Condition`, `NgAction`, `CarePreference`, `KeyPerson`, `Guardian`, `Hospital`, `Certificate`, `PublicAssistance`, `Organization`, `Supporter`, `SupportLog`, `MeetingRecord`, `AuditLog`, `LifeHistory`, `Wish`, `Identity`, `ServiceProvider`, `ProviderFeedback`, `Relative`, `CareRole`
 
 ### 主要リレーション
 
@@ -196,6 +196,9 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 (:Client)-[:HAS_HISTORY]->(:LifeHistory)
 (:Client)-[:HAS_WISH]->(:Wish)
 (:Client)-[:USES_SERVICE]->(:ServiceProvider)
+(:Relative)-[:IS_PARENT_OF|FAMILY_OF]->(:Client)
+(:Relative)-[:PERFORMS]->(:CareRole)
+(:CareRole)-[:CAN_BE_PERFORMED_BY]->(:ServiceProvider|:Supporter|:KeyPerson)
 ```
 
 ### 廃止されたリレーション名（書き込み禁止）
