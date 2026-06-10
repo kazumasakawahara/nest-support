@@ -431,6 +431,6 @@ RETURN COALESCE(sp.name, sp.office_name, sp.corporateName) AS provider,
 
 - **データ混在**: 新形式（camelCase）と旧形式（snake_case）が混在。テンプレートのCOALESCEパターンを必ず使うこと
 - **名前なしレコード**: 約1500件は名前が空。検索時は名前のフィルタを入れること
-- **availability**: 初期状態では 'または null。運用中にテンプレート9で更新する
+- **availability**: 初期状態では '未確認' または null。運用中にテンプレート9で更新する
 - **ProviderFeedback**: 初期状態では0件。運用中にテンプレート8で蓄積する
 - **USES_SERVICE**: 初期状態では0件。運用中にテンプレート7で作成する
