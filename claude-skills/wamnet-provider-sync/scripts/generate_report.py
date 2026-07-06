@@ -9,9 +9,15 @@ import argparse
 import json
 import os
 import sys
+import html as _html
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
+
+
+def _esc(value) -> str:
+    """DB/CSV 由来の文字列を HTML エスケープする（レポートXSS対策）。"""
+    return _html.escape("" if value is None else str(value))
 
 # Neo4j接続用
 try:
@@ -289,7 +295,7 @@ class ReportGenerator:
     <div class="container">
         <h1>🏢 障害福祉サービス事業所データレポート</h1>
         <p>生成日時: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-        {f'<p>対象地域: {prefecture}</p>' if prefecture else ''}
+        {f'<p>対象地域: {_esc(prefecture)}</p>' if prefecture else ''}
         
         <h2>📊 概要</h2>
         <div class="stat-box">
@@ -300,13 +306,13 @@ class ReportGenerator:
         <h2>🏢 サービス種類別</h2>
         <table>
             <tr><th>サービス種類</th><th>件数</th></tr>
-            {''.join(f'<tr><td>{item["serviceType"]}</td><td>{item["count"]:,}</td></tr>' for item in stats["by_type"])}
+            {''.join(f'<tr><td>{_esc(item["serviceType"])}</td><td>{item["count"]:,}</td></tr>' for item in stats["by_type"])}
         </table>
         
         <h2>📍 市区町村別（上位20）</h2>
         <table>
             <tr><th>市区町村</th><th>件数</th></tr>
-            {''.join(f'<tr><td>{item["city"]}</td><td>{item["count"]:,}</td></tr>' for item in stats["by_city"])}
+            {''.join(f'<tr><td>{_esc(item["city"])}</td><td>{item["count"]:,}</td></tr>' for item in stats["by_city"])}
         </table>
         
         {f'''
@@ -316,7 +322,7 @@ class ReportGenerator:
         </div>
         <table>
             <tr><th>クライアント</th><th>廃止事業所</th><th>サービス種類</th></tr>
-            {''.join(f'<tr><td>{item["clientName"]}</td><td>{item["providerName"]}</td><td>{item["serviceType"]}</td></tr>' for item in affected)}
+            {''.join(f'<tr><td>{_esc(item["clientName"])}</td><td>{_esc(item["providerName"])}</td><td>{_esc(item["serviceType"])}</td></tr>' for item in affected)}
         </table>
         ''' if affected else ''}
         
