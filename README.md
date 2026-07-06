@@ -425,6 +425,7 @@ nest-support/
 | ドキュメント | 内容 |
 |-------------|------|
 | [CLAUDE.md](CLAUDE.md) | Claude 向けプロジェクト指示書（スキーマ規則、Skills ルーティング含む）|
+| [docs/USER_MANUAL_WINDOWS.md](docs/USER_MANUAL_WINDOWS.md) | **はじめての方のためのユーザーマニュアル（Windows対応・福祉職向け）** |
 | [docs/QUICK_START.md](docs/QUICK_START.md) | 5分セットアップガイド |
 | [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md) | 詳細セットアップガイド（非技術者向け）|
 | [docs/ADVANCED_USAGE.md](docs/ADVANCED_USAGE.md) | Skills の詳細な使い方とプロンプト例 |
