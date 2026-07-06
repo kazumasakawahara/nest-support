@@ -211,26 +211,36 @@ CareRoleが未登録のクライアントの場合、親への聞き取りを元
 ### 登録Cypher
 
 ```cypher
-MATCH (c:Client)<-[:IS_PARENT_OF|FAMILY_OF]-(r:Relative)
-WHERE c.name CONTAINS $clientName AND r.name CONTAINS $relativeName
-MERGE (cr:CareRole {name: $taskName})
+MATCH (c:Client {name: $clientName})<-[:IS_PARENT_OF|FAMILY_OF]-(r:Relative {name: $relativeName})
+MERGE (r)-[:PERFORMS]->(cr:CareRole {name: $taskName})
 SET cr.frequency = $frequency,
     cr.priority = $priority,
     cr.notes = $notes
-MERGE (r)-[:PERFORMS]->(cr)
 RETURN cr.name AS タスク, r.name AS 担当者
 ```
+
+**注意**: `MERGE (cr:CareRole {name: $taskName})` を単独で行うと、全クライアントの
+同名タスク（例「服薬管理」）が1ノードに収斂し、他クライアントの代替手段
+（`CAN_BE_PERFORMED_BY`）が混入して**未カバーのタスクが「カバー済み」と誤診断**される。
+上記のように `(r)-[:PERFORMS]->(cr:CareRole {name})` のパスごと MERGE することで、
+CareRole を担当者（＝クライアント）配下にスコープする。クライアント/担当者の照合は
+完全一致 `{name: ...}` を使う（`CONTAINS` は複数ヒットで別人に紐付く恐れがある）。
 
 ### 代替手段の紐付けCypher
 
 ```cypher
-MATCH (cr:CareRole {name: $taskName})
+MATCH (c:Client {name: $clientName})<-[:IS_PARENT_OF|FAMILY_OF]-(r:Relative)-[:PERFORMS]->(cr:CareRole {name: $taskName})
 MATCH (alt)
 WHERE (alt:ServiceProvider OR alt:Supporter OR alt:KeyPerson)
-  AND alt.name CONTAINS $altName
+  AND alt.name = $altName
 MERGE (cr)-[:CAN_BE_PERFORMED_BY]->(alt)
 RETURN cr.name AS タスク, alt.name AS 代替手段
 ```
+
+**注意**: CareRole はクライアント配下スコープになったため、代替手段の紐付けも
+`$clientName` 経由で対象クライアントの CareRole に限定する（`MATCH (cr:CareRole {name})`
+単独では全クライアントの同名 CareRole にヒットする）。`alt.name` も完全一致で照合し、
+部分一致による別事業所への誤紐付けを避ける。
 
 ---
 

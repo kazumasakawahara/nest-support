@@ -316,8 +316,8 @@ LIMIT $limit
 ### テンプレート7: クライアントと事業所の紐付け
 
 ```cypher
-MERGE (c:Client {name: $clientName})
-MERGE (sp:ServiceProvider {name: $providerName})
+MATCH (c:Client {name: $clientName})
+MATCH (sp:ServiceProvider {name: $providerName})
 MERGE (c)-[r:USES_SERVICE]->(sp)
 ON CREATE SET
   r.startDate = $startDate,
@@ -337,14 +337,16 @@ RETURN c.name AS client, sp.name AS provider, r.status AS status, r.startDate AS
 - `$status`: 利用状況（Active / Pending / Ended、デフォルト: Active）
 - `$note`: 備考（任意）
 
-**注意**: MERGE (sp:ServiceProvider {name: $providerName}) で名前完全一致が必要。事前にテンプレート1で正確な名前を確認すること。
+**注意**: `MERGE` ではなく `MATCH` を使う。`MERGE (c:Client {name:...})` は氏名のタイプミス時に
+幽霊クライアント/事業所を新規作成してしまう。両端は既存ノードでなければならないため、
+必ず `MATCH` で照合する。**該当が無ければクエリは 0 行を返し紐付けは作られない**ので、
+事前にテンプレート1/2で `$clientName` と `$providerName`（完全一致）を確定してから実行すること。
+返り値が空だった場合は「クライアントまたは事業所が見つからない」とユーザーに知らせる。
 
 ### テンプレート8: 口コミ・評価の登録
 
 ```cypher
-MATCH (sp:ServiceProvider)
-WHERE COALESCE(sp.name, sp.office_name, sp.corporateName, '') CONTAINS $providerName
-WITH sp LIMIT 1
+MATCH (sp:ServiceProvider {providerId: $providerId})
 CREATE (f:ProviderFeedback {
   feedbackId: randomUUID(),
   category: $category,
@@ -362,18 +364,20 @@ RETURN COALESCE(sp.name, sp.office_name, sp.corporateName) AS provider,
 ```
 
 パラメータ:
-- `$providerName`: 事業所名（部分一致で最初の1件にマッチ）
+- `$providerId`: 事業所の一意ID（テンプレート1/2の検索結果から取得する）
 - `$category`: カテゴリ（行動障害対応/コミュニケーション/環境/送迎/食事/医療連携/その他）
 - `$content`: 口コミ内容
 - `$rating`: 評価（◎良い / ○普通 / △課題あり / ×不可、デフォルト: ○普通）
 - `$source`: 情報源（支援者名 or 匿名、デフォルト: 匿名）
 
+**注意**: 旧テンプレートは `CONTAINS`＋`WITH sp LIMIT 1`（ORDER BY なし）で、部分一致が複数
+ヒットすると**どの事業所に口コミが付くか不定**だった。必ず `providerId` で一意に特定する。
+名前しか分からない場合は先にテンプレート1/2で完全一致検索し、`providerId` を確定すること。
+
 ### テンプレート9: 事業所の空き状況更新
 
 ```cypher
-MATCH (sp:ServiceProvider)
-WHERE COALESCE(sp.name, sp.office_name, sp.corporateName, '') CONTAINS $providerName
-WITH sp LIMIT 1
+MATCH (sp:ServiceProvider {providerId: $providerId})
 SET sp.availability = $availability,
     sp.updatedAt = toString(datetime())
 WITH sp, $currentUsers AS newUsers
@@ -387,7 +391,8 @@ RETURN COALESCE(sp.name, sp.office_name, sp.corporateName) AS provider,
 ```
 
 パラメータ:
-- `$providerName`: 事業所名（部分一致で最初の1件にマッチ）
+- `$providerId`: 事業所の一意ID（テンプレート1/2の検索結果から取得する。部分一致の
+  `LIMIT 1` では対象事業所が不定になるため、必ず ID で一意特定する）
 - `$availability`: 空き状況（空きあり / 要相談 / 満員 / 未確認）
 - `$currentUsers`: 現在利用者数（-1の場合は更新しない）
 
