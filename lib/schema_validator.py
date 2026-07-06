@@ -84,6 +84,15 @@ RISK_LEVEL_ALIASES = {
     "discomfort": "Discomfort",
     "不快": "Discomfort",
     "ストレス": "Discomfort",
+    # 汎用の高/中/低スケール。CLAUDE.md の緊急提示順（LifeThreatening → Panic →
+    # Discomfort）に沿って対応づける。narrative-extractor / Gemini が段階表現で
+    # 出力した場合に安全側の正規値へ寄せる。ここに無い値は補正せず警告する。
+    "高": "LifeThreatening",
+    "中": "Panic",
+    "低": "Discomfort",
+    "high": "LifeThreatening",
+    "medium": "Panic",
+    "low": "Discomfort",
 }
 
 

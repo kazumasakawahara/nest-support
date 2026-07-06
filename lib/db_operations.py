@@ -208,10 +208,12 @@ def register_to_database(extracted_graph: dict, user_name: str = "system") -> di
     # 単一トランザクションでノード＋リレーションを原子的に書き込む
     try:
         with driver.session() as session:
-            temp_id_map, registered_labels, audited = session.execute_write(
+            temp_id_map, registered_labels, audited, tx_warnings = session.execute_write(
                 _register_graph_tx, nodes, relationships, parent_link,
-                VALID_NODE_LABELS, VALID_RELATIONSHIP_TYPES, warnings,
+                VALID_NODE_LABELS, VALID_RELATIONSHIP_TYPES,
             )
+        # tx で生じた警告は commit 成功後に一度だけマージする（リトライ重複を避ける）
+        warnings.extend(tx_warnings)
     except Exception as e:
         log(f"グラフ登録に失敗しました（ロールバック）: {e}", "ERROR")
         return {
@@ -245,11 +247,14 @@ def register_to_database(extracted_graph: dict, user_name: str = "system") -> di
 
 
 def _register_graph_tx(tx, nodes, relationships, parent_link,
-                       valid_labels, valid_types, warnings):
+                       valid_labels, valid_types):
     """ノード＋リレーションを1トランザクション内で書き込む。
 
-    Returns: (temp_id_map, registered_labels, audited)
+    Returns: (temp_id_map, registered_labels, audited, tx_warnings)
       audited: [(label, props, action_type), ...] — commit 後の監査用
+      tx_warnings: この tx で生じた警告。managed-transaction が transient 失敗で
+        本関数を再実行しても重複しないよう、外部の共有リストを mutate せず
+        tx ローカルに集めて返す（呼び出し側が commit 後に一度だけマージする）。
     """
     def run(query, params=None):
         return tx.run(query, params or {}).data()
@@ -257,6 +262,7 @@ def _register_graph_tx(tx, nodes, relationships, parent_link,
     temp_id_map = {}
     registered_labels = []
     audited = []
+    tx_warnings = []
     consumed_rel_ids = set()
 
     # 1. ノードの処理（子ノードのスコープ解決のため Client を先に登録）
@@ -268,7 +274,7 @@ def _register_graph_tx(tx, nodes, relationships, parent_link,
         if not temp_id or not label:
             continue
         if not _label_allowed(label, valid_labels):
-            warnings.append(f"未知/不正なラベルをスキップしました: {label!r}")
+            tx_warnings.append(f"未知/不正なラベルをスキップしました: {label!r}")
             continue
 
         internal_id = None
@@ -325,7 +331,7 @@ def _register_graph_tx(tx, nodes, relationships, parent_link,
             continue
         rel_type = rel.get("type")
         if not _reltype_allowed(rel_type, valid_types):
-            warnings.append(f"未知/不正なリレーションをスキップしました: {rel_type!r}")
+            tx_warnings.append(f"未知/不正なリレーションをスキップしました: {rel_type!r}")
             continue
         source_id = temp_id_map.get(rel.get("source_temp_id"))
         target_id = temp_id_map.get(rel.get("target_temp_id"))
@@ -337,7 +343,7 @@ def _register_graph_tx(tx, nodes, relationships, parent_link,
                 SET r += $props
             """, {"sid": source_id, "tid": target_id, "props": rel.get("properties", {})})
 
-    return temp_id_map, registered_labels, audited
+    return temp_id_map, registered_labels, audited, tx_warnings
 
 # =============================================================================
 # 内部ユーティリティ

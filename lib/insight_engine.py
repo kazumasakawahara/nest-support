@@ -223,6 +223,12 @@ def detect_cascading_risk(
 
     is_cascading = len(unique_triggers) >= min_cascade
 
+    # PSEUDONYMIZATION 有効時はクライアント名を仮名化する（表示向け出力）。
+    # NgAction/CarePreference と違い、リスク連鎖レポートは安全例外に当たらない。
+    from lib.db_operations import _get_pseudonymizer
+    pseudo = _get_pseudonymizer()
+    mask = pseudo.mask_name if getattr(pseudo, "enabled", False) else (lambda n: n)
+
     if is_cascading:
         interpretation = (
             f"直近{days}日間で{len(unique_triggers)}種類の場面"
@@ -235,7 +241,7 @@ def detect_cascading_risk(
         interpretation = f"直近{days}日間で負の感情は記録されていません。"
 
     return {
-        "client_name": client_name,
+        "client_name": mask(client_name),
         "is_cascading": is_cascading,
         "unique_triggers": len(unique_triggers),
         "events": events,
