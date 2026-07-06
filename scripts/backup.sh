@@ -23,13 +23,11 @@ echo "Neo4j バックアップを開始します..."
 
 # --- 対象コンテナの解決（port 7687 を提供するコンテナ。doctor.sh と同じ方式）---
 # 実データは別名コンテナ（例: support-db-neo4j）が 7687 を提供している構成が
-# あるため、固定名ではなく publish=7687 で解決する。
-CONTAINER=""
-if docker inspect -f '{{.State.Status}}' nest-support-neo4j 2>/dev/null | grep -q running; then
-    CONTAINER="nest-support-neo4j"
-else
-    CONTAINER=$(docker ps --filter publish=7687 --format '{{.Names}}' 2>/dev/null | head -1)
-fi
+# あるため、固定名 nest-support-neo4j を優先しない。名前優先だと、空の自前
+# コンテナが起動しているときに実データ側ではなく空 DB をバックアップしてしまう。
+# 実データを持つのは「実際に 7687 を publish しているコンテナ」なので、それを
+# 唯一の判定基準にする。
+CONTAINER=$(docker ps --filter publish=7687 --format '{{.Names}}' 2>/dev/null | head -1)
 
 if [ -z "${CONTAINER}" ]; then
     echo "エラー: port 7687 を提供する起動中の Neo4j コンテナが見つかりません" >&2
