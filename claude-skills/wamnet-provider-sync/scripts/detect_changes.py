@@ -90,8 +90,15 @@ class ChangeDetector:
         for key in common_keys:
             old_row = old_data[key]
             new_row = new_data[key]
-            
+
             changes = self._detect_field_changes(old_row, new_row)
+            # Closed 事業所が新データに再登場したら、フィールド無変更でも「復活」として
+            # modified に分類する（compare_fields に status を含めていないため明示判定）。
+            if str(old_row.get("status", "")) == "Closed":
+                changes = [{
+                    "field": "status", "old": "Closed", "new": "Active",
+                    "note": "CSV 再登場による復活"
+                }] + changes
             if changes:
                 modified.append({
                     "key": key,

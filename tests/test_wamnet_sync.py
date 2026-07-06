@@ -44,6 +44,25 @@ def test_partial_csv_does_not_close_out_of_scope(sync_mod):
     assert closed == [], "CSV のカバー範囲外の事業所を誤って廃止判定している"
 
 
+def test_closed_provider_reappearing_unchanged_is_reactivated(sync_mod):
+    """R2-3: Closed 済み事業所がフィールド無変更で CSV 再登場 → updated（復活）へ。"""
+    s = sync_mod.ServiceProviderSync(dry_run=True)
+    provider = {
+        "providerId": "T1", "prefecture": "東京都", "serviceType": "通所介護",
+        "name": "事業所A", "address": "住所", "city": "新宿区",
+        "phone": "03-0000-0000", "capacity": 20,
+    }
+    new_providers = [dict(provider)]
+    existing = {
+        # 全フィールド同一だが status=Closed（過去に廃止判定された）
+        "T1": {**provider, "status": "Closed"},
+    }
+    to_add, to_update, closed = s.detect_changes(new_providers, existing)
+    assert closed == []
+    assert [p["providerId"] for p in to_update] == ["T1"], \
+        "Closed 事業所が unchanged 扱いのまま復活していない"
+
+
 def test_in_scope_missing_is_closed(sync_mod):
     s = sync_mod.ServiceProviderSync(dry_run=True)
     new_providers = [

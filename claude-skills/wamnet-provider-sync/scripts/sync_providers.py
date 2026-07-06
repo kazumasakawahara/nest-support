@@ -276,13 +276,20 @@ class ServiceProviderSync:
             else:
                 # 既存との比較
                 existing = existing_providers[provider_id]
-                if self._is_modified(provider, existing):
+                # Closed 事業所が CSV に再登場した場合は、フィールド無変更でも
+                # 復活（Active 化）が必要なので必ず updated に分類する。
+                # status を _is_modified の比較対象に入れていないため、ここで明示判定する。
+                was_closed = str(existing.get("status", "")) == "Closed"
+                if was_closed or self._is_modified(provider, existing):
                     to_update.append(provider)
                     self.stats["modified"] += 1
+                    changes = self._get_diff(provider, existing)
+                    if was_closed:
+                        changes = ["status: Closed → Active（復活）"] + changes
                     self.changes["modified"].append({
                         "name": provider["name"],
                         "serviceType": provider["serviceType"],
-                        "changes": self._get_diff(provider, existing)
+                        "changes": changes
                     })
                 else:
                     self.stats["unchanged"] += 1
