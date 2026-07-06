@@ -177,7 +177,7 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 
 ### 主要ノードラベル（障害福祉 port 7687）
 
-`Client`, `Condition`, `NgAction`, `CarePreference`, `KeyPerson`, `Guardian`, `Hospital`, `Certificate`, `PublicAssistance`, `Organization`, `Supporter`, `SupportLog`, `MeetingRecord`, `AuditLog`, `LifeHistory`, `Wish`, `Identity`, `ServiceProvider`, `ProviderFeedback`, `Relative`, `CareRole`
+`Client`, `Condition`, `NgAction`, `CarePreference`, `KeyPerson`, `Guardian`, `Hospital`, `Certificate`, `PublicAssistance`, `Organization`, `Supporter`, `SupportLog`, `MeetingRecord`, `AuditLog`, `LifeHistory`, `Wish`, `Identity`, `ServiceProvider`, `ProviderFeedback`, `Relative`, `CareRole`, `Doctor`
 
 ### 主要リレーション
 
@@ -189,6 +189,7 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 (:Client)-[:HAS_LEGAL_REP]->(:Guardian)
 (:Client)-[:HAS_CERTIFICATE {issuedDate, status}]->(:Certificate)
 (:Client)-[:TREATED_AT {since, status}]->(:Hospital)
+(:Hospital)-[:HAS_DOCTOR]->(:Doctor)
 (:Supporter)-[:LOGGED]->(:SupportLog)-[:ABOUT]->(:Client)
 (:Supporter)-[:RECORDED]->(:MeetingRecord)-[:ABOUT]->(:Client)
 (:SupportLog)-[:FOLLOWS]->(:SupportLog)
