@@ -6,11 +6,21 @@ D3.js 物理シミュレーションを活用したインタラクティブな�
 import os
 import json
 import sys
+import html as _html
 from pathlib import Path
 from typing import Dict, List, Optional
 
 # 既存のデータ取得ロジックを活用
 from generate_mermaid import fetch_client_data, run_query, HAS_NEO4J
+
+
+def _json_for_script(obj) -> str:
+    """JSON を <script> 内へ安全に埋め込む。
+
+    DB/ユーザー由来の文字列に '</script>' が含まれると生の json.dumps では
+    スクリプトタグを閉じられ XSS になる。'</' をエスケープして無害化する。
+    """
+    return json.dumps(obj, ensure_ascii=False, default=str).replace("</", "<\\/")
 
 # =============================================================================
 # 設定
@@ -120,8 +130,8 @@ def generate_interactive_ecomap(client_name: str, output_path: Optional[str] = N
     
     # 置換
     title = f"{client_name} の支援インサイト・グラフ"
-    html_output = template_content.replace("{{ TITLE }}", title)
-    html_output = html_output.replace("{{ GRAPH_DATA }}", json.dumps(graph_data, ensure_ascii=False))
+    html_output = template_content.replace("{{ TITLE }}", _html.escape(title))
+    html_output = html_output.replace("{{ GRAPH_DATA }}", _json_for_script(graph_data))
     
     # 保存
     if not output_path:
@@ -142,7 +152,7 @@ def fetch_emotion_timeline(client_name: str, days: int = 30) -> List[Dict]:
     if HAS_NEO4J:
         return run_query("""
             MATCH (c:Client {name: $name})<-[:ABOUT]-(log:SupportLog)
-            WHERE log.date >= date() - duration({days: $days})
+            WHERE date(log.date) >= date() - duration({days: $days})
               AND log.emotion IS NOT NULL
             RETURN toString(log.date) AS date, log.emotion AS emotion,
                    log.triggerTag AS triggerTag, log.situation AS situation,
@@ -197,11 +207,11 @@ def generate_hybrid_insight(client_name: str, output_path: Optional[str] = None)
 
     # プレースホルダー置換
     title = f"{client_name} — ハイブリッド・インサイト・ビュー"
-    html_output = template_content.replace("{{ TITLE }}", title)
-    html_output = html_output.replace("{{ GRAPH_DATA }}", json.dumps(graph_data, ensure_ascii=False))
-    html_output = html_output.replace("{{ EMOTION_DATA }}", json.dumps(emotion_data, ensure_ascii=False))
-    html_output = html_output.replace("{{ INSIGHT_DATA }}", json.dumps(insight_data, ensure_ascii=False, default=str))
-    html_output = html_output.replace("{{ CLIENT_NAME }}", json.dumps(client_name, ensure_ascii=False))
+    html_output = template_content.replace("{{ TITLE }}", _html.escape(title))
+    html_output = html_output.replace("{{ GRAPH_DATA }}", _json_for_script(graph_data))
+    html_output = html_output.replace("{{ EMOTION_DATA }}", _json_for_script(emotion_data))
+    html_output = html_output.replace("{{ INSIGHT_DATA }}", _json_for_script(insight_data))
+    html_output = html_output.replace("{{ CLIENT_NAME }}", _json_for_script(client_name))
 
     # 保存
     if not output_path:
@@ -215,12 +225,20 @@ def generate_hybrid_insight(client_name: str, output_path: Optional[str] = None)
 
 
 if __name__ == "__main__":
-    name = sys.argv[1] if len(sys.argv) > 1 else "サンプル利用者"
+    if len(sys.argv) < 2:
+        print("使い方: python generate_html.py <クライアント名> [hybrid|ecomap]",
+              file=sys.stderr)
+        sys.exit(1)
+    name = sys.argv[1]
     mode = sys.argv[2] if len(sys.argv) > 2 else "hybrid"
 
-    if mode == "hybrid":
-        path = generate_hybrid_insight(name)
-    else:
-        path = generate_interactive_ecomap(name)
+    try:
+        if mode == "hybrid":
+            path = generate_hybrid_insight(name)
+        else:
+            path = generate_interactive_ecomap(name)
+    except (RuntimeError, ValueError) as e:
+        print(f"エラー: {e}", file=sys.stderr)
+        sys.exit(1)
 
     print(f"生成完了: {path}")
