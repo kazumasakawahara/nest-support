@@ -226,3 +226,80 @@ def test_no_heirs_at_all():
     result = calc.calculate()
     assert result["has_legal_heirs"] is False
     assert result["heirs"] == []
+
+
+# ---------------------------------------------------------------------------
+# P1-22 (a): 配偶者のみ → 100%（"1" と 0.00% の矛盾が無いこと）
+# ---------------------------------------------------------------------------
+
+def test_spouse_only_gets_full_share():
+    shares, result = _shares({
+        "deceased_name": "本人",
+        "has_simultaneous_death": False,
+        "spouse": {"name": "配偶者", "status": "alive"},
+    })
+    assert shares == {"配偶者": Fraction(1)}
+    _assert_sum_one(shares)
+    sp = result["heirs"][0]
+    assert sp["inheritance_share_fraction"] == "1"
+    assert sp["inheritance_share_percentage"] == "100.00%"
+
+
+# ---------------------------------------------------------------------------
+# P1-22 (b): 直系尊属の親等優先（民法889条1項1号）
+#   母（1親等）生存＋祖父（2親等）生存 → 母のみが相続（各1/2にならない）
+# ---------------------------------------------------------------------------
+
+def test_second_rank_degree_priority():
+    shares, _ = _shares({
+        "deceased_name": "本人",
+        "has_simultaneous_death": False,
+        "parents": [
+            {"name": "母", "status": "alive", "generation": 1},
+            {"name": "祖父", "status": "alive", "generation": 2},
+        ],
+    })
+    assert shares == {"母": Fraction(1)}, "親等の遠い祖父まで相続させている"
+
+
+def test_second_rank_falls_to_grandparent_when_parents_gone():
+    shares, _ = _shares({
+        "deceased_name": "本人",
+        "has_simultaneous_death": False,
+        "spouse": {"name": "配偶者", "status": "alive"},
+        "parents": [
+            {"name": "父", "status": "deceased", "generation": 1},
+            {"name": "祖母", "status": "alive", "generation": 2},
+        ],
+    })
+    # 1親等が全員死亡 → 2親等（祖母）が第2順位。配偶者2/3・尊属1/3。
+    assert shares == {"配偶者": Fraction(2, 3), "祖母": Fraction(1, 3)}
+    _assert_sum_one(shares)
+
+
+# ---------------------------------------------------------------------------
+# P1-22 (c): status の明示バリデーション
+# ---------------------------------------------------------------------------
+
+def test_invalid_status_raises():
+    with pytest.raises(ValueError):
+        _MOD.InheritanceCalculator({
+            "deceased_name": "本人",
+            "has_simultaneous_death": False,
+            "children": [{"name": "子", "status": "Alive"}],  # typo（大文字）
+        })
+
+
+def test_unknown_status_warns_but_allowed(capsys):
+    calc = _MOD.InheritanceCalculator({
+        "deceased_name": "本人",
+        "has_simultaneous_death": False,
+        "spouse": {"name": "配偶者", "status": "alive"},
+        "children": [{"name": "子", "status": "unknown"}],
+    })
+    captured = capsys.readouterr()
+    assert "unknown" in captured.err
+    # unknown の子は判定から除外され、配偶者が全部相続
+    result = calc.calculate()
+    names = {h["name"] for h in result["heirs"]}
+    assert names == {"配偶者"}

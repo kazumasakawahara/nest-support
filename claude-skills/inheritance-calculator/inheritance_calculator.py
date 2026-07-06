@@ -97,7 +97,7 @@ class InheritanceCalculator:
         for field in required_fields:
             if field not in self.input:
                 raise ValueError(f"必須フィールド '{field}' が見つかりません")
-        
+
         # オプションフィールドのデフォルト値
         if "spouse" not in self.input:
             self.input["spouse"] = None
@@ -107,6 +107,51 @@ class InheritanceCalculator:
             self.input["parents"] = []
         if "siblings" not in self.input:
             self.input["siblings"] = []
+
+        # status の明示バリデーション（typo による無警告の順位落ちを防ぐ）
+        self._validate_statuses()
+
+    _VALID_STATUS = frozenset(s.value for s in PersonStatus)
+
+    def _validate_statuses(self):
+        """全人物の status を検証する。不正値はエラー、unknown は警告。
+
+        'Alive' 等の typo を放置すると _is_alive で偽と判定され、その相続人が
+        無警告で判定から漏れ、下位順位が誤って繰り上がる。ここで明示的に弾く。
+        """
+        warnings: List[str] = []
+
+        def check(person: Dict, role: str):
+            if not isinstance(person, dict):
+                raise ValueError(f"{role} の形式が不正です（オブジェクトが必要）")
+            status = person.get("status", "unknown")
+            status_val = status.value if isinstance(status, PersonStatus) else status
+            name = person.get("name", "?")
+            if status_val not in self._VALID_STATUS:
+                raise ValueError(
+                    f"{role}『{name}』の status '{status}' は不正です。"
+                    f"許可値: {sorted(self._VALID_STATUS)}"
+                )
+            if status_val == PersonStatus.UNKNOWN.value:
+                warnings.append(
+                    f"{role}『{name}』の status が unknown です"
+                    "（相続判定から除外されます）"
+                )
+            for child in person.get("children", []) or []:
+                check(child, f"{role}の代襲卑属")
+
+        spouse = self.input.get("spouse")
+        if spouse:
+            check(spouse, "配偶者")
+        for c in self.input.get("children", []):
+            check(c, "子")
+        for p in self.input.get("parents", []):
+            check(p, "直系尊属")
+        for s in self.input.get("siblings", []):
+            check(s, "兄弟姉妹")
+
+        for w in warnings:
+            sys.stderr.write(f"[警告] {w}\n")
     
     def calculate(self) -> Dict[str, Any]:
         """相続計算の全体フローを実行"""
@@ -273,16 +318,20 @@ class InheritanceCalculator:
         return heirs
 
     def _distribute_second_rank(self, blood_share: Fraction) -> Optional[List[Heir]]:
-        """第2順位（直系尊属）— 代襲なし。生存する尊属で均等分割。
+        """第2順位（直系尊属）— 代襲なし。親等の近い者が優先（民法889条1項1号）。
 
-        （親等の遠近による優先は本修正の範囲外。生存する尊属を均等分割する。）
+        generation は親等（1=父母、2=祖父母、…）。省略時は 1 とみなす。
+        生存する尊属のうち最小親等の者だけで均等分割する。
+        （例: 母(1親等)と祖父(2親等)が生存 → 母のみが相続する。）
         """
         parents = self.input.get("parents", [])
         living = [p for p in parents if self._is_alive(p)]
         if not living:
             return None
-        per = blood_share / len(living)
-        return [self._make_heir(p["name"], InheritanceRank.SECOND, per) for p in living]
+        min_generation = min(p.get("generation", 1) for p in living)
+        nearest = [p for p in living if p.get("generation", 1) == min_generation]
+        per = blood_share / len(nearest)
+        return [self._make_heir(p["name"], InheritanceRank.SECOND, per) for p in nearest]
 
     def _distribute_third_rank(self, blood_share: Fraction) -> Optional[List[Heir]]:
         """第3順位（兄弟姉妹）— 全血=2・半血=1 の重み付け。代襲は一代限り（甥姪）。"""
