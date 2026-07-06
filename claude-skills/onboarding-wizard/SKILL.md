@@ -165,9 +165,12 @@ RETURN kp.name AS キーパーソン
 MATCH (c:Client {name: $clientName})
 MERGE (h:Hospital {name: $hospitalName})
 SET h.specialty = $specialty,
-    h.phone = $phone,
-    h.doctor = $doctor
+    h.phone = $phone
 MERGE (c)-[:TREATED_AT]->(h)
+// かかりつけ医は Doctor ノードで表現（Hospital.doctor プロパティは廃止）
+FOREACH (_ IN CASE WHEN $doctor IS NULL OR $doctor = '' THEN [] ELSE [1] END |
+    MERGE (d:Doctor {name: $doctor})
+    MERGE (h)-[:HAS_DOCTOR]->(d))
 RETURN h.name AS 医療機関
 ```
 

@@ -28,7 +28,7 @@ WHERE c.name CONTAINS $clientName
 OPTIONAL MATCH (c2:Client)-[:TREATED_AT]->(hosp:Hospital) WHERE c2.name CONTAINS $clientName
 RETURN
     collect(DISTINCT {rank:kpRel.rank, name:kp.name, relationship:kp.relationship, phone:kp.phone, role:kp.role}) AS kps,
-    collect(DISTINCT {name:hosp.name, specialty:hosp.specialty, phone:hosp.phone, doctor:hosp.doctor}) AS hosps
+    collect(DISTINCT {name:hosp.name, specialty:hosp.specialty, phone:hosp.phone, doctor:coalesce([(hosp)-[:HAS_DOCTOR]->(hd:Doctor) | hd.name][0], hosp.doctor)}) AS hosps
 """
 
 Q_LOGS = """

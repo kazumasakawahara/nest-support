@@ -113,8 +113,11 @@ MERGE (c1)-[:HAS_KEY_PERSON {rank: 3}]->(kp3);
 MERGE (h1:Hospital {name: 'さくら総合病院', demoId: 'demo-hosp-1'})
 SET h1.specialty = '精神科・アレルギー科',
     h1.phone = '03-XXXX-XXXX',
-    h1.doctor = '田村医師',
     h1.isDemo = true;
+// かかりつけ医は Doctor ノードで表現（Hospital.doctor 廃止）
+MERGE (doc1:Doctor {demoId: 'demo-doctor-1'}) SET doc1.name = '田村医師', doc1.isDemo = true;
+MATCH (h1:Hospital {demoId: 'demo-hosp-1'}), (doc1:Doctor {demoId: 'demo-doctor-1'})
+MERGE (h1)-[:HAS_DOCTOR]->(doc1);
 MATCH (c1:Client {demoId: 'demo-client-yamamoto'}), (h1:Hospital {demoId: 'demo-hosp-1'})
 MERGE (c1)-[:TREATED_AT]->(h1);
 
@@ -221,8 +224,11 @@ MERGE (c2)-[:HAS_KEY_PERSON {rank: 1}]->(kp4);
 MERGE (h2:Hospital {name: 'あおぞら小児科クリニック', demoId: 'demo-hosp-2'})
 SET h2.specialty = '小児循環器科',
     h2.phone = '06-XXXX-XXXX',
-    h2.doctor = '中村医師',
     h2.isDemo = true;
+// かかりつけ医は Doctor ノードで表現（Hospital.doctor 廃止）
+MERGE (doc2:Doctor {demoId: 'demo-doctor-2'}) SET doc2.name = '中村医師', doc2.isDemo = true;
+MATCH (h2:Hospital {demoId: 'demo-hosp-2'}), (doc2:Doctor {demoId: 'demo-doctor-2'})
+MERGE (h2)-[:HAS_DOCTOR]->(doc2);
 MATCH (c2:Client {demoId: 'demo-client-suzuki'}), (h2:Hospital {demoId: 'demo-hosp-2'})
 MERGE (c2)-[:TREATED_AT]->(h2);
 

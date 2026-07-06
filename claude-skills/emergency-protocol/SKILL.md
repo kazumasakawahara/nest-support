@@ -136,7 +136,7 @@ WITH c, ngActions, carePrefs, keyPersons, collect(DISTINCT {
     name: h.name,
     specialty: h.specialty,
     phone: h.phone,
-    doctor: h.doctor
+    doctor: coalesce([(h)-[:HAS_DOCTOR]->(hd:Doctor) | hd.name][0], h.doctor)
 }) AS hospitals
 
 OPTIONAL MATCH (c)-[:HAS_LEGAL_REP|HAS_GUARDIAN]->(g:Guardian)

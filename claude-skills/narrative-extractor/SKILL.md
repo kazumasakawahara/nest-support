@@ -226,8 +226,12 @@ SET g.type = COALESCE($type, g.type),
 ```cypher
 MATCH (c:Client {name: $client})
 MERGE (h:Hospital {name: $name})
-SET h.specialty = $spec, h.phone = $phone, h.doctor = $doc
+SET h.specialty = $spec, h.phone = $phone
 MERGE (c)-[:TREATED_AT]->(h)
+// かかりつけ医は Doctor ノードで表現（Hospital.doctor プロパティは廃止）
+FOREACH (_ IN CASE WHEN $doc IS NULL OR $doc = '' THEN [] ELSE [1] END |
+    MERGE (d:Doctor {name: $doc})
+    MERGE (h)-[:HAS_DOCTOR]->(d))
 ```
 
 **生育歴（LifeHistory）:**

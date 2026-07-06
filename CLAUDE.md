@@ -356,7 +356,10 @@ nest-support/
 │   ├── backfill_embeddings.py      # 既存ノードへのembedding一括付与
 │   ├── multi_importer.py           # 多機能インポーター（音声・画像・PDF→構造化→登録）
 │   ├── migrate_schema_v2.py        # スキーマ改善マイグレーション（インデックス・制約・リレーション拡張）
-│   └── migrate_pseudonymization.py # 仮名化スキーマ・マイグレーション
+│   ├── migrate_pseudonymization.py # 仮名化スキーマ・マイグレーション
+│   ├── migrate_carerole_per_client.py      # CareRole の per-client 化（dry-run既定）
+│   ├── migrate_condition_status_case.py    # Condition.status ケース正規化（dry-run既定）
+│   └── migrate_hospital_doctor_to_node.py  # Hospital.doctor→Doctorノード昇格（dry-run既定）
 ├── configs/                       # Claude Desktop設定テンプレート
 │   └── claude_desktop_config.json
 ├── tests/                         # テスト
@@ -384,7 +387,9 @@ nest-support/
     ├── PRIVACY_GUIDELINES.md      # プライバシーガイドライン
     ├── FIRST_5_OPERATIONS.md      # 初めての5つの操作
     ├── FAQ.md                     # FAQ・トラブルシューティング
-    └── VIDEO_SCRIPTS.md           # 動画チュートリアルスクリプト
+    ├── VIDEO_SCRIPTS.md           # 動画チュートリアルスクリプト
+    ├── AUTH_MANUAL_VERIFICATION_2026-07.md  # 認証・ログイン導線の手動検証記録
+    └── MIGRATION_LOG_P2_2026-07.md          # P2マイグレーション適用記録（実DB）
 ```
 
 ## Important Constraints

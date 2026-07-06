@@ -96,7 +96,7 @@ RETURN
         name: hosp.name,
         specialty: hosp.specialty,
         phone: hosp.phone,
-        doctor: hosp.doctor
+        doctor: coalesce([(hosp)-[:HAS_DOCTOR]->(hd:Doctor) | hd.name][0], hosp.doctor)
     }) AS 医療機関
 ```
 
