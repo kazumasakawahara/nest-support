@@ -1112,6 +1112,17 @@ def register_meeting_record(
     if not os.path.exists(audio_path):
         return {"status": "error", "message": f"音声ファイルが見つかりません: {audio_path}"}
 
+    # 存在しないクライアント名での登録は幽霊 Client を生むため先に弾く
+    # （文字起こし・embedding 等の高コスト処理に入る前に検証する / R2-2）。
+    exists = _run_query(
+        "MATCH (c:Client {name: $name}) RETURN count(c) AS n", {"name": client_name}
+    )
+    if not exists or exists[0].get("n", 0) == 0:
+        return {
+            "status": "error",
+            "message": f"未登録のクライアントです: '{client_name}'。先にクライアント登録を行ってください。",
+        }
+
     abs_path = os.path.abspath(audio_path)
 
     # MIMEタイプ判定
@@ -1154,7 +1165,7 @@ def register_meeting_record(
         duration_int = int(duration) if duration > 0 else None
         _run_query(
             """
-            MERGE (c:Client {name: $client_name})
+            MATCH (c:Client {name: $client_name})
             MERGE (s:Supporter {name: $supporter_name})
             CREATE (m:MeetingRecord {
                 date: date($date),
