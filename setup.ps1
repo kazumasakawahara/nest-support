@@ -25,9 +25,9 @@ $PROJECT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SKILLS_SOURCE_DIR = Join-Path $PROJECT_DIR "claude-skills"
 $SKILLS_TARGET_DIR = Join-Path $env:USERPROFILE ".claude\skills"
 
-# Skills 一覧（14スキル）
+# Skills 一覧（13スキル。livelihood-support は 2026-05 廃止）
 $SKILLS_LIST = @(
-    "neo4j-support-db", "livelihood-support", "provider-search",
+    "neo4j-support-db", "provider-search",
     "emergency-protocol", "ecomap-generator", "html-to-pdf",
     "inheritance-calculator", "wamnet-provider-sync", "narrative-extractor",
     "data-quality-agent", "onboarding-wizard", "resilience-checker", "visit-prep",
@@ -105,19 +105,7 @@ function Start-Neo4j {
         }
     }
 
-    # livelihood-support 起動待機
-    Write-Info "Neo4j (livelihood-support) の起動を待機中（最大60秒）..."
-    for ($i = 0; $i -lt $maxRetries; $i++) {
-        try {
-            $null = Invoke-WebRequest -Uri "http://localhost:7475" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
-            Write-Success "Neo4j (livelihood-support) が起動しました"
-            Write-Host "  ブラウザUI: http://localhost:7475"
-            Write-Host "  Bolt接続:  bolt://localhost:7688"
-            break
-        } catch {
-            Start-Sleep -Seconds 5
-        }
-    }
+    # livelihood-support（port 7688/7475）は 2026-05 廃止。起動待機は行わない。
 
     Pop-Location
 }
