@@ -1235,8 +1235,8 @@ def build_client_summary_text(client_name: str) -> Optional[str]:
         LIMIT 5
         WITH c, conditions, ngActions, careInstructions,
              collect(log.situation + '→' + COALESCE(log.action, '')) AS recentLogs
-        RETURN c.name AS name,
-               c.dob AS dob,
+        RETURN c.displayCode AS displayCode,
+               c.clientId AS clientId,
                c.bloodType AS bloodType,
                conditions,
                ngActions,
@@ -1253,13 +1253,13 @@ def build_client_summary_text(client_name: str) -> Optional[str]:
     r = results[0]
     parts = []
 
-    # 基本情報
-    basic = r.get("name", "")
-    if r.get("dob"):
-        basic += f"、{r['dob']}"
+    # 基本情報（実名・生年月日は Gemini へ送らない。非識別の表示コード/血液型のみ）
+    code = r.get("displayCode") or r.get("clientId") or ""
+    basic = code
     if r.get("bloodType"):
-        basic += f"、血液型{r['bloodType']}"
-    parts.append(f"[基本情報] {basic}")
+        basic += (f"、血液型{r['bloodType']}" if basic else f"血液型{r['bloodType']}")
+    if basic:
+        parts.append(f"[基本情報] {basic}")
 
     # 障害・疾患
     conditions = [c for c in r.get("conditions", []) if c]
