@@ -143,29 +143,49 @@ _EMBEDDING_TEXT_BUILDERS = {
 # 汎用グラフ登録メイン関数
 # =============================================================================
 
+import re as _re
+
+# ラベル/リレーション型は Cypher でパラメータ化できず f-string 埋め込みになるため、
+# 許可リスト＋識別子構文の二段で強制する（未知の任意文字列がクエリに到達するのを防ぐ）。
+_IDENT_RE = _re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _label_allowed(label, valid_labels) -> bool:
+    return bool(label) and label in valid_labels and bool(_IDENT_RE.match(label))
+
+
+def _reltype_allowed(rel_type, valid_types) -> bool:
+    return bool(rel_type) and rel_type in valid_types and bool(_IDENT_RE.match(rel_type))
+
+
 def register_to_database(extracted_graph: dict, user_name: str = "system") -> dict:
     """
     LLMが抽出したグラフ構造を検証・登録し、監査ログとEmbeddingを付与する。
     Guardian Layer: スキーマバリデーション（camelCase変換・ラベル検証・廃止リレーション修正）を自動適用。
+
+    ノード＋リレーションの書き込みは単一の managed transaction で行い、途中失敗時は
+    全体をロールバックする（部分登録を残さない）。許可リストに無いラベル/リレーションは
+    書き込まずスキップする。監査ログは commit 後に execute_write で書き、失敗は返り値の
+    warnings で呼び出し側に伝える。
     """
     if 'nodes' not in extracted_graph:
         log("無効なグラフ形式です。'nodes' キーが必要です。", "ERROR")
         return {"status": "error", "message": "Invalid graph format"}
 
     # Guardian Layer: スキーマバリデーション＆正規化
-    from lib.schema_validator import validate_and_normalize_graph
+    from lib.schema_validator import (
+        validate_and_normalize_graph, VALID_NODE_LABELS, VALID_RELATIONSHIP_TYPES,
+    )
     extracted_graph, validation_warnings = validate_and_normalize_graph(extracted_graph)
+    warnings = list(validation_warnings)
     if validation_warnings:
         log(f"スキーマ検証警告 ({len(validation_warnings)}件): {'; '.join(validation_warnings[:3])}", "WARN")
-
-    temp_id_map = {}
-    registered_labels = []
-    client_name_context = "Unknown"
 
     nodes = extracted_graph.get("nodes", [])
     relationships = extracted_graph.get("relationships", [])
 
     # クライアント名の特定（コンテキスト把握）と Client temp_id の収集
+    client_name_context = "Unknown"
     client_temp_ids = set()
     for node in nodes:
         if node.get("label") == "Client":
@@ -180,99 +200,144 @@ def register_to_database(extracted_graph: dict, user_name: str = "system") -> di
         if rel.get("source_temp_id") in client_temp_ids and rel.get("type"):
             parent_link.setdefault(rel.get("target_temp_id"), rel)
 
-    # スコープ付き MERGE で同時に作成済みのリレーション（2. で再作成しない）
-    consumed_rel_ids = set()
+    driver = get_driver()
+    if driver is None:
+        return {"status": "error", "message": "Neo4j ドライバーを取得できません（接続失敗）",
+                "client_name": client_name_context, "partial_count": 0}
 
-    # 書き込み（ノード・リレーション）は失敗を握り潰さず error を返す
+    # 単一トランザクションでノード＋リレーションを原子的に書き込む
     try:
-        # 1. ノードの処理（子ノードのスコープ解決のため Client を先に登録）
-        for node in sorted(nodes, key=lambda n: 0 if n.get("label") == "Client" else 1):
-            temp_id = node.get("temp_id")
-            label = node.get("label")
-            props = node.get("properties", {})
-
-            if not temp_id or not label: continue
-
-            internal_id = None
-            action_type = "CREATE"
-
-            if label in MERGE_KEYS:
-                match_props = {k: props[k] for k in MERGE_KEYS[label] if k in props}
-                if match_props:
-                    match_clause = ", ".join([f"{k}: ${k}" for k in match_props.keys()])
-                    if label in CLIENT_SCOPED_LABELS:
-                        link = parent_link.get(temp_id)
-                        parent_id = temp_id_map.get(link.get("source_temp_id")) if link else None
-                        if parent_id:
-                            cypher = f"""
-                                MATCH (c) WHERE elementId(c) = $parentId
-                                MERGE (c)-[r:{link['type']}]->(n:{label} {{{match_clause}}})
-                                SET n += $props, r += $relProps
-                                RETURN elementId(n) AS id
-                            """
-                            params = {**match_props, "parentId": parent_id,
-                                      "props": props,
-                                      "relProps": link.get("properties") or {}}
-                            result = execute_write(cypher, params)
-                            if result:
-                                internal_id = result[0]['id']
-                                consumed_rel_ids.add(id(link))
-                            action_type = "MERGE/UPDATE"
-                        else:
-                            # Client への紐付きが無い子ノードはグローバル MERGE せず
-                            # CREATE へフォールバック（クライアント間の収斂を防ぐ）
-                            log(f"{label} に Client との紐付きが無いため CREATE 登録します", "WARN")
-                    else:
-                        cypher = f"MERGE (n:{label} {{{match_clause}}}) SET n += $props RETURN elementId(n) AS id"
-                        params = {**match_props, "props": props}
-                        result = execute_write(cypher, params)
-                        if result: internal_id = result[0]['id']
-                        action_type = "MERGE/UPDATE"
-
-            if not internal_id:
-                cypher = f"CREATE (n:{label}) SET n = $props RETURN elementId(n) AS id"
-                result = execute_write(cypher, {"props": props})
-                if result: internal_id = result[0]['id']
-
-            if internal_id:
-                temp_id_map[temp_id] = internal_id
-                registered_labels.append(label)
-                _audit_node_creation(user_name, label, props, action_type, client_name_context)
-
-        # 2. リレーションシップの処理
-        for rel in relationships:
-            if id(rel) in consumed_rel_ids: continue
-            source_id = temp_id_map.get(rel.get("source_temp_id"))
-            target_id = temp_id_map.get(rel.get("target_temp_id"))
-            if source_id and target_id and rel.get("type"):
-                execute_write(f"""
-                    MATCH (s) WHERE elementId(s) = $sid
-                    MATCH (t) WHERE elementId(t) = $tid
-                    MERGE (s)-[r:{rel['type']}]->(t)
-                    SET r += $props
-                """, {"sid": source_id, "tid": target_id, "props": rel.get("properties", {})})
+        with driver.session() as session:
+            temp_id_map, registered_labels, audited = session.execute_write(
+                _register_graph_tx, nodes, relationships, parent_link,
+                VALID_NODE_LABELS, VALID_RELATIONSHIP_TYPES, warnings,
+            )
     except Exception as e:
-        log(f"グラフ登録に失敗しました: {e}", "ERROR")
+        log(f"グラフ登録に失敗しました（ロールバック）: {e}", "ERROR")
         return {
             "status": "error",
             "message": str(e),
             "client_name": client_name_context,
-            "partial_count": len(registered_labels),
+            "partial_count": 0,  # トランザクションはロールバック済み
         }
 
-    # 3. 事後処理 (チェーン構築・Embedding)
+    # 3. 事後処理: 監査ログ（commit 後・execute_write・失敗は warnings へ）
+    for label, props, action_type in audited:
+        try:
+            _audit_node_creation(user_name, label, props, action_type, client_name_context)
+        except Exception as e:
+            warnings.append(f"監査ログ書き込み失敗（{label}）: {e}")
+            log(f"監査ログ書き込み失敗（{label}）: {e}", "WARN")
+
+    # チェーン構築・Embedding（ベストエフォート）
     if "SupportLog" in registered_labels:
         _rebuild_support_log_chain(client_name_context)
-    
-    _attach_embeddings_batch(temp_id_map, extracted_graph.get("nodes", []))
+    _attach_embeddings_batch(temp_id_map, nodes)
     _try_attach_client_summary(client_name_context, registered_labels)
 
     return {
         "status": "success",
         "client_name": client_name_context,
         "count": len(registered_labels),
-        "types": list(set(registered_labels))
+        "types": list(set(registered_labels)),
+        "warnings": warnings,
     }
+
+
+def _register_graph_tx(tx, nodes, relationships, parent_link,
+                       valid_labels, valid_types, warnings):
+    """ノード＋リレーションを1トランザクション内で書き込む。
+
+    Returns: (temp_id_map, registered_labels, audited)
+      audited: [(label, props, action_type), ...] — commit 後の監査用
+    """
+    def run(query, params=None):
+        return tx.run(query, params or {}).data()
+
+    temp_id_map = {}
+    registered_labels = []
+    audited = []
+    consumed_rel_ids = set()
+
+    # 1. ノードの処理（子ノードのスコープ解決のため Client を先に登録）
+    for node in sorted(nodes, key=lambda n: 0 if n.get("label") == "Client" else 1):
+        temp_id = node.get("temp_id")
+        label = node.get("label")
+        props = node.get("properties", {})
+
+        if not temp_id or not label:
+            continue
+        if not _label_allowed(label, valid_labels):
+            warnings.append(f"未知/不正なラベルをスキップしました: {label!r}")
+            continue
+
+        internal_id = None
+        action_type = "CREATE"
+
+        if label in MERGE_KEYS:
+            match_props = {k: props[k] for k in MERGE_KEYS[label] if k in props}
+            if match_props:
+                match_clause = ", ".join([f"{k}: ${k}" for k in match_props.keys()])
+                if label in CLIENT_SCOPED_LABELS:
+                    link = parent_link.get(temp_id)
+                    parent_id = temp_id_map.get(link.get("source_temp_id")) if link else None
+                    if parent_id and _reltype_allowed(link.get("type"), valid_types):
+                        cypher = f"""
+                            MATCH (c) WHERE elementId(c) = $parentId
+                            MERGE (c)-[r:{link['type']}]->(n:{label} {{{match_clause}}})
+                            SET n += $props, r += $relProps
+                            RETURN elementId(n) AS id
+                        """
+                        params = {**match_props, "parentId": parent_id,
+                                  "props": props,
+                                  "relProps": link.get("properties") or {}}
+                        result = run(cypher, params)
+                        if result:
+                            internal_id = result[0]['id']
+                            consumed_rel_ids.add(id(link))
+                        action_type = "MERGE/UPDATE"
+                    else:
+                        # Client への紐付きが無い子ノードはグローバル MERGE せず
+                        # CREATE へフォールバック（クライアント間の収斂を防ぐ）
+                        log(f"{label} に Client との紐付きが無いため CREATE 登録します", "WARN")
+                else:
+                    cypher = f"MERGE (n:{label} {{{match_clause}}}) SET n += $props RETURN elementId(n) AS id"
+                    params = {**match_props, "props": props}
+                    result = run(cypher, params)
+                    if result:
+                        internal_id = result[0]['id']
+                    action_type = "MERGE/UPDATE"
+
+        if not internal_id:
+            cypher = f"CREATE (n:{label}) SET n = $props RETURN elementId(n) AS id"
+            result = run(cypher, {"props": props})
+            if result:
+                internal_id = result[0]['id']
+
+        if internal_id:
+            temp_id_map[temp_id] = internal_id
+            registered_labels.append(label)
+            audited.append((label, props, action_type))
+
+    # 2. リレーションシップの処理
+    for rel in relationships:
+        if id(rel) in consumed_rel_ids:
+            continue
+        rel_type = rel.get("type")
+        if not _reltype_allowed(rel_type, valid_types):
+            warnings.append(f"未知/不正なリレーションをスキップしました: {rel_type!r}")
+            continue
+        source_id = temp_id_map.get(rel.get("source_temp_id"))
+        target_id = temp_id_map.get(rel.get("target_temp_id"))
+        if source_id and target_id:
+            run(f"""
+                MATCH (s) WHERE elementId(s) = $sid
+                MATCH (t) WHERE elementId(t) = $tid
+                MERGE (s)-[r:{rel_type}]->(t)
+                SET r += $props
+            """, {"sid": source_id, "tid": target_id, "props": rel.get("properties", {})})
+
+    return temp_id_map, registered_labels, audited
 
 # =============================================================================
 # 内部ユーティリティ
@@ -291,7 +356,9 @@ def _audit_node_creation(user, label, props, action, client):
         create_audit_log(user, action, label, props.get('name', ''), "Basic Info", client)
 
 def create_audit_log(user, action, target_type, target_name, details="", client_name=None):
-    run_query("""
+    # execute_write を使い失敗を握り潰さない（呼び出し側 register_to_database が
+    # 例外を捕捉して warnings に載せ、監査欠落を「成功」と誤報告しないため）。
+    execute_write("""
         CREATE (al:AuditLog {
             timestamp: datetime(), user: $user, action: $action,
             targetType: $type, targetName: $name, details: $details, clientName: $client
@@ -299,7 +366,7 @@ def create_audit_log(user, action, target_type, target_name, details="", client_
         WITH al OPTIONAL MATCH (c:Client {name: $client})
         WHERE $client IS NOT NULL AND $client <> ''
         FOREACH (_ IN CASE WHEN c IS NOT NULL THEN [1] ELSE [] END | CREATE (al)-[:AUDIT_FOR]->(c))
-    """, {"user": user, "action": action, "type": target_type, "name": target_name, 
+    """, {"user": user, "action": action, "type": target_type, "name": target_name,
           "details": details, "client": client_name or ""})
 
 def _rebuild_support_log_chain(client_name):

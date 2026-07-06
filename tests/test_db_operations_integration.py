@@ -40,15 +40,47 @@ class _QueryRecorder:
         return [(q, p) for q, p in self.calls if needle in q]
 
 
+# --- Neo4j driver/session/transaction のテストダブル ---
+# register_to_database はノード＋リレーションを session.execute_write(tx_fn) の
+# 単一 managed transaction で書き込み、監査等は run_query/execute_write（session.run）
+# で書く。get_driver をこの FakeDriver に差し替えると、どちらの経路も recorder に届く。
+class _FakeRecord:
+    def __init__(self, d): self._d = d
+    def data(self): return self._d
+
+
+class _FakeResult:
+    def __init__(self, rows): self._rows = list(rows or [])
+    def data(self): return self._rows
+    def __iter__(self): return iter(_FakeRecord(r) for r in self._rows)
+
+
+class _FakeTx:
+    def __init__(self, rec): self._rec = rec
+    def run(self, query, params=None): return _FakeResult(self._rec(query, params))
+
+
+class _FakeSession:
+    def __init__(self, rec): self._rec = rec
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def run(self, query, params=None): return _FakeResult(self._rec(query, params))
+    def execute_write(self, fn, *args, **kw): return fn(_FakeTx(self._rec), *args, **kw)
+    def close(self): pass
+
+
+class FakeDriver:
+    def __init__(self, rec): self._rec = rec
+    def session(self): return _FakeSession(self._rec)
+    def verify_connectivity(self): pass
+    def close(self): pass
+
+
 @pytest.fixture
 def recorder():
-    """run_query と embedding 系をモックした状態で register_to_database を動かす。"""
+    """get_driver と embedding 系をモックした状態で register_to_database を動かす。"""
     rec = _QueryRecorder()
-    # register_to_database の主要書き込みは execute_write 経由（失敗を握り潰さない）、
-    # 監査ログ等のベストエフォート書き込みは run_query 経由。両方を同じ recorder で
-    # 捕捉し、発行 Cypher を検証する。
-    with patch("lib.db_operations.run_query", side_effect=rec), \
-         patch("lib.db_operations.execute_write", side_effect=rec), \
+    with patch("lib.db_operations.get_driver", return_value=FakeDriver(rec)), \
          patch("lib.embedding.embed_texts_batch", return_value=[]), \
          patch("lib.embedding.embed_client_summary", return_value=None):
         yield rec
@@ -157,3 +189,103 @@ class TestRegisterInputGuards:
         assert result["status"] == "success"
         assert result["types"] == ["Client"]
         assert result["count"] == 1
+
+
+class TestAllowlistEnforcement:
+    """P1-2: 許可リストに無いラベル/リレーションは書き込まない。"""
+
+    def test_unknown_label_is_not_written(self, recorder):
+        """スキーマ外ラベル（日本語ラベル等）は f-string に到達させずスキップ。"""
+        graph = {
+            "nodes": [
+                {"temp_id": "c1", "label": "Client",
+                 "properties": {"name": "太郎"}},
+                {"temp_id": "e1", "label": "利用者",  # 未知ラベル
+                 "properties": {"name": "悪意"}},
+            ],
+            "relationships": [],
+        }
+        result = db_operations.register_to_database(graph, user_name="pytest")
+        assert result["status"] == "success"
+        assert result["types"] == ["Client"]
+        # 未知ラベルを含むクエリが一切発行されていないこと
+        assert recorder.queries_containing("利用者") == []
+        assert any("スキップ" in w and "利用者" in w for w in result["warnings"])
+
+    def test_unknown_relationship_is_not_written(self, recorder):
+        """許可リストに無いリレーション型はスキップされる。"""
+        graph = {
+            "nodes": [
+                {"temp_id": "c1", "label": "Client", "properties": {"name": "太郎"}},
+                {"temp_id": "s1", "label": "Supporter", "properties": {"name": "花子"}},
+            ],
+            "relationships": [
+                {"source_temp_id": "s1", "target_temp_id": "c1",
+                 "type": "EVIL_REL", "properties": {}},
+            ],
+        }
+        result = db_operations.register_to_database(graph, user_name="pytest")
+        assert result["status"] == "success"
+        assert recorder.queries_containing("EVIL_REL") == []
+
+
+class TestTransactionAtomicity:
+    """P1-1: 途中失敗時は全体ロールバック（部分登録を残さない）。"""
+
+    def test_write_failure_returns_error_no_partial(self):
+        """トランザクション内の書き込みが失敗したら error を返す（partial_count=0）。"""
+        rec = _QueryRecorder()
+
+        def _boom(query, params=None):
+            if "SupportLog" in query:
+                raise RuntimeError("書き込み失敗（模擬）")
+            return rec(query, params)
+
+        driver = FakeDriver(_boom)
+        with patch("lib.db_operations.get_driver", return_value=driver), \
+             patch("lib.embedding.embed_texts_batch", return_value=[]), \
+             patch("lib.embedding.embed_client_summary", return_value=None):
+            graph = {
+                "nodes": [
+                    {"temp_id": "c1", "label": "Client", "properties": {"name": "太郎"}},
+                    {"temp_id": "log1", "label": "SupportLog",
+                     "properties": {"date": "2026-01-01", "situation": "x"}},
+                ],
+                "relationships": [],
+            }
+            result = db_operations.register_to_database(graph, user_name="pytest")
+        assert result["status"] == "error"
+        assert result["partial_count"] == 0
+
+
+class TestAuditFailureSurfaced:
+    """P1-3: 監査ログ書き込み失敗は握り潰さず warnings で伝える。"""
+
+    def test_audit_failure_appears_in_warnings(self):
+        rec = _QueryRecorder()
+
+        def _fail_audit(query, params=None):
+            if "AuditLog" in query:
+                raise RuntimeError("監査書き込み失敗（模擬）")
+            return rec(query, params)
+
+        driver = FakeDriver(_fail_audit)
+        with patch("lib.db_operations.get_driver", return_value=driver), \
+             patch("lib.embedding.embed_texts_batch", return_value=[]), \
+             patch("lib.embedding.embed_client_summary", return_value=None):
+            graph = {
+                "nodes": [
+                    {"temp_id": "c1", "label": "Client", "properties": {"name": "太郎"}},
+                    {"temp_id": "ng1", "label": "NgAction",
+                     "properties": {"action": "大きな音", "riskLevel": "Panic"}},
+                ],
+                "relationships": [
+                    {"source_temp_id": "c1", "target_temp_id": "ng1",
+                     "type": "MUST_AVOID", "properties": {}},
+                ],
+            }
+            result = db_operations.register_to_database(graph, user_name="pytest")
+
+        # ノード登録自体は成功（監査はベストエフォート）だが、失敗は warnings に載る
+        assert result["status"] == "success"
+        assert any("監査ログ書き込み失敗" in w for w in result["warnings"])
