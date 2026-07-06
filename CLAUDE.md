@@ -377,6 +377,7 @@ nest-support/
 │   ├── load-demo-data.sh          # デモデータ投入・削除 (macOS) --simulationオプション対応
 │   └── load-demo-data.ps1         # デモデータ投入・削除 (Windows)
 └── docs/                          # ドキュメント
+    ├── USER_MANUAL_WINDOWS.md     # はじめての方向けユーザーマニュアル（Windows対応・福祉職向け）
     ├── QUICK_START.md
     ├── SETUP_GUIDE.md             # 詳細セットアップガイド
     ├── DEPLOYMENT_GUIDE.md        # 本番デプロイ（リバースプロキシ/TLS/レート制限/.env）
