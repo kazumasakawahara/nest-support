@@ -189,7 +189,10 @@ def _backfill_loop(
 ) -> dict:
     """バッチ単位でembeddingを付与するループ"""
     from lib.embedding import embed_texts_batch
-    from lib.db_operations import run_query
+    # 付与書き込みは execute_write（例外送出型）を使う。run_query は例外を握り潰して
+    # [] を返すため、setNodeVectorProperty の失敗（次元不一致等）が成功に数えられ、
+    # ノードが NULL のまま同一バッチを永久再取得する無限ループになる（R2-4）。
+    from lib.db_operations import execute_write
 
     total_processed = 0
     total_success = 0
@@ -220,7 +223,7 @@ def _backfill_loop(
                 total_failed += 1
                 continue
             try:
-                run_query(
+                execute_write(
                     """
                     MATCH (n) WHERE elementId(n) = $id
                     CALL db.create.setNodeVectorProperty(n, 'embedding', $embedding)
