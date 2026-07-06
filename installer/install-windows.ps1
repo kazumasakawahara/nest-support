@@ -357,7 +357,8 @@ function Install-Skills {
         "neo4j-support-db", "provider-search",
         "emergency-protocol", "ecomap-generator", "html-to-pdf",
         "inheritance-calculator", "wamnet-provider-sync", "narrative-extractor",
-        "data-quality-agent", "onboarding-wizard", "resilience-checker", "visit-prep"
+        "data-quality-agent", "onboarding-wizard", "resilience-checker", "visit-prep",
+        "insight-agent"
     )
 
     $installed = 0
