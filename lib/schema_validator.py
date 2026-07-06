@@ -26,6 +26,8 @@ VALID_NODE_LABELS_7687 = frozenset({
     "Wish", "Identity", "ServiceProvider", "ProviderFeedback",
     # 第5の柱（親の機能移行）— SSOT v3.1
     "Relative", "CareRole",
+    # かかりつけ医の構造化（P2 / 2026-07）— Hospital.doctor 文字列から昇格
+    "Doctor",
 })
 
 # 生活困窮者自立支援DB（port 7688）は 2026-05 廃止。7688 用のラベル定義は撤去済み。
@@ -44,6 +46,8 @@ VALID_RELATIONSHIP_TYPES = frozenset({
     "HAS_IDENTITY", "USES_SERVICE", "HAS_FEEDBACK", "WROTE",
     # 第5の柱（親の機能移行）— SSOT v3.1
     "IS_PARENT_OF", "FAMILY_OF", "PERFORMS", "CAN_BE_PERFORMED_BY",
+    # かかりつけ医の構造化（P2 / 2026-07）
+    "HAS_DOCTOR",
 })
 
 # 廃止リレーション → 正式名のマッピング (書き込み時の自動修正用)
@@ -65,7 +69,8 @@ ENUM_VALUES = {
     "riskLevel": {"LifeThreatening", "Panic", "Discomfort"},
     "effectiveness": {"High", "Medium", "Low", "Effective", "Ineffective", "Neutral", "Unknown"},
     "emotion": {"Joy", "Anger", "Sadness", "Fear", "Surprise", "Disgust", "Calm", "Anxiety", "Confusion", "Neutral"},
-    "status": {"Active", "Inactive", "Pending", "Completed", "Suspended"},
+    # Monitoring: Condition の「経過観察中」など、継続監視状態（P2 / 2026-07 追加）
+    "status": {"Active", "Inactive", "Pending", "Completed", "Suspended", "Monitoring"},
 }
 
 # 安全クリティカルな riskLevel の別名 → 正規値（小文字キーで照合）。
