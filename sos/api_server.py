@@ -23,7 +23,7 @@ from neo4j import GraphDatabase
 # 親ディレクトリをパスに追加（lib/からインポートするため）
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lib.db_operations import resolve_client, get_display_name, run_query
+from lib.db_operations import resolve_client_raw, get_display_name, run_query
 
 # 環境変数読み込み
 load_dotenv()
@@ -137,7 +137,7 @@ def get_client_info(client_id: str) -> dict | None:
     - name (山田健太)
     """
     # まず仮名化対応の解決を試みる
-    resolved = resolve_client(client_id)
+    resolved = resolve_client_raw(client_id)  # 緊急照会は実名が必須
 
     if resolved:
         # 仮名化スキーマで見つかった場合
@@ -211,7 +211,7 @@ def get_client_cautions(client_identifier: str) -> list:
         client_identifier: clientId, displayCode, または name
     """
     # まず仮名化対応の解決を試みる
-    resolved = resolve_client(client_identifier)
+    resolved = resolve_client_raw(client_identifier)  # 緊急照会は実名が必須
 
     if resolved and resolved.get('clientId'):
         # clientId で検索

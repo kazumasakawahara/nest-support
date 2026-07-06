@@ -16,25 +16,24 @@ from neo4j import GraphDatabase
 load_dotenv()
 
 # 仮名化スキーマ設定
-PSEUDONYMIZATION_ENABLED = os.getenv("PSEUDONYMIZATION_ENABLED", "false").lower() == "true"
-_pseudonymizer = None
+# 有効/無効の判定は lib/pseudonymizer 側（環境変数駆動のシングルトン）に一本化する。
+# db_operations 側で二重に env を読まない。
 
 def _get_pseudonymizer():
-    global _pseudonymizer
-    if _pseudonymizer is None:
-        try:
-            from lib.pseudonymizer import get_pseudonymizer
-            _pseudonymizer = get_pseudonymizer()
-        except ImportError:
-            from lib.pseudonymizer import Pseudonymizer
-            _pseudonymizer = Pseudonymizer(enabled=False)
-    return _pseudonymizer
+    try:
+        from lib.pseudonymizer import get_pseudonymizer
+        return get_pseudonymizer()
+    except Exception:
+        from lib.pseudonymizer import Pseudonymizer
+        return Pseudonymizer(enabled=False)
 
 def _mask_output(records: list[dict], field_rules: dict = None) -> list[dict]:
-    if not PSEUDONYMIZATION_ENABLED:
-        return records
-    p = _get_pseudonymizer()
-    return p.mask_records(records, field_rules)
+    """読み取り結果を仮名化する（PSEUDONYMIZATION 無効時はそのまま返す）。
+
+    NgAction（禁忌事項）/ CarePreference（推奨ケア）は安全に直結するため
+    仮名化しない（呼び出し側でこれらのレコードを本関数に渡さない運用とする）。
+    """
+    return _get_pseudonymizer().mask_records(records, field_rules)
 
 def log(message: str, level: str = "INFO"):
     sys.stderr.write(f"[DB_Ops:{level}] {message}\n")
@@ -346,7 +345,13 @@ def _try_attach_client_summary(name, labels):
 # 取得系（互換性維持）
 # =============================================================================
 
-def resolve_client(identifier: str) -> Optional[dict]:
+def resolve_client_raw(identifier: str) -> Optional[dict]:
+    """識別子から Client を解決する（仮名化しない生データ）。
+
+    解決結果の name / clientId は downstream の照会キー（MATCH ... {name:$name}）
+    として使われるため、および SOS 緊急通知のように実名・実データが必須の経路
+    では、必ずこの raw 版を使うこと。仮名化するとキー照合が壊れる。
+    """
     # 旧db_operationsの高度な解決ロジック（clientId/displayCode対応）を維持
     clean = identifier.replace("さん", "").replace("くん", "").strip()
     res = run_query("""
@@ -358,17 +363,33 @@ def resolve_client(identifier: str) -> Optional[dict]:
     """, {"id": clean})
     return res[0] if res else None
 
+def resolve_client(identifier: str) -> Optional[dict]:
+    """識別子から Client を解決する（PSEUDONYMIZATION 有効時は出力を仮名化）。
+
+    表示用途向け。照会キーとして downstream に渡す場合や SOS 緊急通知など
+    実名が必要な場合は resolve_client_raw() を使うこと。
+    """
+    res = resolve_client_raw(identifier)
+    if res is None:
+        return None
+    return _mask_output([res])[0]
+
 def get_clients_list():
     res = run_query("MATCH (c:Client) RETURN c.name as name ORDER BY c.name")
-    return [r['name'] for r in res]
+    names = [r['name'] for r in res]
+    p = _get_pseudonymizer()
+    if getattr(p, "enabled", False):
+        names = [p.mask_name(n) for n in names]
+    return names
 
 def get_display_name(identifier: str, fallback: str = "不明") -> str:
     """識別子から表示用の名前を取得する。
 
     SOS 緊急通知サービス等が、clientId / displayCode / 通称などの
     様々な識別子を人間可読な氏名へ解決するために使用する。
+    緊急時に実名が必要なため、仮名化しない raw 解決を用いる（意図的例外）。
     """
-    client = resolve_client(identifier)
+    client = resolve_client_raw(identifier)
     if client:
         return client.get('name') or client.get('displayCode') or fallback
     return fallback

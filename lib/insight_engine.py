@@ -256,13 +256,18 @@ def detect_staff_overload(
         "negativeEmotions": list(NEGATIVE_EMOTIONS),
     })
 
+    # PSEUDONYMIZATION 有効時はスタッフ名を仮名化する（表示向け出力）。
+    from lib.db_operations import _get_pseudonymizer
+    pseudo = _get_pseudonymizer()
+    mask = pseudo.mask_name if getattr(pseudo, "enabled", False) else (lambda n: n)
+
     results = []
     for row in rows:
         total = row.get("totalLogs", 0)
         negative = row.get("negativeLogs", 0)
         ratio = negative / total if total > 0 else 0.0
         results.append({
-            "staffName": row.get("staffName", ""),
+            "staffName": mask(row.get("staffName", "")),
             "totalLogs": total,
             "negativeLogs": negative,
             "negativeRatio": round(ratio, 3),

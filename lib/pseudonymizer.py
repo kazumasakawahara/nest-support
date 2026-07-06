@@ -415,6 +415,10 @@ class Pseudonymizer:
             "targetName": "name",
             "clientName": "name",
             "user": "name",
+            "staffName": "name",
+            "supporter_name": "name",
+            "supporterName": "name",
+            "kana": "name",
 
             # 電話番号フィールド
             "phone": "phone",

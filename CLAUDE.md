@@ -462,11 +462,13 @@ uv run python scripts/backfill_embeddings.py --stats              # 統計のみ
 
 ### Pseudonymization (仮名化)
 
-`PSEUDONYMIZATION_ENABLED=true` の場合、`db_operations.py` の読み取り関数は自動的に出力を仮名化する。Neo4j 内の実データは変更されない。
+`PSEUDONYMIZATION_ENABLED=true` の場合、`db_operations.py` の**表示向け読み取り関数**（`get_clients_list` / `resolve_client`）と `insight_engine.detect_staff_overload` の出力を仮名化する。Neo4j 内の実データは変更されない。有効/無効の判定は `lib/pseudonymizer` のシングルトンに一本化されている。
 
 - **mask モード**: 部分マスク（山田→山●●●）- 研修・デモ向け
 - **pseudonym モード**: 架空名に置換 - テスト・開発向け
 - **安全例外**: NgAction（禁忌事項）と CarePreference（推奨ケア）は仮名化しない
+- **実名を返す意図的例外**: `resolve_client_raw()` と `get_display_name()` は照会キー（`MATCH {name:$name}`）および **SOS 緊急通知**で実名が必須のため仮名化しない。SOS サービスはこの raw 経路を使う。
+- **重要な適用範囲の限界**: 仮名化は **Python 経路**（field-ui・sos・scripts が `lib` を呼ぶ場合）にのみ効く。中核の読み取り経路である **Claude → Neo4j MCP → Neo4j は Python を通らないため仮名化されない**。デモ・研修で確実に匿名化したい場合は Python 経路を用いること。
 
 詳細は `docs/PRIVACY_GUIDELINES.md` および `lib/pseudonymizer.py` を参照。
 
