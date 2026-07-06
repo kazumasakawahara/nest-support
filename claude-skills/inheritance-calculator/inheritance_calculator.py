@@ -19,6 +19,7 @@
 import json
 import sys
 import argparse
+from fractions import Fraction
 from typing import Optional, List, Dict, Any
 from enum import Enum
 from dataclasses import dataclass
@@ -120,17 +121,13 @@ class InheritanceCalculator:
         
         # ステップ2: 配偶者の確認
         self._process_spouse()
-        
-        # ステップ3: 血族相続人の確定
-        blood_heirs_determined = self._determine_blood_heirs()
-        
-        # ステップ4: 法定相続分の計算
-        if blood_heirs_determined:
-            self._calculate_inheritance_shares()
-        
+
+        # ステップ3-4: 血族相続人の確定と法定相続分の按分（fractions.Fraction）
+        self._determine_and_distribute()
+
         # 結果の整形
         result = self._format_result(simultaneous_death_note)
-        
+
         return result
     
     def _process_spouse(self):
@@ -146,212 +143,192 @@ class InheritanceCalculator:
                     rank=InheritanceRank.SPOUSE
                 ))
     
-    def _determine_blood_heirs(self) -> bool:
-        """血族相続人を確定"""
-        # 第1順位: 子
-        if self._process_first_rank():
-            return True
-        
-        # 第2順位: 直系尊属
-        if self._process_second_rank():
-            return True
-        
-        # 第3順位: 兄弟姉妹
-        if self._process_third_rank():
-            return True
-        
-        return False
-    
-    def _process_first_rank(self) -> bool:
-        """第1順位（子）の処理"""
-        children = self.input.get("children", [])
-        if not children:
+    # -----------------------------------------------------------------
+    # 生存・死亡判定ヘルパー
+    # -----------------------------------------------------------------
+
+    @staticmethod
+    def _is_alive(person: Dict) -> bool:
+        return (
+            person.get("status", "unknown") == PersonStatus.ALIVE
+            and not person.get("renounced", False)
+        )
+
+    @staticmethod
+    def _is_deceased(person: Dict) -> bool:
+        return person.get("status", "unknown") in (
+            PersonStatus.DECEASED,
+            PersonStatus.SIMULTANEOUS_DEATH,
+        )
+
+    @classmethod
+    def _line_has_living(cls, person: Dict) -> bool:
+        """その人物の系統（本人＋代襲卑属）に相続可能な生存者がいるか。
+
+        放棄した者は代襲を生じさせない（民法887条2項但書の趣旨）ため、
+        放棄者は系統ごと除外する。
+        """
+        if person.get("renounced", False):
             return False
-        
-        first_rank_heirs = []
-        
-        for child in children:
-            status = child.get("status", "unknown")
-            renounced = child.get("renounced", False)
-            
-            if status == PersonStatus.ALIVE and not renounced:
-                first_rank_heirs.append(Heir(
-                    name=child["name"],
-                    rank=InheritanceRank.FIRST
-                ))
-            elif status in [PersonStatus.DECEASED, PersonStatus.SIMULTANEOUS_DEATH]:
-                if not renounced:
-                    substitutes = self._process_substitution(child, InheritanceRank.FIRST)
-                    first_rank_heirs.extend(substitutes)
-        
-        if first_rank_heirs:
-            self.heirs.extend(first_rank_heirs)
+        if cls._is_alive(person):
             return True
-        
+        if cls._is_deceased(person):
+            return any(cls._line_has_living(ch) for ch in person.get("children", []))
         return False
-    
-    def _process_second_rank(self) -> bool:
-        """第2順位（直系尊属）の処理"""
-        parents = self.input.get("parents", [])
-        if not parents:
-            return False
-        
-        second_rank_heirs = []
-        
-        for parent in parents:
-            status = parent.get("status", "unknown")
-            renounced = parent.get("renounced", False)
-            
-            if status == PersonStatus.ALIVE and not renounced:
-                second_rank_heirs.append(Heir(
-                    name=parent["name"],
-                    rank=InheritanceRank.SECOND
-                ))
-        
-        if second_rank_heirs:
-            self.heirs.extend(second_rank_heirs)
-            return True
-        
-        return False
-    
-    def _process_third_rank(self) -> bool:
-        """第3順位（兄弟姉妹）の処理"""
-        siblings = self.input.get("siblings", [])
-        if not siblings:
-            return False
-        
-        third_rank_heirs = []
-        
-        for sibling in siblings:
-            status = sibling.get("status", "unknown")
-            renounced = sibling.get("renounced", False)
-            blood_relation = sibling.get("blood_relation", "full")
-            
-            if status == PersonStatus.ALIVE and not renounced:
-                third_rank_heirs.append(Heir(
-                    name=sibling["name"],
-                    rank=InheritanceRank.THIRD,
-                    blood_relation=BloodRelationType(blood_relation)
-                ))
-            elif status in [PersonStatus.DECEASED, PersonStatus.SIMULTANEOUS_DEATH]:
-                if not renounced:
-                    children = sibling.get("children", [])
-                    for nephew_niece in children:
-                        nn_status = nephew_niece.get("status", "unknown")
-                        nn_renounced = nephew_niece.get("renounced", False)
-                        
-                        if nn_status == PersonStatus.ALIVE and not nn_renounced:
-                            third_rank_heirs.append(Heir(
-                                name=nephew_niece["name"],
-                                rank=InheritanceRank.THIRD,
-                                is_substitute=True,
-                                original_heir_name=sibling["name"],
-                                blood_relation=BloodRelationType(blood_relation)
-                            ))
-        
-        if third_rank_heirs:
-            self.heirs.extend(third_rank_heirs)
-            return True
-        
-        return False
-    
-    def _process_substitution(self, deceased_person: Dict, rank: InheritanceRank) -> List[Heir]:
-        """代襲相続の処理（再帰的）"""
-        substitutes = []
-        children = deceased_person.get("children", [])
-        
-        for child in children:
-            status = child.get("status", "unknown")
-            renounced = child.get("renounced", False)
-            
-            if status == PersonStatus.ALIVE and not renounced:
-                substitutes.append(Heir(
-                    name=child["name"],
-                    rank=rank,
-                    is_substitute=True,
-                    original_heir_name=deceased_person["name"]
-                ))
-            elif status in [PersonStatus.DECEASED, PersonStatus.SIMULTANEOUS_DEATH]:
-                if not renounced:
-                    further_substitutes = self._process_substitution(child, rank)
-                    substitutes.extend(further_substitutes)
-        
-        return substitutes
-    
-    def _calculate_inheritance_shares(self):
-        """法定相続分を計算"""
-        if not self.heirs:
-            return
-        
+
+    @staticmethod
+    def _set_share(heir: Heir, frac: Fraction):
+        heir.share_numerator = frac.numerator
+        heir.share_denominator = frac.denominator
+
+    def _make_heir(self, name, rank, share: Fraction, *, is_substitute=False,
+                   original=None, blood_relation=None) -> Heir:
+        heir = Heir(
+            name=name,
+            rank=rank,
+            is_substitute=is_substitute,
+            original_heir_name=original,
+            blood_relation=blood_relation,
+        )
+        self._set_share(heir, share)
+        return heir
+
+    @staticmethod
+    def _spouse_share(blood_rank: InheritanceRank) -> Fraction:
+        """血族の順位に応じた配偶者の法定相続分（民法900条）。"""
+        if blood_rank == InheritanceRank.FIRST:
+            return Fraction(1, 2)
+        if blood_rank == InheritanceRank.SECOND:
+            return Fraction(2, 3)
+        return Fraction(3, 4)  # 第3順位（兄弟姉妹）
+
+    # -----------------------------------------------------------------
+    # 血族相続人の確定と按分
+    # -----------------------------------------------------------------
+
+    def _determine_and_distribute(self):
+        """血族の順位を順に試し、確定した順位に blood_share を株分けする。"""
         spouse_heirs = [h for h in self.heirs if h.rank == InheritanceRank.SPOUSE]
-        blood_heirs = [h for h in self.heirs if h.rank != InheritanceRank.SPOUSE]
-        
-        if not blood_heirs:
-            for heir in spouse_heirs:
-                heir.share_numerator = 1
-                heir.share_denominator = 1
-            return
-        
-        blood_rank = blood_heirs[0].rank
-        
-        if spouse_heirs:
-            if blood_rank == InheritanceRank.FIRST:
-                spouse_share = (1, 2)
-                blood_share = (1, 2)
-            elif blood_rank == InheritanceRank.SECOND:
-                spouse_share = (2, 3)
-                blood_share = (1, 3)
+        spouse_present = bool(spouse_heirs)
+
+        for rank, distributor in (
+            (InheritanceRank.FIRST, self._distribute_first_rank),
+            (InheritanceRank.SECOND, self._distribute_second_rank),
+            (InheritanceRank.THIRD, self._distribute_third_rank),
+        ):
+            blood_share = (
+                Fraction(1) - self._spouse_share(rank) if spouse_present else Fraction(1)
+            )
+            blood_heirs = distributor(blood_share)
+            if blood_heirs:
+                if spouse_present:
+                    sp = self._spouse_share(rank)
+                    for h in spouse_heirs:
+                        self._set_share(h, sp)
+                self.heirs.extend(blood_heirs)
+                self._assert_total()
+                return
+
+        # 血族相続人なし → 配偶者が全部相続
+        if spouse_present:
+            for h in spouse_heirs:
+                self._set_share(h, Fraction(1))
+            self._assert_total()
+
+    def _resolve_descendant_line(self, person: Dict, share: Fraction,
+                                 original: Optional[str]) -> List[Heir]:
+        """直系卑属（子）の系統に share を株分けする（再代襲は無制限）。
+
+        original は代襲元（被代襲者名）。None なら本人が生存本人。
+        """
+        if person.get("renounced", False):
+            return []
+        if self._is_alive(person):
+            return [self._make_heir(
+                person["name"], InheritanceRank.FIRST, share,
+                is_substitute=original is not None, original=original,
+            )]
+        if self._is_deceased(person):
+            living = [ch for ch in person.get("children", []) if self._line_has_living(ch)]
+            if not living:
+                return []
+            each = share / len(living)
+            next_original = original if original is not None else person["name"]
+            out: List[Heir] = []
+            for ch in living:
+                out += self._resolve_descendant_line(ch, each, next_original)
+            return out
+        return []
+
+    def _distribute_first_rank(self, blood_share: Fraction) -> Optional[List[Heir]]:
+        """第1順位（子）— 生存する子の系統を株（stirpes）として均等分割。"""
+        children = self.input.get("children", [])
+        stems = [c for c in children if self._line_has_living(c)]
+        if not stems:
+            return None
+        per_stem = blood_share / len(stems)
+        heirs: List[Heir] = []
+        for c in stems:
+            heirs += self._resolve_descendant_line(c, per_stem, original=None)
+        return heirs
+
+    def _distribute_second_rank(self, blood_share: Fraction) -> Optional[List[Heir]]:
+        """第2順位（直系尊属）— 代襲なし。生存する尊属で均等分割。
+
+        （親等の遠近による優先は本修正の範囲外。生存する尊属を均等分割する。）
+        """
+        parents = self.input.get("parents", [])
+        living = [p for p in parents if self._is_alive(p)]
+        if not living:
+            return None
+        per = blood_share / len(living)
+        return [self._make_heir(p["name"], InheritanceRank.SECOND, per) for p in living]
+
+    def _distribute_third_rank(self, blood_share: Fraction) -> Optional[List[Heir]]:
+        """第3順位（兄弟姉妹）— 全血=2・半血=1 の重み付け。代襲は一代限り（甥姪）。"""
+        siblings = self.input.get("siblings", [])
+        stems = []  # (sibling_dict, "alive" | [nephew_dict, ...])
+        for s in siblings:
+            if s.get("renounced", False):
+                continue
+            if self._is_alive(s):
+                stems.append((s, "alive"))
+            elif self._is_deceased(s):
+                nephews = [n for n in s.get("children", []) if self._is_alive(n)]
+                if nephews:
+                    stems.append((s, nephews))
+        if not stems:
+            return None
+
+        def weight(sib: Dict) -> int:
+            return 1 if sib.get("blood_relation", "full") == BloodRelationType.HALF else 2
+
+        total_weight = sum(weight(s) for s, _ in stems)
+        heirs: List[Heir] = []
+        for sib, kind in stems:
+            stem_share = blood_share * Fraction(weight(sib), total_weight)
+            br = BloodRelationType(sib.get("blood_relation", "full"))
+            if kind == "alive":
+                heirs.append(self._make_heir(
+                    sib["name"], InheritanceRank.THIRD, stem_share, blood_relation=br,
+                ))
             else:
-                spouse_share = (3, 4)
-                blood_share = (1, 4)
-            
-            for heir in spouse_heirs:
-                heir.share_numerator = spouse_share[0]
-                heir.share_denominator = spouse_share[1]
-        else:
-            blood_share = (1, 1)
-        
-        self._distribute_blood_shares(blood_heirs, blood_share)
-    
-    def _distribute_blood_shares(self, blood_heirs: List[Heir], total_share: tuple):
-        """血族相続人間で相続分を按分"""
-        groups = {}
-        direct_heirs = []
-        
-        for heir in blood_heirs:
-            if heir.is_substitute:
-                key = heir.original_heir_name or heir.name
-                if key not in groups:
-                    groups[key] = []
-                groups[key].append(heir)
-            else:
-                direct_heirs.append(heir)
-        
-        num_divisions = len(direct_heirs) + len(groups)
-        
-        if num_divisions == 0:
-            return
-        
-        base_numerator = total_share[0]
-        base_denominator = total_share[1] * num_divisions
-        
-        for heir in direct_heirs:
-            if heir.rank == InheritanceRank.THIRD and heir.blood_relation == BloodRelationType.HALF:
-                heir.share_numerator = base_numerator
-                heir.share_denominator = base_denominator * 2
-            else:
-                heir.share_numerator = base_numerator
-                heir.share_denominator = base_denominator
-        
-        for group_heirs in groups.values():
-            num_in_group = len(group_heirs)
-            for heir in group_heirs:
-                if heir.rank == InheritanceRank.THIRD and heir.blood_relation == BloodRelationType.HALF:
-                    heir.share_numerator = base_numerator
-                    heir.share_denominator = base_denominator * 2 * num_in_group
-                else:
-                    heir.share_numerator = base_numerator
-                    heir.share_denominator = base_denominator * num_in_group
+                nephews = kind
+                each = stem_share / len(nephews)
+                for n in nephews:
+                    heirs.append(self._make_heir(
+                        n["name"], InheritanceRank.THIRD, each,
+                        is_substitute=True, original=sib["name"], blood_relation=br,
+                    ))
+        return heirs
+
+    def _assert_total(self):
+        """相続分の合計が 1 であることを保証する（内部整合性チェック）。"""
+        total = sum(
+            (Fraction(h.share_numerator, h.share_denominator) for h in self.heirs),
+            Fraction(0),
+        )
+        assert total == Fraction(1), f"相続分の合計が1になりません: {total}"
     
     def _format_result(self, note: str) -> Dict[str, Any]:
         """計算結果を整形"""
