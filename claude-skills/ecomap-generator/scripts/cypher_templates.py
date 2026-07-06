@@ -128,25 +128,6 @@ def get_template(template_name: str) -> Optional[EcomapTemplate]:
     return TEMPLATES.get(template_name)
 
 
-def get_query(template_name: str, client_name: str) -> Optional[str]:
-    """
-    クライアント名を埋め込んだクエリを取得
-
-    Args:
-        template_name: テンプレート名
-        client_name: クライアント名
-
-    Returns:
-        実行可能なCypherクエリ文字列
-    """
-    template = get_template(template_name)
-    if not template:
-        return None
-
-    # Neo4jブラウザ用にパラメータを直接埋め込んだクエリを生成
-    return template.query.replace("$client_name", f"'{client_name}'")
-
-
 def get_parameterized_query(template_name: str) -> Optional[str]:
     """
     パラメータ付きクエリを取得（プログラムから実行する場合）
@@ -262,22 +243,20 @@ ORDER BY cert.nextRenewalDate
 }
 
 
-def get_analysis_query(query_name: str, client_name: str) -> Optional[str]:
+def get_analysis_parameterized_query(query_name: str) -> Optional[str]:
     """
-    分析用クエリを取得（クライアント名埋め込み済み）
+    分析用のパラメータ付きクエリを取得（$client_name プレースホルダのまま返す）
+
+    実行側は params={"client_name": ...} を渡すこと。クライアント名を文字列連結
+    してはならない（Cypher インジェクション対策 / CLAUDE.md「$param 必須」）。
 
     Args:
         query_name: クエリ名
-        client_name: クライアント名
 
     Returns:
-        実行可能なCypherクエリ文字列
+        パラメータ付きCypherクエリ文字列
     """
-    query = ANALYSIS_QUERIES.get(query_name)
-    if not query:
-        return None
-
-    return query.replace("$client_name", f"'{client_name}'")
+    return ANALYSIS_QUERIES.get(query_name)
 
 
 # =============================================================================
@@ -286,6 +265,7 @@ def get_analysis_query(query_name: str, client_name: str) -> Optional[str]:
 
 if __name__ == "__main__":
     import sys
+    import json
 
     if len(sys.argv) < 2:
         print("使用法: python cypher_templates.py <テンプレート名> [クライアント名]")
@@ -297,12 +277,16 @@ if __name__ == "__main__":
     template_name = sys.argv[1]
     client_name = sys.argv[2] if len(sys.argv) > 2 else "クライアント名"
 
-    query = get_query(template_name, client_name)
+    query = get_parameterized_query(template_name)
     if query:
         info = get_template_info(template_name)
         print(f"# {info['name']}")
         print(f"# 用途: {info['use_case']}")
         print(f"# {info['description']}")
+        print()
+        # Neo4j Browser 用の :param 指定（json.dumps で安全にエスケープ）。
+        # クエリ文字列にはクライアント名を連結せず、パラメータで渡す。
+        print(f":param client_name => {json.dumps(client_name, ensure_ascii=False)}")
         print()
         print(query)
     else:
