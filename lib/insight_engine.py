@@ -36,10 +36,10 @@ NEGATIVE_EMOTIONS = {"Anger", "Sadness", "Fear", "Disgust", "Anxiety"}
 # 感情をベースラインとの比較で分析するクエリ
 _EMOTION_DRIFT_QUERY = """
 MATCH (c:Client {name: $clientName})<-[:ABOUT]-(log:SupportLog)
-WHERE log.date >= date() - duration({days: $baselineDays})
+WHERE date(log.date) >= date() - duration({days: $baselineDays})
   AND log.emotion IS NOT NULL
 WITH log,
-     CASE WHEN log.date >= date() - duration({days: $recentDays})
+     CASE WHEN date(log.date) >= date() - duration({days: $recentDays})
           THEN 'Recent' ELSE 'Baseline' END AS period
 RETURN log.triggerTag AS triggerTag,
        log.emotion AS emotion,
@@ -108,11 +108,28 @@ def detect_emotion_drift(
         r_total = stats["Recent"]["total"]
         r_neg = stats["Recent"]["negative"]
 
-        if b_total == 0 or r_total == 0:
+        # 直近にデータが無いタグは比較対象外
+        if r_total == 0:
+            continue
+
+        recent_rate = r_neg / r_total
+
+        # ベースライン期間に存在しない「新規出現」タグ。過去比較ができないため
+        # drift 計算では拾えないが、負の感情が出ていれば最も注意すべき新リスク。
+        # b_total==0 で continue すると新環境・新支援者などの初期兆候を見逃す。
+        if b_total == 0:
+            if r_neg > 0:
+                alerts.append({
+                    "triggerTag": tag,
+                    "baseline_negative_rate": 0.0,
+                    "recent_negative_rate": round(recent_rate, 3),
+                    "drift": 1.0,
+                    "severity": "high" if recent_rate >= 0.5 else "medium",
+                    "new_appearance": True,
+                })
             continue
 
         baseline_rate = b_neg / b_total
-        recent_rate = r_neg / r_total
 
         if baseline_rate == 0:
             drift = 1.0 if recent_rate > 0 else 0.0
@@ -127,6 +144,7 @@ def detect_emotion_drift(
                 "recent_negative_rate": round(recent_rate, 3),
                 "drift": round(drift, 3),
                 "severity": severity,
+                "new_appearance": False,
             })
 
     alerts.sort(key=lambda a: a["drift"], reverse=True)
@@ -151,7 +169,7 @@ def detect_emotion_drift(
 
 _CASCADE_QUERY = """
 MATCH (c:Client {name: $clientName})<-[:ABOUT]-(log:SupportLog)
-WHERE log.date >= date() - duration({days: $days})
+WHERE date(log.date) >= date() - duration({days: $days})
   AND log.emotion IN $negativeEmotions
 RETURN log.date AS date,
        log.triggerTag AS triggerTag,
@@ -231,7 +249,7 @@ def detect_cascading_risk(
 
 _STAFF_LOAD_QUERY = """
 MATCH (s:Supporter)-[:LOGGED]->(log:SupportLog)
-WHERE log.date >= date() - duration({days: $days})
+WHERE date(log.date) >= date() - duration({days: $days})
 WITH s.name AS staffName,
      count(log) AS totalLogs,
      count(CASE WHEN log.emotion IN $negativeEmotions THEN 1 END) AS negativeLogs
