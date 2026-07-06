@@ -46,12 +46,31 @@ app = FastAPI(
     version="1.0.0",
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS は既定で無効（同一オリジン運用・リバースプロキシ配下を想定）。
+# クロスオリジンで使う場合のみ CORS_ALLOW_ORIGINS にカンマ区切りで許可元を明示する。
+# ワイルドカード '*' は Cookie 認証（nest_session）と併用できず、資格情報漏洩面にもなるため使わない。
+_cors_env = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
+CORS_ORIGINS = [o.strip() for o in _cors_env.split(",") if o.strip() and o.strip() != "*"]
+if CORS_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+# 音声アップロード上限・許可形式
+MAX_AUDIO_BYTES = int(os.getenv("MAX_AUDIO_MB", "25")) * 1024 * 1024
+ALLOWED_AUDIO_EXT = {".webm", ".ogg", ".oga", ".mp3", ".m4a", ".mp4", ".wav", ".aac", ".flac"}
+
+
+def _client_exists(name: str) -> bool:
+    """既存 Client かを確認（ゴースト Client の量産を防ぐ存在チェック）。"""
+    if not name or not name.strip():
+        return False
+    rows = run_query("MATCH (c:Client {name: $name}) RETURN count(c) AS n", {"name": name})
+    return bool(rows and rows[0].get("n", 0) > 0)
 
 # 静的ファイル配信
 STATIC_DIR = Path(__file__).parent / "static"
@@ -122,6 +141,13 @@ class SupportLogInput(BaseModel):
 
 @app.post("/api/support-log")
 async def api_create_support_log(data: SupportLogInput, user: str = Depends(require_auth)):
+    # 存在しないクライアント名での記録は、typo によるゴースト Client を量産する。
+    # 新規登録は onboarding-wizard に限定し、記録フォームは既存クライアントのみ許可する。
+    if not _client_exists(data.clientName):
+        raise HTTPException(
+            status_code=404,
+            detail=f"未登録のクライアントです: '{data.clientName}'。先に新規登録を行ってください。",
+        )
     graph = {
         "nodes": [
             {"temp_id": "c1", "label": "Client", "properties": {"name": data.clientName}},
@@ -156,7 +182,7 @@ async def api_dashboard_summary(user: str = Depends(require_auth)):
     """全クライアントの感情サマリー"""
     rows = run_query("""
         MATCH (c:Client)<-[:ABOUT]-(log:SupportLog)
-        WHERE log.date >= date() - duration({days: 7})
+        WHERE date(log.date) >= date() - duration({days: 7})
           AND log.emotion IS NOT NULL
         WITH c.name AS clientName,
              count(log) AS totalLogs,
@@ -220,12 +246,43 @@ async def api_voice_upload(
     user: str = Depends(require_auth),
 ):
     """音声ファイルをアップロードし、文字起こし→構造化→登録"""
-    # 一時ファイルに保存
-    suffix = Path(audio.filename or "audio.webm").suffix or ".webm"
+    # 存在しないクライアントでの登録はゴースト Client を生むため先に弾く
+    # （文字起こし等の高コスト処理に入る前に検証する）。
+    if not _client_exists(clientName):
+        raise HTTPException(
+            status_code=404,
+            detail=f"未登録のクライアントです: '{clientName}'。先に新規登録を行ってください。",
+        )
+
+    # 形式・拡張子の検証（想定外ファイルの処理・保存を防ぐ）
+    suffix = Path(audio.filename or "audio.webm").suffix.lower() or ".webm"
+    ct = (audio.content_type or "").lower()
+    if suffix not in ALLOWED_AUDIO_EXT and not (ct.startswith("audio/") or ct == "video/webm"):
+        raise HTTPException(
+            status_code=415,
+            detail=f"対応していない音声形式です（{audio.filename or ct}）",
+        )
+
+    # サイズ上限を超える入力はメモリを食い潰す前にチャンク読みで打ち切る
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        content = await audio.read()
-        tmp.write(content)
+        total = 0
+        while True:
+            chunk = await audio.read(1024 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_AUDIO_BYTES:
+                tmp.close()
+                os.unlink(tmp.name)
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"音声ファイルが大きすぎます（上限 {MAX_AUDIO_BYTES // (1024*1024)}MB）",
+                )
+            tmp.write(chunk)
         tmp_path = tmp.name
+    if total == 0:
+        os.unlink(tmp_path)
+        raise HTTPException(status_code=422, detail="空の音声ファイルです")
 
     try:
         # Step 1: 文字起こし

@@ -54,20 +54,21 @@ app = FastAPI(
 )
 
 # CORS設定（スマホアプリからのアクセスを許可）
-# CORS_ORIGINS環境変数が設定されている場合はそれを使用、未設定時は全許可（開発用）
-cors_origins = CORS_ORIGINS.split(",") if CORS_ORIGINS else ["*"]
-if CORS_ORIGINS:
+# 既定は無効（同一オリジン運用・リバースプロキシ配下を想定）。クロスオリジンで使う
+# 場合のみ CORS_ORIGINS にカンマ区切りで許可元を明示する。ワイルドカード '*' は
+# allow_credentials=True と併用不可・資格情報漏洩面になるため使わない。
+cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip() and o.strip() != "*"]
+if cors_origins:
     print(f"CORS許可オリジン: {cors_origins}")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 else:
-    print("CORS_ORIGINSが未設定のため全オリジンを許可（本番環境では設定推奨）")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    print("CORS_ORIGINS 未設定のため CORS を無効化（同一オリジンのみ許可）")
 
 
 # --- リクエストモデル ---
