@@ -321,25 +321,9 @@ setup_database() {
         warn "障害福祉データベースの起動確認がタイムアウトしました。docker logs で確認してください。"
     fi
 
-    # livelihood-support の待機
-    retries=0
-    while [ $retries -lt $max_retries ]; do
-        if curl -s http://localhost:7475 &>/dev/null; then
-            success "生活困窮者自立支援データベース（port 7688）が起動しました"
-            break
-        fi
-        retries=$((retries + 1))
-        echo -ne "  待機中... (${retries}/${max_retries})\r"
-        sleep 5
-    done
-    if [ $retries -eq $max_retries ]; then
-        warn "生活困窮者自立支援データベースの起動確認がタイムアウトしました。"
-    fi
-
     echo ""
     echo "  データベースの管理画面:"
     echo "    障害福祉:     ${BOLD}http://localhost:7474${NC}"
-    echo "    生活困窮者支援: ${BOLD}http://localhost:7475${NC}"
     echo "    認証情報:     neo4j / password"
     echo ""
 }
@@ -419,15 +403,6 @@ configure_claude_desktop() {
             echo '        "NEO4J_USERNAME": "neo4j",'
             echo '        "NEO4J_PASSWORD": "password"'
             echo '      }'
-            echo '    },'
-            echo '    "livelihood-support-db": {'
-            echo '      "command": "npx",'
-            echo '      "args": ["-y", "@alanse/mcp-neo4j-server"],'
-            echo '      "env": {'
-            echo '        "NEO4J_URI": "bolt://localhost:7688",'
-            echo '        "NEO4J_USERNAME": "neo4j",'
-            echo '        "NEO4J_PASSWORD": "password"'
-            echo '      }'
             echo '    }'
             echo ""
         fi
@@ -459,14 +434,6 @@ run_connection_test() {
         success "障害福祉データベース (port 7687): 接続OK"
     else
         error "障害福祉データベース (port 7687): 接続失敗"
-        all_ok=false
-    fi
-
-    # Neo4j livelihood-support テスト
-    if curl -s http://localhost:7475 &>/dev/null; then
-        success "生活困窮者支援データベース (port 7688): 接続OK"
-    else
-        error "生活困窮者支援データベース (port 7688): 接続失敗"
         all_ok=false
     fi
 

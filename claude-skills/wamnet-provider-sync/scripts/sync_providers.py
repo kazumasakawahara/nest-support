@@ -276,22 +276,45 @@ class ServiceProviderSync:
             else:
                 # 既存との比較
                 existing = existing_providers[provider_id]
-                if self._is_modified(provider, existing):
+                # Closed 事業所が CSV に再登場した場合は、フィールド無変更でも
+                # 復活（Active 化）が必要なので必ず updated に分類する。
+                # status を _is_modified の比較対象に入れていないため、ここで明示判定する。
+                was_closed = str(existing.get("status", "")) == "Closed"
+                if was_closed or self._is_modified(provider, existing):
                     to_update.append(provider)
                     self.stats["modified"] += 1
+                    changes = self._get_diff(provider, existing)
+                    if was_closed:
+                        changes = ["status: Closed → Active（復活）"] + changes
                     self.changes["modified"].append({
                         "name": provider["name"],
                         "serviceType": provider["serviceType"],
-                        "changes": self._get_diff(provider, existing)
+                        "changes": changes
                     })
                 else:
                     self.stats["unchanged"] += 1
         
-        # 廃止検出
-        existing_ids = set(existing_providers.keys())
-        closed_ids = existing_ids - new_ids
+        # 廃止検出 — CSV がカバーする範囲（都道府県×サービス種別）に限定する。
+        # 部分 CSV（特定県・特定サービスのみ）と全件を単純差分すると、CSV に
+        # 含まれないだけの既存事業所を一括で誤って Closed にしてしまう。
+        covered_scopes = {
+            (p.get("prefecture", ""), p.get("serviceType", "")) for p in new_providers
+        }
+        in_scope_ids = {
+            pid for pid, ex in existing_providers.items()
+            if (ex.get("prefecture", ""), ex.get("serviceType", "")) in covered_scopes
+        }
+        closed_ids = list(in_scope_ids - new_ids)
         self.stats["closed"] = len(closed_ids)
-        
+
+        # 大量廃止の誤爆検知。カバー範囲内の過半数が廃止判定なら CSV の欠落を疑う。
+        if in_scope_ids and len(closed_ids) > len(in_scope_ids) * 0.5:
+            print(
+                f"⚠️ 警告: カバー範囲内 {len(in_scope_ids)} 件のうち {len(closed_ids)} 件が"
+                "廃止判定です。CSV の欠落や対象範囲の誤りの可能性があります。"
+                "必ず --dry-run で内容を確認してください。"
+            )
+
         for closed_id in closed_ids:
             existing = existing_providers[closed_id]
             self.changes["closed"].append({
@@ -381,28 +404,37 @@ class ServiceProviderSync:
                 print(f"  廃止マーク: {len(closed_ids)}件")
 
     def _batch_create(self, session, providers: List[Dict]):
-        """バッチで新規作成"""
+        """バッチで新規作成（providerId で MERGE し再実行を冪等にする）"""
+        # CREATE だと再実行で providerId が重複するため MERGE を使う。
+        # CSV に存在する＝現存なので status は Active、廃止マークは除去する。
         query = """
         UNWIND $providers AS p
-        CREATE (sp:ServiceProvider)
-        SET sp = p
+        MERGE (sp:ServiceProvider {providerId: p.providerId})
+        SET sp += p,
+            sp.status = 'Active'
+        REMOVE sp.closedAt
         """
         session.run(query, providers=providers)
 
     def _batch_update(self, session, providers: List[Dict]):
-        """バッチで更新"""
+        """バッチで更新（CSV 再登場時は Closed から復活させる）"""
+        # CSV に再登場した事業所は現存とみなし、status を Active に戻し
+        # closedAt を除去する（p には status が含まれないため明示 SET が必要）。
         query = """
         UNWIND $providers AS p
         MATCH (sp:ServiceProvider {providerId: p.providerId})
-        SET sp += p
+        SET sp += p,
+            sp.status = 'Active'
+        REMOVE sp.closedAt
         """
         session.run(query, providers=providers)
 
     def _mark_closed(self, session, closed_ids: List[str]):
-        """廃止としてマーク"""
+        """廃止としてマーク（既に Closed の事業所の closedAt は上書きしない）"""
         query = """
         MATCH (sp:ServiceProvider)
         WHERE sp.providerId IN $closed_ids
+          AND coalesce(sp.status, '') <> 'Closed'
         SET sp.status = 'Closed',
             sp.closedAt = datetime()
         """

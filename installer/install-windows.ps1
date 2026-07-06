@@ -329,28 +329,11 @@ function Setup-Database {
         Write-Warn "障害福祉データベースの起動確認がタイムアウトしました。docker logs で確認してください。"
     }
 
-    # 起動待機: livelihood-support
-    $retries = 0
-    while ($retries -lt $maxRetries) {
-        try {
-            $null = Invoke-WebRequest -Uri "http://localhost:7475" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
-            Write-Success "生活困窮者自立支援データベース（port 7688）が起動しました"
-            break
-        } catch {
-            $retries++
-            Start-Sleep -Seconds 5
-        }
-    }
-    if ($retries -eq $maxRetries) {
-        Write-Warn "生活困窮者自立支援データベースの起動確認がタイムアウトしました。"
-    }
-
     Pop-Location
 
     Write-Host ""
     Write-Host "  データベースの管理画面:"
     Write-Host "    障害福祉:       http://localhost:7474" -ForegroundColor Cyan
-    Write-Host "    生活困窮者支援: http://localhost:7475" -ForegroundColor Cyan
     Write-Host "    認証情報:       neo4j / password"
     Write-Host ""
 }
@@ -371,10 +354,11 @@ function Install-Skills {
     }
 
     $skills = @(
-        "neo4j-support-db", "livelihood-support", "provider-search",
+        "neo4j-support-db", "provider-search",
         "emergency-protocol", "ecomap-generator", "html-to-pdf",
         "inheritance-calculator", "wamnet-provider-sync", "narrative-extractor",
-        "data-quality-agent", "onboarding-wizard", "resilience-checker", "visit-prep"
+        "data-quality-agent", "onboarding-wizard", "resilience-checker", "visit-prep",
+        "insight-agent"
     )
 
     $installed = 0
@@ -462,15 +446,6 @@ function Configure-ClaudeDesktop {
                     NEO4J_PASSWORD = "password"
                 }
             }
-            "livelihood-support-db" = @{
-                command = "npx"
-                args    = @("-y", "@alanse/mcp-neo4j-server")
-                env     = @{
-                    NEO4J_URI      = "bolt://localhost:7688"
-                    NEO4J_USERNAME = "neo4j"
-                    NEO4J_PASSWORD = "password"
-                }
-            }
         }
     }
 
@@ -487,7 +462,6 @@ function Configure-ClaudeDesktop {
 
             # neo4j サーバーを追加
             $existingConfig.mcpServers | Add-Member -NotePropertyName "neo4j" -NotePropertyValue $mcpConfig.mcpServers.neo4j -Force
-            $existingConfig.mcpServers | Add-Member -NotePropertyName "livelihood-support-db" -NotePropertyValue $mcpConfig.mcpServers."livelihood-support-db" -Force
 
             $existingConfig | ConvertTo-Json -Depth 10 | Set-Content $CLAUDE_CONFIG_FILE -Encoding UTF8
             Write-Success "Neo4j MCP サーバーを追加しました"
@@ -525,15 +499,6 @@ function Test-Connection {
         Write-Success "障害福祉データベース (port 7687): 接続OK"
     } catch {
         Write-Err "障害福祉データベース (port 7687): 接続失敗"
-        $allOk = $false
-    }
-
-    # Neo4j livelihood-support テスト
-    try {
-        $null = Invoke-WebRequest -Uri "http://localhost:7475" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
-        Write-Success "生活困窮者支援データベース (port 7688): 接続OK"
-    } catch {
-        Write-Err "生活困窮者支援データベース (port 7688): 接続失敗"
         $allOk = $false
     }
 

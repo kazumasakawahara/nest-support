@@ -70,15 +70,6 @@ generate_mcp_config() {
         "NEO4J_USERNAME": "neo4j",
         "NEO4J_PASSWORD": "${neo4j_pass}"
       }
-    },
-    "livelihood-support-db": {
-      "command": "npx",
-      "args": ["-y", "@alanse/mcp-neo4j-server"],
-      "env": {
-        "NEO4J_URI": "bolt://localhost:7688",
-        "NEO4J_USERNAME": "neo4j",
-        "NEO4J_PASSWORD": "${neo4j_pass}"
-      }
     }
   }
 }
@@ -167,11 +158,6 @@ main() {
     else
         warn "Neo4j (port 7687): 未接続"
         echo "  → docker compose up -d で Neo4j を起動してください"
-    fi
-    if curl -s http://localhost:7475 &>/dev/null; then
-        success "Neo4j (port 7688): 接続OK"
-    else
-        warn "Neo4j (port 7688): 未接続"
     fi
 
     echo ""

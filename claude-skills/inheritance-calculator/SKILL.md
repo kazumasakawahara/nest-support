@@ -92,7 +92,9 @@ description: 日本の民法に基づいて法定相続人と相続分を計算�
     }
   ],
   "parents": [                          // 任意: 直系尊属（第2順位。代襲なし）
-    { "name": "山田富夫", "status": "alive", "renounced": false }
+    // generation は親等（1=父母, 2=祖父母…, 省略時は1）。民法889条により
+    // 生存する尊属のうち最も親等が近い者だけが相続する。
+    { "name": "山田富夫", "status": "alive", "renounced": false, "generation": 1 }
   ],
   "siblings": [                         // 任意: 兄弟姉妹（第3順位）
     {

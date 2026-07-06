@@ -27,10 +27,9 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_SOURCE_DIR="${PROJECT_DIR}/claude-skills"
 SKILLS_TARGET_DIR="${HOME}/.claude/skills"
 
-# Skills 一覧（14スキル）
+# Skills 一覧（13スキル）
 SKILLS=(
     "neo4j-support-db"
-    "livelihood-support"
     "provider-search"
     "emergency-protocol"
     "ecomap-generator"
@@ -138,25 +137,6 @@ setup_neo4j() {
     if [ $retries -eq $max_retries ]; then
         warn "Neo4j (support-db) の起動確認がタイムアウトしました"
         echo "  docker logs nest-support-neo4j で状態を確認してください"
-    fi
-
-    # livelihood-support インスタンスの起動待機（port 7688）
-    info "Neo4j (livelihood-support) の起動を待機中（最大60秒）..."
-    retries=0
-    while [ $retries -lt $max_retries ]; do
-        if curl -s http://localhost:7475 &>/dev/null; then
-            success "Neo4j (livelihood-support) が起動しました"
-            echo "  ブラウザUI: http://localhost:7475"
-            echo "  Bolt接続: bolt://localhost:7688"
-            echo "  認証: neo4j / password"
-            break
-        fi
-        retries=$((retries + 1))
-        sleep 5
-    done
-    if [ $retries -eq $max_retries ]; then
-        warn "Neo4j (livelihood-support) の起動確認がタイムアウトしました"
-        echo "  docker logs nest-support-neo4j-livelihood で状態を確認してください"
     fi
 }
 

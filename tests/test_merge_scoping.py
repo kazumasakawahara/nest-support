@@ -72,11 +72,45 @@ class _FakeMergeStore:
         return [(q, p) for q, p in self.calls if needle in q]
 
 
+# --- Neo4j driver/session/transaction のテストダブル ---
+# register_to_database は単一 managed transaction（session.execute_write）で
+# ノード＋リレーションを書く。get_driver を差し替えて全書き込みを store に届ける。
+class _FakeRecord:
+    def __init__(self, d): self._d = d
+    def data(self): return self._d
+
+
+class _FakeResult:
+    def __init__(self, rows): self._rows = list(rows or [])
+    def data(self): return self._rows
+    def __iter__(self): return iter(_FakeRecord(r) for r in self._rows)
+
+
+class _FakeTx:
+    def __init__(self, rec): self._rec = rec
+    def run(self, query, params=None): return _FakeResult(self._rec(query, params))
+
+
+class _FakeSession:
+    def __init__(self, rec): self._rec = rec
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def run(self, query, params=None): return _FakeResult(self._rec(query, params))
+    def execute_write(self, fn, *args, **kw): return fn(_FakeTx(self._rec), *args, **kw)
+    def close(self): pass
+
+
+class _FakeDriver:
+    def __init__(self, rec): self._rec = rec
+    def session(self): return _FakeSession(self._rec)
+    def verify_connectivity(self): pass
+    def close(self): pass
+
+
 @pytest.fixture
 def store():
     rec = _FakeMergeStore()
-    with patch("lib.db_operations.run_query", side_effect=rec), \
-         patch("lib.db_operations.execute_write", side_effect=rec), \
+    with patch("lib.db_operations.get_driver", return_value=_FakeDriver(rec)), \
          patch("lib.embedding.embed_texts_batch", return_value=[]), \
          patch("lib.embedding.embed_client_summary", return_value=None):
         yield rec

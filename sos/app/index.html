@@ -340,19 +340,22 @@
         }
 
         async function initializeApp() {
+            // 名前表示は補助情報。/api/client は認証必須なので、未認証(401)や
+            // 接続失敗でも SOS 送信 UI を止めない（緊急導線を殺さない）。
             try {
                 const response = await fetch(`${API_BASE_URL}/api/client/${encodeURIComponent(clientId)}`);
-                const data = await response.json();
-
-                if (data.found && data.name) {
-                    document.getElementById('userName').textContent = data.name + ' さん';
-                } else {
-                    document.getElementById('userName').textContent = clientId + ' さん';
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.found && data.name) {
+                        document.getElementById('userName').textContent = data.name + ' さん';
+                        return;
+                    }
                 }
-            } catch (e) {
-                // APIに接続できない場合はURLパラメータの名前を使用
+                // 認証なし/未登録/エラー時は URL パラメータの識別子を表示
                 document.getElementById('userName').textContent = clientId + ' さん';
-                console.log('API接続エラー:', e);
+            } catch (e) {
+                document.getElementById('userName').textContent = clientId + ' さん';
+                console.log('API接続エラー（SOS送信は可能）:', e);
             }
         }
 

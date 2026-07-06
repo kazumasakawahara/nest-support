@@ -24,16 +24,12 @@ VALID_NODE_LABELS_7687 = frozenset({
     "Guardian", "Hospital", "Certificate", "PublicAssistance", "Organization",
     "Supporter", "SupportLog", "MeetingRecord", "AuditLog", "LifeHistory",
     "Wish", "Identity", "ServiceProvider", "ProviderFeedback",
+    # 第5の柱（親の機能移行）— SSOT v3.1
+    "Relative", "CareRole",
 })
 
-VALID_NODE_LABELS_7688 = frozenset({
-    "Recipient", "CaseRecord", "HomeVisit", "Strength", "Challenge",
-    "MentalHealthStatus", "NgApproach", "EffectiveApproach", "EconomicRisk",
-    "MoneyManagementStatus", "KeyPerson", "Hospital", "SupportOrganization",
-    "CollaborationRecord", "AuditLog",
-})
-
-VALID_NODE_LABELS = VALID_NODE_LABELS_7687 | VALID_NODE_LABELS_7688
+# 生活困窮者自立支援DB（port 7688）は 2026-05 廃止。7688 用のラベル定義は撤去済み。
+VALID_NODE_LABELS = VALID_NODE_LABELS_7687
 
 # =============================================================================
 # 正式なリレーションシップタイプ
@@ -46,19 +42,19 @@ VALID_RELATIONSHIP_TYPES = frozenset({
     "REGISTERED_AT", "TREATED_AT", "SUPPORTED_BY", "LOGGED", "RECORDED",
     "ABOUT", "FOLLOWS", "AUDIT_FOR", "HAS_HISTORY", "HAS_WISH",
     "HAS_IDENTITY", "USES_SERVICE", "HAS_FEEDBACK", "WROTE",
-    # port 7688
-    "HAS_RECORD", "HAS_VISIT", "HAS_STRENGTH", "HAS_CHALLENGE",
-    "HAS_MENTAL_HEALTH", "RESPONDS_WELL_TO", "HAS_ECONOMIC_RISK",
-    "HAS_MONEY_MGMT", "HOLDS",
+    # 第5の柱（親の機能移行）— SSOT v3.1
+    "IS_PARENT_OF", "FAMILY_OF", "PERFORMS", "CAN_BE_PERFORMED_BY",
 })
 
 # 廃止リレーション → 正式名のマッピング (書き込み時の自動修正用)
+# HOLDS は 7688 用ではなく 7687 の旧・手帳リレーション（SCHEMA_CONVENTION §5）。
 DEPRECATED_RELATIONSHIPS = {
     "PROHIBITED": "MUST_AVOID",
     "PREFERS": "REQUIRES",
     "EMERGENCY_CONTACT": "HAS_KEY_PERSON",
     "RELATES_TO": "IN_CONTEXT",
     "HAS_GUARDIAN": "HAS_LEGAL_REP",
+    "HOLDS": "HAS_CERTIFICATE",
 }
 
 # =============================================================================
@@ -71,6 +67,42 @@ ENUM_VALUES = {
     "emotion": {"Joy", "Anger", "Sadness", "Fear", "Surprise", "Disgust", "Calm", "Anxiety", "Confusion", "Neutral"},
     "status": {"Active", "Inactive", "Pending", "Completed", "Suspended"},
 }
+
+# 安全クリティカルな riskLevel の別名 → 正規値（小文字キーで照合）。
+# 誤入力による禁忌の優先度低下を防ぐ。ここに無い値は補正せず警告する
+# （安全に関わる値を勝手に推測・捏造しない）。
+RISK_LEVEL_ALIASES = {
+    "lifethreatening": "LifeThreatening",
+    "life_threatening": "LifeThreatening",
+    "life-threatening": "LifeThreatening",
+    "生命に関わる": "LifeThreatening",
+    "生命の危険": "LifeThreatening",
+    "致命的": "LifeThreatening",
+    "critical": "LifeThreatening",
+    "panic": "Panic",
+    "パニック": "Panic",
+    "discomfort": "Discomfort",
+    "不快": "Discomfort",
+    "ストレス": "Discomfort",
+    # 汎用の高/中/低スケール。CLAUDE.md の緊急提示順（LifeThreatening → Panic →
+    # Discomfort）に沿って対応づける。narrative-extractor / Gemini が段階表現で
+    # 出力した場合に安全側の正規値へ寄せる。ここに無い値は補正せず警告する。
+    "高": "LifeThreatening",
+    "中": "Panic",
+    "低": "Discomfort",
+    "high": "LifeThreatening",
+    "medium": "Panic",
+    "low": "Discomfort",
+}
+
+
+def normalize_risk_level(value: str) -> str:
+    """riskLevel の別名を正規値に補正する。既に正規値ならそのまま返す。"""
+    if not isinstance(value, str):
+        return value
+    if value in ENUM_VALUES["riskLevel"]:
+        return value
+    return RISK_LEVEL_ALIASES.get(value.strip().lower(), value)
 
 # =============================================================================
 # プロパティ名変換 (snake_case → camelCase)
@@ -254,6 +286,13 @@ def validate_and_normalize_graph(extracted_graph: dict) -> tuple[dict, list[str]
 
         # プロパティ名の camelCase 正規化
         normalized_props = normalize_properties(props, label)
+
+        # 安全クリティカルな riskLevel は別名を正規値へ補正してから検証する
+        if isinstance(normalized_props.get("riskLevel"), str):
+            corrected_risk = normalize_risk_level(normalized_props["riskLevel"])
+            if corrected_risk != normalized_props["riskLevel"]:
+                _log(f"riskLevel を補正: {normalized_props['riskLevel']} → {corrected_risk}")
+                normalized_props["riskLevel"] = corrected_risk
 
         # 列挙値の検証
         for prop_name, value in normalized_props.items():

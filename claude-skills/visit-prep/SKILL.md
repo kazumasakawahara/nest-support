@@ -140,7 +140,7 @@ ORDER BY 回数 DESC
 訪問時に手続きの話をすべき証明書があるか確認する。
 
 ```cypher
-MATCH (c:Client)-[:HAS_CERTIFICATE]->(cert:Certificate)
+MATCH (c:Client)-[:HAS_CERTIFICATE|HOLDS]->(cert:Certificate)
 WHERE c.name CONTAINS $clientName
   AND cert.nextRenewalDate IS NOT NULL
 WITH c, cert,

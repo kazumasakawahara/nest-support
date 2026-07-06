@@ -26,7 +26,7 @@ import tempfile
 from datetime import date, datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -38,6 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from lib.db_operations import run_query, register_to_database
+from lib.auth import require_auth, set_session_cookie, verify_token
 
 app = FastAPI(
     title="nest-support 現場UI",
@@ -45,12 +46,31 @@ app = FastAPI(
     version="1.0.0",
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS は既定で無効（同一オリジン運用・リバースプロキシ配下を想定）。
+# クロスオリジンで使う場合のみ CORS_ALLOW_ORIGINS にカンマ区切りで許可元を明示する。
+# ワイルドカード '*' は Cookie 認証（nest_session）と併用できず、資格情報漏洩面にもなるため使わない。
+_cors_env = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
+CORS_ORIGINS = [o.strip() for o in _cors_env.split(",") if o.strip() and o.strip() != "*"]
+if CORS_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+# 音声アップロード上限・許可形式
+MAX_AUDIO_BYTES = int(os.getenv("MAX_AUDIO_MB", "25")) * 1024 * 1024
+ALLOWED_AUDIO_EXT = {".webm", ".ogg", ".oga", ".mp3", ".m4a", ".mp4", ".wav", ".aac", ".flac"}
+
+
+def _client_exists(name: str) -> bool:
+    """既存 Client かを確認（ゴースト Client の量産を防ぐ存在チェック）。"""
+    if not name or not name.strip():
+        return False
+    rows = run_query("MATCH (c:Client {name: $name}) RETURN count(c) AS n", {"name": name})
+    return bool(rows and rows[0].get("n", 0) > 0)
 
 # 静的ファイル配信
 STATIC_DIR = Path(__file__).parent / "static"
@@ -77,13 +97,32 @@ async def dashboard_page():
 async def voice_page():
     return FileResponse(STATIC_DIR / "voice-recorder.html")
 
+@app.get("/login")
+async def login_page():
+    return FileResponse(STATIC_DIR / "login.html")
+
+
+# =============================================================================
+# API: ログイン（セッション Cookie 発行）
+# =============================================================================
+
+class LoginInput(BaseModel):
+    token: str
+
+@app.post("/api/login")
+async def api_login(data: LoginInput, response: Response):
+    if not verify_token(data.token):
+        raise HTTPException(status_code=401, detail="トークンが正しくありません")
+    set_session_cookie(response, data.token)
+    return {"status": "ok"}
+
 
 # =============================================================================
 # API: クライアント一覧
 # =============================================================================
 
 @app.get("/api/clients")
-async def api_clients():
+async def api_clients(user: str = Depends(require_auth)):
     rows = run_query("MATCH (c:Client) RETURN c.name AS name ORDER BY c.name")
     return [r["name"] for r in rows]
 
@@ -105,7 +144,14 @@ class SupportLogInput(BaseModel):
     note: str = ""
 
 @app.post("/api/support-log")
-async def api_create_support_log(data: SupportLogInput):
+async def api_create_support_log(data: SupportLogInput, user: str = Depends(require_auth)):
+    # 存在しないクライアント名での記録は、typo によるゴースト Client を量産する。
+    # 新規登録は onboarding-wizard に限定し、記録フォームは既存クライアントのみ許可する。
+    if not _client_exists(data.clientName):
+        raise HTTPException(
+            status_code=404,
+            detail=f"未登録のクライアントです: '{data.clientName}'。先に新規登録を行ってください。",
+        )
     graph = {
         "nodes": [
             {"temp_id": "c1", "label": "Client", "properties": {"name": data.clientName}},
@@ -126,7 +172,8 @@ async def api_create_support_log(data: SupportLogInput):
             {"source_temp_id": "log1", "target_temp_id": "c1", "type": "ABOUT", "properties": {}},
         ],
     }
-    result = register_to_database(graph, user_name=f"field-ui:{data.supporterName}")
+    # 監査ログの操作者は認証済みアイデンティティ由来（自己申告の supporterName ではない）
+    result = register_to_database(graph, user_name=f"field-ui:{user}")
     return result
 
 
@@ -135,11 +182,11 @@ async def api_create_support_log(data: SupportLogInput):
 # =============================================================================
 
 @app.get("/api/dashboard/summary")
-async def api_dashboard_summary():
+async def api_dashboard_summary(user: str = Depends(require_auth)):
     """全クライアントの感情サマリー"""
     rows = run_query("""
         MATCH (c:Client)<-[:ABOUT]-(log:SupportLog)
-        WHERE log.date >= date() - duration({days: 7})
+        WHERE date(log.date) >= date() - duration({days: 7})
           AND log.emotion IS NOT NULL
         WITH c.name AS clientName,
              count(log) AS totalLogs,
@@ -162,7 +209,7 @@ async def api_dashboard_summary():
 
 
 @app.get("/api/dashboard/alerts/{client_name}")
-async def api_dashboard_alerts(client_name: str):
+async def api_dashboard_alerts(client_name: str, user: str = Depends(require_auth)):
     """特定クライアントのインサイト分析"""
     try:
         from lib.insight_engine import generate_risk_assessment
@@ -173,7 +220,7 @@ async def api_dashboard_alerts(client_name: str):
 
 
 @app.get("/api/dashboard/recent-logs/{client_name}")
-async def api_recent_logs(client_name: str):
+async def api_recent_logs(client_name: str, user: str = Depends(require_auth)):
     """直近の支援記録"""
     rows = run_query("""
         MATCH (c:Client {name: $name})<-[:ABOUT]-(log:SupportLog)
@@ -200,14 +247,46 @@ async def api_voice_upload(
     audio: UploadFile = File(...),
     clientName: str = Form(...),
     supporterName: str = Form(""),
+    user: str = Depends(require_auth),
 ):
     """音声ファイルをアップロードし、文字起こし→構造化→登録"""
-    # 一時ファイルに保存
-    suffix = Path(audio.filename or "audio.webm").suffix or ".webm"
+    # 存在しないクライアントでの登録はゴースト Client を生むため先に弾く
+    # （文字起こし等の高コスト処理に入る前に検証する）。
+    if not _client_exists(clientName):
+        raise HTTPException(
+            status_code=404,
+            detail=f"未登録のクライアントです: '{clientName}'。先に新規登録を行ってください。",
+        )
+
+    # 形式・拡張子の検証（想定外ファイルの処理・保存を防ぐ）
+    suffix = Path(audio.filename or "audio.webm").suffix.lower() or ".webm"
+    ct = (audio.content_type or "").lower()
+    if suffix not in ALLOWED_AUDIO_EXT and not (ct.startswith("audio/") or ct == "video/webm"):
+        raise HTTPException(
+            status_code=415,
+            detail=f"対応していない音声形式です（{audio.filename or ct}）",
+        )
+
+    # サイズ上限を超える入力はメモリを食い潰す前にチャンク読みで打ち切る
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        content = await audio.read()
-        tmp.write(content)
+        total = 0
+        while True:
+            chunk = await audio.read(1024 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_AUDIO_BYTES:
+                tmp.close()
+                os.unlink(tmp.name)
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"音声ファイルが大きすぎます（上限 {MAX_AUDIO_BYTES // (1024*1024)}MB）",
+                )
+            tmp.write(chunk)
         tmp_path = tmp.name
+    if total == 0:
+        os.unlink(tmp_path)
+        raise HTTPException(status_code=422, detail="空の音声ファイルです")
 
     try:
         # Step 1: 文字起こし
@@ -230,7 +309,7 @@ async def api_voice_upload(
         # Step 3: 登録
         result = register_to_database(
             graph_data,
-            user_name=f"voice-ui:{supporterName or 'anonymous'}",
+            user_name=f"voice-ui:{user}",
         )
 
         return {
@@ -244,4 +323,9 @@ async def api_voice_upload(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    # 既定は 127.0.0.1（TLS・レート制限はリバースプロキシに委譲）。
+    uvicorn.run(
+        app,
+        host=os.getenv("BIND_HOST", "127.0.0.1"),
+        port=int(os.getenv("PORT", "8001")),
+    )

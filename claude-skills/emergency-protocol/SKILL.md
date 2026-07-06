@@ -122,7 +122,7 @@ WITH c, ngActions, collect(DISTINCT {
     forCondition: cpCond.name
 }) AS carePrefs
 
-OPTIONAL MATCH (c)-[kpRel:HAS_KEY_PERSON]->(kp:KeyPerson)
+OPTIONAL MATCH (c)-[kpRel:HAS_KEY_PERSON|EMERGENCY_CONTACT]->(kp:KeyPerson)
 WITH c, ngActions, carePrefs, collect(DISTINCT {
     rank: kpRel.rank,
     name: kp.name,
@@ -139,7 +139,7 @@ WITH c, ngActions, carePrefs, keyPersons, collect(DISTINCT {
     doctor: h.doctor
 }) AS hospitals
 
-OPTIONAL MATCH (c)-[:HAS_LEGAL_REP]->(g:Guardian)
+OPTIONAL MATCH (c)-[:HAS_LEGAL_REP|HAS_GUARDIAN]->(g:Guardian)
 RETURN
     c.name AS clientName,
     c.dob AS dob,
@@ -210,7 +210,7 @@ WITH c, ngActions, collect(DISTINCT {
 }) AS carePrefs
 
 // 緊急連絡先（常に全件取得）
-OPTIONAL MATCH (c)-[kpRel:HAS_KEY_PERSON]->(kp:KeyPerson)
+OPTIONAL MATCH (c)-[kpRel:HAS_KEY_PERSON|EMERGENCY_CONTACT]->(kp:KeyPerson)
 WITH c, ngActions, carePrefs, collect(DISTINCT {
     rank: kpRel.rank,
     name: kp.name,
@@ -234,7 +234,7 @@ RETURN
 連絡先だけが必要な場合。
 
 ```cypher
-MATCH (c:Client)-[r:HAS_KEY_PERSON]->(kp:KeyPerson)
+MATCH (c:Client)-[r:HAS_KEY_PERSON|EMERGENCY_CONTACT]->(kp:KeyPerson)
 WHERE c.name CONTAINS $clientName
 RETURN
     kp.name AS name,

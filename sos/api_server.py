@@ -12,7 +12,7 @@ import os
 import sys
 import httpx
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -23,7 +23,8 @@ from neo4j import GraphDatabase
 # 親ディレクトリをパスに追加（lib/からインポートするため）
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lib.db_operations import resolve_client, get_display_name, run_query
+from lib.db_operations import resolve_client_raw, get_display_name, run_query
+from lib.auth import require_auth, set_session_cookie, verify_token
 
 # 環境変数読み込み
 load_dotenv()
@@ -35,9 +36,10 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
 LINE_GROUP_ID = os.getenv("LINE_GROUP_ID", "")
 
-# CORS設定（カンマ区切りで複数指定可能、未設定時は全許可）
+# CORS設定（カンマ区切りで複数指定可能、未設定時は無効=同一オリジンのみ）
 # 例: "https://example.com,https://app.example.com"
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "")
+# 変数名は field-ui と統一して CORS_ALLOW_ORIGINS。旧 CORS_ORIGINS も後方互換で読む。
+CORS_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", os.getenv("CORS_ORIGINS", ""))
 
 # --- Neo4j接続 ---
 # lib/db_operations.py から run_query を使用するため、ここでは定義不要
@@ -53,20 +55,21 @@ app = FastAPI(
 )
 
 # CORS設定（スマホアプリからのアクセスを許可）
-# CORS_ORIGINS環境変数が設定されている場合はそれを使用、未設定時は全許可（開発用）
-cors_origins = CORS_ORIGINS.split(",") if CORS_ORIGINS else ["*"]
-if CORS_ORIGINS:
+# 既定は無効（同一オリジン運用・リバースプロキシ配下を想定）。クロスオリジンで使う
+# 場合のみ CORS_ALLOW_ORIGINS にカンマ区切りで許可元を明示する。ワイルドカード '*' は
+# allow_credentials=True と併用不可・資格情報漏洩面になるため使わない。
+cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip() and o.strip() != "*"]
+if cors_origins:
     print(f"CORS許可オリジン: {cors_origins}")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 else:
-    print("CORS_ORIGINSが未設定のため全オリジンを許可（本番環境では設定推奨）")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    print("CORS_ALLOW_ORIGINS 未設定のため CORS を無効化（同一オリジンのみ許可）")
 
 
 # --- リクエストモデル ---
@@ -78,11 +81,13 @@ class SOSRequest(BaseModel):
 
 
 class SOSResponse(BaseModel):
+    # 成否のみ返す。DB 由来の実名（client_name）は返さない。無認証の POST /api/sos に
+    # 連番 displayCode を投げて実名を収集する「displayCode→実名オラクル」を防ぐため。
+    # 本人確認表示が必要な場合は送信された識別子（入力値）をそのまま echo する。
+    # 送信メッセージ全文（電話番号・禁忌等）や mock_mode も返さない（P0-3 / R2-1）。
     success: bool
     message: str
-    client_name: str | None = None
-    mock_mode: bool = False
-    sent_message: str | None = None
+    received_id: str | None = None
 
 
 # --- LINE Messaging API ---
@@ -137,7 +142,7 @@ def get_client_info(client_id: str) -> dict | None:
     - name (山田健太)
     """
     # まず仮名化対応の解決を試みる
-    resolved = resolve_client(client_id)
+    resolved = resolve_client_raw(client_id)  # 緊急照会は実名が必須
 
     if resolved:
         # 仮名化スキーマで見つかった場合
@@ -180,10 +185,10 @@ def get_client_info(client_id: str) -> dict | None:
             "keyPersons": kp_results[0]['keyPersons'] if kp_results else []
         }
 
-    # 後方互換性: 旧スキーマでの検索
+    # 後方互換性: 旧スキーマでの検索（完全一致のみ。CONTAINS は名前列挙オラクルになる）
     results = run_query("""
         MATCH (c:Client)
-        WHERE c.name CONTAINS $name OR c.id = $name
+        WHERE c.name = $name OR c.id = $name
         OPTIONAL MATCH (c)-[r:HAS_KEY_PERSON]->(kp:KeyPerson)
         WITH c, kp, r
         ORDER BY r.rank
@@ -211,7 +216,7 @@ def get_client_cautions(client_identifier: str) -> list:
         client_identifier: clientId, displayCode, または name
     """
     # まず仮名化対応の解決を試みる
-    resolved = resolve_client(client_identifier)
+    resolved = resolve_client_raw(client_identifier)  # 緊急照会は実名が必須
 
     if resolved and resolved.get('clientId'):
         # clientId で検索
@@ -326,12 +331,11 @@ async def receive_sos(request: SOSRequest):
 
         await send_line_message(message)
 
+        # 登録有無を漏らさないため、登録済みと同一のメッセージ・形状で返す
         return SOSResponse(
             success=True,
-            message="SOSを送信しました（未登録ユーザー）",
-            client_name=None,
-            mock_mode=_mock_mode,
-            sent_message=message
+            message="SOSを送信しました",
+            received_id=request.client_id,
         )
 
     client_name = client_info['name']
@@ -359,9 +363,7 @@ async def receive_sos(request: SOSRequest):
         return SOSResponse(
             success=True,
             message="SOSを送信しました",
-            client_name=client_name,
-            mock_mode=_mock_mode,
-            sent_message=message
+            received_id=request.client_id,
         )
     else:
         raise HTTPException(
@@ -370,10 +372,25 @@ async def receive_sos(request: SOSRequest):
         )
 
 
+class LoginInput(BaseModel):
+    token: str
+
+
+@app.post("/api/login")
+async def login(data: LoginInput, response: Response):
+    """セッション Cookie を発行する（情報取得エンドポイント用）。"""
+    if not verify_token(data.token):
+        raise HTTPException(status_code=401, detail="トークンが正しくありません")
+    set_session_cookie(response, data.token)
+    return {"status": "ok"}
+
+
 @app.get("/api/client/{client_id}")
-async def get_client(client_id: str):
+async def get_client(client_id: str, user: str = Depends(require_auth)):
     """
-    クライアント情報を取得（アプリ起動時の確認用）
+    クライアント情報を取得（アプリ起動時の確認用）。
+
+    非対称設計: SOS 送信（POST /api/sos）は無認証だが、情報取得は認証必須。
     """
     client_info = get_client_info(client_id)
 
@@ -411,4 +428,9 @@ if __name__ == "__main__":
     print("API URL: http://localhost:8000/api/sos")
     print("=" * 50)
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # 既定は 127.0.0.1（TLS・レート制限はリバースプロキシに委譲）。
+    uvicorn.run(
+        app,
+        host=os.getenv("BIND_HOST", "127.0.0.1"),
+        port=int(os.getenv("PORT", "8000")),
+    )

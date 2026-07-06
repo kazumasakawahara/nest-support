@@ -66,7 +66,9 @@ class TestNormalizeProperties:
 
 class TestValidateNodeLabel:
     def test_valid_labels(self):
-        for label in ["Client", "NgAction", "SupportLog", "CarePreference", "Recipient"]:
+        # SSOT v3.1: 第5の柱 Relative / CareRole を含む
+        for label in ["Client", "NgAction", "SupportLog", "CarePreference",
+                      "Relative", "CareRole"]:
             is_valid, _ = validate_node_label(label)
             assert is_valid, f"{label} should be valid"
 
@@ -74,6 +76,53 @@ class TestValidateNodeLabel:
         is_valid, msg = validate_node_label("UnknownLabel")
         assert not is_valid
         assert "未知のノードラベル" in msg
+
+    def test_decommissioned_7688_labels_invalid(self):
+        # 生活困窮DB(7688)は廃止。Recipient 等は正規ラベルではない
+        for label in ["Recipient", "CaseRecord", "HomeVisit"]:
+            is_valid, _ = validate_node_label(label)
+            assert not is_valid, f"{label} は廃止済み(7688)で無効なはず"
+
+
+class TestP1SchemaFixes:
+    def test_holds_is_deprecated_and_corrected(self):
+        # P1-4: HOLDS→HAS_CERTIFICATE（廃止名の自動修正）
+        is_valid, msg, corrected = validate_relationship_type("HOLDS")
+        assert is_valid
+        assert corrected == "HAS_CERTIFICATE"
+
+    def test_fifth_pillar_relationships_valid(self):
+        for rel in ["IS_PARENT_OF", "FAMILY_OF", "PERFORMS", "CAN_BE_PERFORMED_BY"]:
+            is_valid, _, corrected = validate_relationship_type(rel)
+            assert is_valid, f"{rel} should be valid"
+            assert corrected == rel
+
+    def test_risk_level_alias_normalization(self):
+        # P1-5: riskLevel の日本語/英語別名を正規値へ補正
+        graph = {
+            "nodes": [
+                {"temp_id": "n1", "label": "NgAction",
+                 "properties": {"action": "x", "riskLevel": "生命に関わる"}},
+                {"temp_id": "n2", "label": "NgAction",
+                 "properties": {"action": "y", "riskLevel": "panic"}},
+            ],
+            "relationships": [],
+        }
+        normalized, _ = validate_and_normalize_graph(graph)
+        risks = [n["properties"]["riskLevel"] for n in normalized["nodes"]]
+        assert "LifeThreatening" in risks
+        assert "Panic" in risks
+
+    def test_risk_level_unknown_still_warns(self):
+        graph = {
+            "nodes": [
+                {"temp_id": "n1", "label": "NgAction",
+                 "properties": {"action": "x", "riskLevel": "なんとなく危険"}},
+            ],
+            "relationships": [],
+        }
+        _, warnings = validate_and_normalize_graph(graph)
+        assert any("riskLevel" in w for w in warnings)
 
 
 class TestValidateRelationshipType:

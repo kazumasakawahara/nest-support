@@ -108,9 +108,9 @@ description: 知的障害・精神障害のある方（クライアント）の�
 MATCH (c:Client)
 OPTIONAL MATCH (c)-[:MUST_AVOID]->(ng:NgAction)
 OPTIONAL MATCH (c)-[:REQUIRES]->(cp:CarePreference)
-OPTIONAL MATCH (c)-[:HAS_KEY_PERSON]->(kp:KeyPerson)
-OPTIONAL MATCH (c)-[:HAS_CERTIFICATE]->(cert:Certificate)
-OPTIONAL MATCH (c)-[:HAS_LEGAL_REP]->(g:Guardian)
+OPTIONAL MATCH (c)-[:HAS_KEY_PERSON|EMERGENCY_CONTACT]->(kp:KeyPerson)
+OPTIONAL MATCH (c)-[:HAS_CERTIFICATE|HOLDS]->(cert:Certificate)
+OPTIONAL MATCH (c)-[:HAS_LEGAL_REP|HAS_GUARDIAN]->(g:Guardian)
 RETURN
     c.name AS 氏名,
     c.dob AS 生年月日,
@@ -145,12 +145,12 @@ OPTIONAL MATCH (c)-[:REQUIRES]->(cp:CarePreference)
 OPTIONAL MATCH (c)-[:MUST_AVOID]->(ng:NgAction)
 
 // 第3の柱：法的基盤
-OPTIONAL MATCH (c)-[:HAS_CERTIFICATE]->(cert:Certificate)
+OPTIONAL MATCH (c)-[:HAS_CERTIFICATE|HOLDS]->(cert:Certificate)
 OPTIONAL MATCH (c)-[:RECEIVES]->(pa:PublicAssistance)
 
 // 第4の柱：危機管理ネットワーク
-OPTIONAL MATCH (c)-[kpRel:HAS_KEY_PERSON]->(kp:KeyPerson)
-OPTIONAL MATCH (c)-[:HAS_LEGAL_REP]->(g:Guardian)
+OPTIONAL MATCH (c)-[kpRel:HAS_KEY_PERSON|EMERGENCY_CONTACT]->(kp:KeyPerson)
+OPTIONAL MATCH (c)-[:HAS_LEGAL_REP|HAS_GUARDIAN]->(g:Guardian)
 OPTIONAL MATCH (c)-[:SUPPORTED_BY]->(s:Supporter)
 OPTIONAL MATCH (c)-[:TREATED_AT]->(hosp:Hospital)
 
@@ -208,7 +208,7 @@ ORDER BY 登録数 DESC
 ### 4. 手帳・受給者証の更新期限チェック
 
 ```cypher
-MATCH (c:Client)-[:HAS_CERTIFICATE]->(cert:Certificate)
+MATCH (c:Client)-[:HAS_CERTIFICATE|HOLDS]->(cert:Certificate)
 WHERE cert.nextRenewalDate IS NOT NULL
   AND ($clientName = '' OR c.name CONTAINS $clientName)
 WITH c, cert,
@@ -349,8 +349,7 @@ LIMIT $limit
 #### 支援記録の書き込みCypher
 
 ```cypher
-MATCH (c:Client)
-WHERE c.name CONTAINS $clientName
+MATCH (c:Client {name: $clientName})
 MERGE (s:Supporter {name: $supporterName})
 CREATE (log:SupportLog {
     date: date($date),

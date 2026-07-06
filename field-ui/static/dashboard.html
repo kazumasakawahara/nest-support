@@ -16,6 +16,22 @@
 </style>
 </head>
 <body>
+<script>
+// 認証切れ(401)を共通ログインへ誘導する（全 fetch を横断ハンドリング）。
+// APP_ACCESS_TOKEN 設定時、未ログインだと /api/* が 401 になり画面が機能停止するため。
+(function () {
+  const _fetch = window.fetch;
+  window.fetch = function () {
+    return _fetch.apply(this, arguments).then(function (res) {
+      if (res.status === 401) {
+        location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search);
+        throw new Error('unauthenticated');
+      }
+      return res;
+    });
+  };
+})();
+</script>
 <div class="container">
     <a href="/" class="nav-back">&larr; メニューに戻る</a>
     <h1 style="font-size:20px; margin: 8px 0 4px;">ダッシュボード</h1>
@@ -81,6 +97,15 @@ const EMOTION_LABELS = {
     Disgust: '嫌悪', Confusion: '混乱'
 };
 
+// HTML エスケープ（保存型 XSS 対策）。クライアント名・状況・対応・triggerTag 等は
+// スタッフ自由記述や narrative 抽出由来の非信頼データで、innerHTML に直接入れると
+// スクリプトが実行され得る。動的値は必ず esc() を通す。
+function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+}
+
 // データ取得
 fetch('/api/dashboard/summary')
     .then(r => r.json())
@@ -122,8 +147,8 @@ function renderSummary(data) {
         row.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div>
-                    <div style="font-weight:bold; font-size:15px;">${d.clientName}</div>
-                    <div style="font-size:12px; color:var(--text-light);">${d.totalLogs}件の記録</div>
+                    <div style="font-weight:bold; font-size:15px;">${esc(d.clientName)}</div>
+                    <div style="font-size:12px; color:var(--text-light);">${esc(d.totalLogs)}件の記録</div>
                 </div>
                 <div style="text-align:right;">
                     <div style="font-size:18px; font-weight:bold; color:${color};">${d.negativeRate}%</div>
@@ -155,7 +180,8 @@ async function showDetail(clientName) {
 
     // リスクレベル
     if (insightRes) {
-        const level = insightRes.risk_level || 'low';
+        const rawLevel = insightRes.risk_level || 'low';
+        const level = ['high', 'medium', 'low'].includes(rawLevel) ? rawLevel : 'low';
         const labels = { high: '高', medium: '中', low: '低' };
         document.getElementById('detail-risk').innerHTML =
             `<span class="badge badge-${level}">リスク: ${labels[level]}</span>`;
@@ -169,7 +195,7 @@ async function showDetail(clientName) {
             alerts.forEach(a => {
                 const div = document.createElement('div');
                 div.className = `alert-item alert-${a.severity}`;
-                div.innerHTML = `<strong>「${a.triggerTag}」</strong> ネガティブ +${(a.drift * 100).toFixed(0)}%`
+                div.innerHTML = `<strong>「${esc(a.triggerTag)}」</strong> ネガティブ +${(a.drift * 100).toFixed(0)}%`
                     + `<br><span style="color:var(--text-light); font-size:12px;">`
                     + `${(a.baseline_negative_rate * 100).toFixed(0)}% → ${(a.recent_negative_rate * 100).toFixed(0)}%</span>`;
                 alertsDiv.appendChild(div);
@@ -210,10 +236,10 @@ async function showDetail(clientName) {
             div.className = 'log-item';
             div.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span>${log.date || ''} ${log.situation || ''}</span>
-                    <span class="log-emotion" style="background:${color}20; color:${color};">${label}</span>
+                    <span>${esc(log.date || '')} ${esc(log.situation || '')}</span>
+                    <span class="log-emotion" style="background:${color}20; color:${color};">${esc(label)}</span>
                 </div>
-                <div style="color:var(--text-light); margin-top:2px;">${log.action || ''}</div>
+                <div style="color:var(--text-light); margin-top:2px;">${esc(log.action || '')}</div>
             `;
             logsDiv.appendChild(div);
         });

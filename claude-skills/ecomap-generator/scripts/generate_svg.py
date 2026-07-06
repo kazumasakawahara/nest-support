@@ -8,6 +8,7 @@ from datetime import date
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 from pathlib import Path
+from xml.sax.saxutils import escape as _xml_escape  # DB/ユーザー由来ラベルの XML エスケープ
 
 # generate_mermaid.pyからデータ取得関数をインポート
 from generate_mermaid import fetch_client_data, get_sample_data, HAS_NEO4J
@@ -150,6 +151,7 @@ def generate_svg_node(node: SvgNode) -> str:
     label = node.label
     if len(label) > 15:
         label = label[:12] + "..."
+    label = _xml_escape(label)  # 実データ由来の < & > を無害化（SVGはXML）
 
     if node.node_type == "Client":
         rx, ry = 60, 40
@@ -210,7 +212,7 @@ def generate_svg_edge(edge: SvgEdge) -> str:
           fill="#666"
           font-size="9"
           font-family="sans-serif">
-        {edge.label}
+        {_xml_escape(edge.label)}
     </text>'''
 
     return edge_svg
@@ -272,7 +274,7 @@ def generate_svg(
           font-weight="bold"
           fill="#333"
           font-family="sans-serif">
-        {title}
+        {_xml_escape(title)}
     </text>
 
     <text x="{CANVAS_WIDTH - 20}" y="{CANVAS_HEIGHT - 10}"
@@ -306,10 +308,11 @@ def generate_svg_ecomap(
     client_name: str,
     template: str = "full_view",
     include_legend: bool = True,
-    output_path: Optional[str] = None
+    output_path: Optional[str] = None,
+    demo: bool = False
 ) -> str:
     """クライアントのエコマップをSVG形式で生成"""
-    data = fetch_client_data(client_name, template)
+    data = fetch_client_data(client_name, template, demo=demo)
 
     nodes: List[SvgNode] = []
     edges: List[SvgEdge] = []
@@ -390,6 +393,8 @@ def generate_svg_ecomap(
         "handover": "引き継ぎ用",
     }
     title = f"{client_name}のエコマップ（{template_names.get(template, template)}）"
+    if data.get("is_demo") or demo:
+        title = "⚠️ デモデータ（架空） " + title
 
     # SVG生成
     svg_content = generate_svg(title, nodes, edges, include_legend)
@@ -417,6 +422,8 @@ if __name__ == "__main__":
                         help="テンプレート名")
     parser.add_argument("-o", "--output", help="出力ファイルパス")
     parser.add_argument("--no-legend", action="store_true", help="凡例を非表示")
+    parser.add_argument("--demo", action="store_true",
+                        help="架空のサンプルデータで生成（動作確認用。成果物にデモ表示）")
 
     args = parser.parse_args()
 
@@ -426,9 +433,15 @@ if __name__ == "__main__":
         output_dir.mkdir(exist_ok=True)
         output_path = str(output_dir / f"{args.client_name}_ecomap_{args.template}.svg")
 
-    generate_svg_ecomap(
-        args.client_name,
-        template=args.template,
-        include_legend=not args.no_legend,
-        output_path=output_path
-    )
+    try:
+        generate_svg_ecomap(
+            args.client_name,
+            template=args.template,
+            include_legend=not args.no_legend,
+            output_path=output_path,
+            demo=args.demo
+        )
+    except (RuntimeError, ValueError) as e:
+        import sys
+        print(f"エラー: {e}", file=sys.stderr)
+        sys.exit(1)

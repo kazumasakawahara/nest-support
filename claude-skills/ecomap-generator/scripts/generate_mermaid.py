@@ -247,10 +247,23 @@ class MermaidEcomapGenerator:
 # Neo4jからデータ取得
 # =============================================================================
 
-def fetch_client_data(client_name: str, template: str = "full_view") -> Dict:
-    """Neo4jからクライアントデータを取得"""
-    if not HAS_NEO4J:
+def fetch_client_data(client_name: str, template: str = "full_view",
+                      demo: bool = False) -> Dict:
+    """Neo4jからクライアントデータを取得。
+
+    demo=False（本番）では、Neo4j 未接続・クライアント不在時に架空データへ
+    フォールバックせず例外を送出する。実在名を冠した偽の禁忌事項・キーパーソンを
+    緊急時に提示する事故（「Never fabricate data」違反）を防ぐため。
+    動作確認用サンプルは demo=True を明示した時のみ返す。
+    """
+    if demo:
         return get_sample_data(client_name)
+
+    if not HAS_NEO4J:
+        raise RuntimeError(
+            "Neo4j に接続できません。エコマップ生成には DB 接続が必要です。"
+            "（動作確認用のサンプルを見る場合のみ --demo を明示してください）"
+        )
 
     data = {
         "client": {"name": client_name},
@@ -270,8 +283,10 @@ def fetch_client_data(client_name: str, template: str = "full_view") -> Dict:
     """, {"name": client_name})
 
     if not client_result:
-        print(f"警告: クライアント '{client_name}' が見つかりません", file=sys.stderr)
-        return get_sample_data(client_name)
+        raise ValueError(
+            f"クライアント '{client_name}' が見つかりません。"
+            "（動作確認用のサンプルを見る場合のみ --demo を明示してください）"
+        )
 
     data["client"] = client_result[0]
 
@@ -327,8 +342,9 @@ def fetch_client_data(client_name: str, template: str = "full_view") -> Dict:
 
 
 def get_sample_data(client_name: str) -> Dict:
-    """サンプルデータを返す"""
+    """サンプルデータを返す（架空。--demo 明示時のみ使用）"""
     return {
+        "is_demo": True,
         "client": {"name": client_name},
         "ngActions": [
             {"action": "後ろから急に声をかける", "reason": "パニックを誘発", "riskLevel": "Panic"},
@@ -353,10 +369,11 @@ def get_sample_data(client_name: str) -> Dict:
 def generate_mermaid_ecomap(
     client_name: str,
     template: str = "full_view",
-    direction: str = "TD"
+    direction: str = "TD",
+    demo: bool = False
 ) -> str:
     """クライアントのエコマップをMermaid形式で生成"""
-    data = fetch_client_data(client_name, template)
+    data = fetch_client_data(client_name, template, demo=demo)
 
     generator = MermaidEcomapGenerator()
 
@@ -414,7 +431,17 @@ def generate_mermaid_ecomap(
             cond_id = generator.add_node("Condition", cond["name"])
             generator.add_edge(client_id, cond_id, "HAS_CONDITION")
 
-    return generator.generate(direction=direction)
+    mermaid = generator.generate(direction=direction)
+
+    # デモデータは成果物冒頭に架空である旨を明示（Mermaid のタイトル frontmatter）
+    if data.get("is_demo") or demo:
+        mermaid = (
+            "---\n"
+            'title: "⚠️ デモデータ（架空・実在の記録ではありません）"\n'
+            "---\n"
+        ) + mermaid
+
+    return mermaid
 
 
 # =============================================================================
@@ -433,14 +460,21 @@ if __name__ == "__main__":
                         choices=["TD", "LR", "BT", "RL"],
                         help="グラフの方向")
     parser.add_argument("-o", "--output", help="出力ファイルパス")
+    parser.add_argument("--demo", action="store_true",
+                        help="架空のサンプルデータで生成（動作確認用。成果物にデモ表示）")
 
     args = parser.parse_args()
 
-    mermaid_content = generate_mermaid_ecomap(
-        args.client_name,
-        template=args.template,
-        direction=args.direction
-    )
+    try:
+        mermaid_content = generate_mermaid_ecomap(
+            args.client_name,
+            template=args.template,
+            direction=args.direction,
+            demo=args.demo
+        )
+    except (RuntimeError, ValueError) as e:
+        print(f"エラー: {e}", file=sys.stderr)
+        sys.exit(1)
 
     if args.output:
         with open(args.output, "w", encoding="utf-8") as f:

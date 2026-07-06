@@ -806,7 +806,7 @@ def search_ng_actions_semantic(
 
     results = _run_query(
         """
-        CALL db.index.vector.queryNodes('ng_action_embedding', $top_k, $query_embedding)
+        CALL db.index.vector.queryNodes($index_name, $top_k, $query_embedding)
         YIELD node, score
         MATCH (c:Client)-[:MUST_AVOID]->(node)
         RETURN c.name AS クライアント,
@@ -816,7 +816,8 @@ def search_ng_actions_semantic(
                score AS スコア
         ORDER BY score DESC
         """,
-        {"top_k": top_k, "query_embedding": query_embedding},
+        {"index_name": resolve_vector_index("ng_action_embedding"),
+         "top_k": top_k, "query_embedding": query_embedding},
     )
     log(f"禁忌事項セマンティック検索: '{query_text}' → {len(results)}件")
     return results
@@ -1111,6 +1112,17 @@ def register_meeting_record(
     if not os.path.exists(audio_path):
         return {"status": "error", "message": f"音声ファイルが見つかりません: {audio_path}"}
 
+    # 存在しないクライアント名での登録は幽霊 Client を生むため先に弾く
+    # （文字起こし・embedding 等の高コスト処理に入る前に検証する / R2-2）。
+    exists = _run_query(
+        "MATCH (c:Client {name: $name}) RETURN count(c) AS n", {"name": client_name}
+    )
+    if not exists or exists[0].get("n", 0) == 0:
+        return {
+            "status": "error",
+            "message": f"未登録のクライアントです: '{client_name}'。先にクライアント登録を行ってください。",
+        }
+
     abs_path = os.path.abspath(audio_path)
 
     # MIMEタイプ判定
@@ -1153,7 +1165,7 @@ def register_meeting_record(
         duration_int = int(duration) if duration > 0 else None
         _run_query(
             """
-            MERGE (c:Client {name: $client_name})
+            MATCH (c:Client {name: $client_name})
             MERGE (s:Supporter {name: $supporter_name})
             CREATE (m:MeetingRecord {
                 date: date($date),
@@ -1235,8 +1247,8 @@ def build_client_summary_text(client_name: str) -> Optional[str]:
         LIMIT 5
         WITH c, conditions, ngActions, careInstructions,
              collect(log.situation + '→' + COALESCE(log.action, '')) AS recentLogs
-        RETURN c.name AS name,
-               c.dob AS dob,
+        RETURN c.displayCode AS displayCode,
+               c.clientId AS clientId,
                c.bloodType AS bloodType,
                conditions,
                ngActions,
@@ -1253,13 +1265,13 @@ def build_client_summary_text(client_name: str) -> Optional[str]:
     r = results[0]
     parts = []
 
-    # 基本情報
-    basic = r.get("name", "")
-    if r.get("dob"):
-        basic += f"、{r['dob']}"
+    # 基本情報（実名・生年月日は Gemini へ送らない。非識別の表示コード/血液型のみ）
+    code = r.get("displayCode") or r.get("clientId") or ""
+    basic = code
     if r.get("bloodType"):
-        basic += f"、血液型{r['bloodType']}"
-    parts.append(f"[基本情報] {basic}")
+        basic += (f"、血液型{r['bloodType']}" if basic else f"血液型{r['bloodType']}")
+    if basic:
+        parts.append(f"[基本情報] {basic}")
 
     # 障害・疾患
     conditions = [c for c in r.get("conditions", []) if c]
@@ -1367,7 +1379,7 @@ def find_similar_clients(
 
     results = _run_query(
         """
-        CALL db.index.vector.queryNodes('client_summary_embedding', $top_k_plus, $query_vec)
+        CALL db.index.vector.queryNodes($index_name, $top_k_plus, $query_vec)
         YIELD node, score
         WHERE ($exclude_self = false OR node.name <> $client_name)
         OPTIONAL MATCH (node)-[:HAS_CONDITION]->(con:Condition)
@@ -1379,6 +1391,7 @@ def find_similar_clients(
         LIMIT $top_k
         """,
         {
+            "index_name": resolve_vector_index("client_summary_embedding"),
             "top_k_plus": top_k_plus,
             "query_vec": query_vec,
             "client_name": client_name,
@@ -1416,7 +1429,7 @@ def search_similar_clients_by_text(
 
     results = _run_query(
         """
-        CALL db.index.vector.queryNodes('client_summary_embedding', $top_k, $query_embedding)
+        CALL db.index.vector.queryNodes($index_name, $top_k, $query_embedding)
         YIELD node, score
         OPTIONAL MATCH (node)-[:HAS_CONDITION]->(con:Condition)
         RETURN node.name AS name,
@@ -1426,6 +1439,7 @@ def search_similar_clients_by_text(
         ORDER BY score DESC
         """,
         {
+            "index_name": resolve_vector_index("client_summary_embedding"),
             "top_k": top_k,
             "query_embedding": query_embedding,
         },
