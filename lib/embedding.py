@@ -806,7 +806,7 @@ def search_ng_actions_semantic(
 
     results = _run_query(
         """
-        CALL db.index.vector.queryNodes('ng_action_embedding', $top_k, $query_embedding)
+        CALL db.index.vector.queryNodes($index_name, $top_k, $query_embedding)
         YIELD node, score
         MATCH (c:Client)-[:MUST_AVOID]->(node)
         RETURN c.name AS クライアント,
@@ -816,7 +816,8 @@ def search_ng_actions_semantic(
                score AS スコア
         ORDER BY score DESC
         """,
-        {"top_k": top_k, "query_embedding": query_embedding},
+        {"index_name": resolve_vector_index("ng_action_embedding"),
+         "top_k": top_k, "query_embedding": query_embedding},
     )
     log(f"禁忌事項セマンティック検索: '{query_text}' → {len(results)}件")
     return results
@@ -1367,7 +1368,7 @@ def find_similar_clients(
 
     results = _run_query(
         """
-        CALL db.index.vector.queryNodes('client_summary_embedding', $top_k_plus, $query_vec)
+        CALL db.index.vector.queryNodes($index_name, $top_k_plus, $query_vec)
         YIELD node, score
         WHERE ($exclude_self = false OR node.name <> $client_name)
         OPTIONAL MATCH (node)-[:HAS_CONDITION]->(con:Condition)
@@ -1379,6 +1380,7 @@ def find_similar_clients(
         LIMIT $top_k
         """,
         {
+            "index_name": resolve_vector_index("client_summary_embedding"),
             "top_k_plus": top_k_plus,
             "query_vec": query_vec,
             "client_name": client_name,
@@ -1416,7 +1418,7 @@ def search_similar_clients_by_text(
 
     results = _run_query(
         """
-        CALL db.index.vector.queryNodes('client_summary_embedding', $top_k, $query_embedding)
+        CALL db.index.vector.queryNodes($index_name, $top_k, $query_embedding)
         YIELD node, score
         OPTIONAL MATCH (node)-[:HAS_CONDITION]->(con:Condition)
         RETURN node.name AS name,
@@ -1426,6 +1428,7 @@ def search_similar_clients_by_text(
         ORDER BY score DESC
         """,
         {
+            "index_name": resolve_vector_index("client_summary_embedding"),
             "top_k": top_k,
             "query_embedding": query_embedding,
         },

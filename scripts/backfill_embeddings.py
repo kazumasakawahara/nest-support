@@ -236,6 +236,15 @@ def _backfill_loop(
         total_success += batch_success
         log(f"{label}: バッチ {batch_success}/{len(valid_nodes)} 件付与", "OK")
 
+        # 進捗ゼロ検知: このバッチで1件も付与できなかった場合、
+        # 対象ノードは embedding IS NULL のまま次回も同じバッチが再取得される。
+        # （API 障害・setNodeVectorProperty 失敗の連続など）そのまま続けると
+        # 同一ノードを無限に取得し続けるため、ここで中断する。
+        if batch_success == 0:
+            log(f"{label}: このバッチで付与が1件も成功しなかったため中断します"
+                "（API キー・接続・レート制限を確認してください）", "WARN")
+            break
+
         # 全件処理済みならループを抜ける
         if len(nodes) < batch_size:
             break
