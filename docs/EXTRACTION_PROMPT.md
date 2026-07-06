@@ -7,12 +7,13 @@
 
 ## 1. ノードラベル (PascalCase)
 許可されるラベルのみを使用すること:
-Client, Condition, NgAction, CarePreference, KeyPerson, Guardian, Hospital, Certificate, PublicAssistance, Organization, Supporter, SupportLog, AuditLog, LifeHistory, Wish, ServiceProvider
+Client, Condition, NgAction, CarePreference, KeyPerson, Guardian, Hospital, Doctor, Certificate, PublicAssistance, Organization, Supporter, SupportLog, MeetingRecord, AuditLog, LifeHistory, Wish, Identity, ServiceProvider, ProviderFeedback, Relative, CareRole
 
 ## 2. リレーションシップタイプ (UPPER_SNAKE_CASE)
 許可されるタイプのみを使用すること:
-HAS_CONDITION, MUST_AVOID, IN_CONTEXT, REQUIRES, ADDRESSES, HAS_KEY_PERSON, HAS_LEGAL_REP, HAS_CERTIFICATE, RECEIVES, REGISTERED_AT, TREATED_AT, SUPPORTED_BY, LOGGED, ABOUT, FOLLOWS, USES_SERVICE
+HAS_CONDITION, MUST_AVOID, IN_CONTEXT, REQUIRES, ADDRESSES, HAS_KEY_PERSON, HAS_LEGAL_REP, HAS_CERTIFICATE, RECEIVES, REGISTERED_AT, TREATED_AT, HAS_DOCTOR, SUPPORTED_BY, LOGGED, RECORDED, ABOUT, FOLLOWS, AUDIT_FOR, HAS_HISTORY, HAS_WISH, HAS_IDENTITY, USES_SERVICE, HAS_FEEDBACK, WROTE, IS_PARENT_OF, FAMILY_OF, PERFORMS, CAN_BE_PERFORMED_BY
 ※禁止事項: PROHIBITED, PREFERS などの旧名は絶対に使用しないこと。
+※かかりつけ医は Hospital のプロパティにせず、Doctor ノード＋`(:Hospital)-[:HAS_DOCTOR]->(:Doctor {name})` で表現すること。
 
 ## 3. プロパティ名 (camelCase)
 例: name, dob, bloodType, riskLevel, date, situation, action, effectiveness, note, type, duration, nextAction, clientId, emotion, triggerTag, context
@@ -22,6 +23,9 @@ HAS_CONDITION, MUST_AVOID, IN_CONTEXT, REQUIRES, ADDRESSES, HAS_KEY_PERSON, HAS_
   "LifeThreatening", "Panic", "Discomfort"
 - SupportLog の `effectiveness` は以下のいずれか（英語）を使用すること:
   "Effective", "Ineffective", "Neutral", "Unknown"
+- `status`（Condition / Certificate / TREATED_AT 等）は以下のいずれか（英語 PascalCase）を使用すること:
+  "Active", "Inactive", "Pending", "Completed", "Suspended", "Monitoring"
+  （"Monitoring" は経過観察中など継続監視状態。小文字 "active" 等は使わない）
 - SupportLog の `emotion`（感情）は以下のいずれか（英語）を使用すること:
   "Joy", "Anger", "Sadness", "Fear", "Surprise", "Disgust", "Calm", "Anxiety", "Confusion", "Neutral"
   テキストから本人の感情状態を読み取り、最も近い値を選択する。明確でない場合は "Neutral" とする。

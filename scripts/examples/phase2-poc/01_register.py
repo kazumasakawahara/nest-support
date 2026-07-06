@@ -233,8 +233,11 @@ def register(tx, data: dict) -> list[str]:
             """
             MATCH (c:Client {name:$client})
             MERGE (h:Hospital {name:$name})
-            SET h.specialty = $spec, h.phone = $phone, h.doctor = $doc
+            SET h.specialty = $spec, h.phone = $phone
             MERGE (c)-[:TREATED_AT]->(h)
+            FOREACH (_ IN CASE WHEN $doc IS NULL OR $doc = '' THEN [] ELSE [1] END |
+                MERGE (d:Doctor {name:$doc})
+                MERGE (h)-[:HAS_DOCTOR]->(d))
             """,
             client=c["name"],
             name=h["name"],

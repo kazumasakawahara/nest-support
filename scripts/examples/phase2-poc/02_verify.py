@@ -29,7 +29,7 @@ RETURN
     collect(DISTINCT {rank:kpRel.rank, name:kp.name, relationship:kp.relationship, phone:kp.phone, role:kp.role}) AS kps,
     collect(DISTINCT {name:g.name, type:g.type}) AS guardians,
     collect(DISTINCT {name:s.name, role:s.role}) AS supporters,
-    collect(DISTINCT {name:hosp.name, specialty:hosp.specialty, doctor:hosp.doctor}) AS hospitals
+    collect(DISTINCT {name:hosp.name, specialty:hosp.specialty, doctor:coalesce([(hosp)-[:HAS_DOCTOR]->(hd:Doctor) | hd.name][0], hosp.doctor)}) AS hospitals
 """
 
 TEMPLATE_5_SUPPORTLOG = """

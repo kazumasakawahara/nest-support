@@ -220,7 +220,7 @@ Claude Desktop を再起動し、以下のように話しかけてください:
 | 「〜すると落ち着く」「〜が好き」「〜の方法で」 | CarePreference（推奨ケア） | 高 |
 | 「〜と診断」「〜の特性がある」 | Condition（特性・診断） | 高 |
 | 「母は〜」「連絡先は〜」 | KeyPerson（緊急連絡先） | 高 |
-| 「〜病院の〜先生」 | Hospital（かかりつけ医） | 中 |
+| 「〜病院の〜先生」 | Hospital + Doctor（`(:Hospital)-[:HAS_DOCTOR]->(:Doctor)`） | 中 |
 | 「手帳は〜」「受給者証」「更新は〜」 | Certificate（手帳・証明書） | 中 |
 | 「後見人は〜」 | Guardian（法定代理人） | 中 |
 | 「小さい頃は〜」「学校では〜」 | LifeHistory（生育歴） | 中 |
@@ -252,6 +252,7 @@ Claude Desktop を再起動し、以下のように話しかけてください:
     (:Client)-[:HAS_KEY_PERSON]->(:KeyPerson)   # キーパーソン
     (:Client)-[:HAS_CONDITION]->(:Condition)    # 特性・診断
     (:Client)-[:TREATED_AT]->(:Hospital)        # 通院先
+    (:Hospital)-[:HAS_DOCTOR]->(:Doctor)        # かかりつけ医（名寄せ済み・複数病院で共有可）
     (:Client)-[:HAS_LEGAL_REP]->(:Guardian)     # 法定代理人
     (:Supporter)-[:LOGGED]->(:SupportLog)-[:ABOUT]->(:Client)  # 支援記録
     (:Supporter)-[:RECORDED]->(:MeetingRecord)-[:ABOUT]->(:Client)  # 面談記録（音声）
