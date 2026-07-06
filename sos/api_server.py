@@ -36,9 +36,10 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
 LINE_GROUP_ID = os.getenv("LINE_GROUP_ID", "")
 
-# CORS設定（カンマ区切りで複数指定可能、未設定時は全許可）
+# CORS設定（カンマ区切りで複数指定可能、未設定時は無効=同一オリジンのみ）
 # 例: "https://example.com,https://app.example.com"
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "")
+# 変数名は field-ui と統一して CORS_ALLOW_ORIGINS。旧 CORS_ORIGINS も後方互換で読む。
+CORS_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", os.getenv("CORS_ORIGINS", ""))
 
 # --- Neo4j接続 ---
 # lib/db_operations.py から run_query を使用するため、ここでは定義不要
@@ -55,7 +56,7 @@ app = FastAPI(
 
 # CORS設定（スマホアプリからのアクセスを許可）
 # 既定は無効（同一オリジン運用・リバースプロキシ配下を想定）。クロスオリジンで使う
-# 場合のみ CORS_ORIGINS にカンマ区切りで許可元を明示する。ワイルドカード '*' は
+# 場合のみ CORS_ALLOW_ORIGINS にカンマ区切りで許可元を明示する。ワイルドカード '*' は
 # allow_credentials=True と併用不可・資格情報漏洩面になるため使わない。
 cors_origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip() and o.strip() != "*"]
 if cors_origins:
@@ -68,7 +69,7 @@ if cors_origins:
         allow_headers=["*"],
     )
 else:
-    print("CORS_ORIGINS 未設定のため CORS を無効化（同一オリジンのみ許可）")
+    print("CORS_ALLOW_ORIGINS 未設定のため CORS を無効化（同一オリジンのみ許可）")
 
 
 # --- リクエストモデル ---
