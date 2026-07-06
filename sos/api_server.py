@@ -78,11 +78,11 @@ class SOSRequest(BaseModel):
 
 
 class SOSResponse(BaseModel):
+    # 成否と最小限の確認情報のみ返す。送信メッセージ全文（電話番号・禁忌等）や
+    # mock_mode は利用者端末に返さない（要配慮個人情報の露出防止 / P0-3）。
     success: bool
     message: str
     client_name: str | None = None
-    mock_mode: bool = False
-    sent_message: str | None = None
 
 
 # --- LINE Messaging API ---
@@ -180,10 +180,10 @@ def get_client_info(client_id: str) -> dict | None:
             "keyPersons": kp_results[0]['keyPersons'] if kp_results else []
         }
 
-    # 後方互換性: 旧スキーマでの検索
+    # 後方互換性: 旧スキーマでの検索（完全一致のみ。CONTAINS は名前列挙オラクルになる）
     results = run_query("""
         MATCH (c:Client)
-        WHERE c.name CONTAINS $name OR c.id = $name
+        WHERE c.name = $name OR c.id = $name
         OPTIONAL MATCH (c)-[r:HAS_KEY_PERSON]->(kp:KeyPerson)
         WITH c, kp, r
         ORDER BY r.rank
@@ -330,8 +330,6 @@ async def receive_sos(request: SOSRequest):
             success=True,
             message="SOSを送信しました（未登録ユーザー）",
             client_name=None,
-            mock_mode=_mock_mode,
-            sent_message=message
         )
 
     client_name = client_info['name']
@@ -360,8 +358,6 @@ async def receive_sos(request: SOSRequest):
             success=True,
             message="SOSを送信しました",
             client_name=client_name,
-            mock_mode=_mock_mode,
-            sent_message=message
         )
     else:
         raise HTTPException(
