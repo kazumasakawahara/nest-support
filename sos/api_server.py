@@ -80,11 +80,13 @@ class SOSRequest(BaseModel):
 
 
 class SOSResponse(BaseModel):
-    # 成否と最小限の確認情報のみ返す。送信メッセージ全文（電話番号・禁忌等）や
-    # mock_mode は利用者端末に返さない（要配慮個人情報の露出防止 / P0-3）。
+    # 成否のみ返す。DB 由来の実名（client_name）は返さない。無認証の POST /api/sos に
+    # 連番 displayCode を投げて実名を収集する「displayCode→実名オラクル」を防ぐため。
+    # 本人確認表示が必要な場合は送信された識別子（入力値）をそのまま echo する。
+    # 送信メッセージ全文（電話番号・禁忌等）や mock_mode も返さない（P0-3 / R2-1）。
     success: bool
     message: str
-    client_name: str | None = None
+    received_id: str | None = None
 
 
 # --- LINE Messaging API ---
@@ -328,10 +330,11 @@ async def receive_sos(request: SOSRequest):
 
         await send_line_message(message)
 
+        # 登録有無を漏らさないため、登録済みと同一のメッセージ・形状で返す
         return SOSResponse(
             success=True,
-            message="SOSを送信しました（未登録ユーザー）",
-            client_name=None,
+            message="SOSを送信しました",
+            received_id=request.client_id,
         )
 
     client_name = client_info['name']
@@ -359,7 +362,7 @@ async def receive_sos(request: SOSRequest):
         return SOSResponse(
             success=True,
             message="SOSを送信しました",
-            client_name=client_name,
+            received_id=request.client_id,
         )
     else:
         raise HTTPException(

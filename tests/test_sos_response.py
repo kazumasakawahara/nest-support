@@ -30,19 +30,42 @@ def test_sos_response_excludes_pii(client, monkeypatch):
         {"action": "エビ・カニを与える", "risk": "LifeThreatening"},
     ])
 
-    resp = client.post("/api/sos", json={"client_id": "山田太郎"})
+    # displayCode で送信（入力値と実名が異なる）→ 実名が漏れないことを検証
+    resp = client.post("/api/sos", json={"client_id": "A-001"})
     assert resp.status_code == 200
     body = resp.json()
 
-    # sent_message / mock_mode はレスポンスに含めない
+    # sent_message / mock_mode / client_name はレスポンスに含めない
     assert "sent_message" not in body
     assert "mock_mode" not in body
+    assert "client_name" not in body
 
     # PII（電話番号・禁忌全文・キーパーソン名）がレスポンス本文に混入しない
     text = resp.text
     assert "090-1234-5678" not in text
     assert "エビ・カニを与える" not in text
     assert "山田花子" not in text
+
+    # R2-1: DB 由来の実名がレスポンスに混入しない（displayCode→実名オラクル封じ）
+    assert "山田太郎" not in text
+    # 入力した識別子はそのまま echo される（DB 由来ではない）
+    assert body.get("received_id") == "A-001"
+
+
+def test_sos_does_not_leak_registration_status(client, monkeypatch):
+    """R2-1: 登録済み/未登録で応答が区別できない（登録有無オラクル封じ）。"""
+    monkeypatch.setattr(sos, "get_client_info", lambda cid: {
+        "name": "山田太郎", "keyPersons": [],
+    })
+    monkeypatch.setattr(sos, "get_client_cautions", lambda name: [])
+    registered = client.post("/api/sos", json={"client_id": "A-001"}).json()
+
+    monkeypatch.setattr(sos, "get_client_info", lambda cid: None)
+    unregistered = client.post("/api/sos", json={"client_id": "A-999"}).json()
+
+    # message が登録有無で変わらない（「未登録ユーザー」等の差分を出さない）
+    assert registered["message"] == unregistered["message"]
+    assert set(registered.keys()) == set(unregistered.keys())
 
 
 def test_sos_unregistered_response_excludes_message(client, monkeypatch):
