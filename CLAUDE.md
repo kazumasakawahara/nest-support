@@ -376,6 +376,7 @@ nest-support/
 └── docs/                          # ドキュメント
     ├── QUICK_START.md
     ├── SETUP_GUIDE.md             # 詳細セットアップガイド
+    ├── DEPLOYMENT_GUIDE.md        # 本番デプロイ（リバースプロキシ/TLS/レート制限/.env）
     ├── SCHEMA_CONVENTION.md
     ├── ADVANCED_USAGE.md
     ├── EXTRACTION_PROMPT.md       # Gemini構造化プロンプト（emotion/triggerTag/context対応）
