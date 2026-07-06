@@ -72,6 +72,66 @@ function Invoke-Cypher {
     }
 }
 
+# スカラー値を返す Cypher クエリを実行する関数（取得できなければ -1 を返す）
+function Get-CypherScalar {
+    param($query)
+
+    $authBytes = [System.Text.Encoding]::UTF8.GetBytes($NEO4J_AUTH)
+    $authBase64 = [Convert]::ToBase64String($authBytes)
+
+    $body = @{
+        statements = @(
+            @{ statement = $query }
+        )
+    } | ConvertTo-Json -Depth 5
+
+    try {
+        $response = Invoke-RestMethod -Uri $NEO4J_URL `
+            -Method Post `
+            -Headers @{ Authorization = "Basic $authBase64" } `
+            -ContentType "application/json; charset=utf-8" `
+            -Body $body `
+            -ErrorAction Stop
+
+        if ($response.errors -and $response.errors.Count -gt 0) {
+            return -1
+        }
+        return [int]$response.results[0].data[0].row[0]
+    } catch {
+        return -1
+    }
+}
+
+# 投入前ガード: demoId を持たない実ノードが存在する場合は既定で中断する
+function Confirm-NoRealData {
+    $realCount = Get-CypherScalar "MATCH (n) WHERE n.demoId IS NULL RETURN count(n) AS c"
+
+    if ($realCount -eq -1) {
+        Write-Warn "既存ノード数を確認できませんでした（Neo4j 応答の解析に失敗）。"
+        $ans = Read-Host "  それでもデモデータを投入しますか？ [y/N]"
+        if ($ans -notmatch "^[Yy]$") {
+            Write-Info "投入をキャンセルしました。"
+            exit 0
+        }
+        return
+    }
+
+    if ($realCount -eq 0) {
+        # DB が空、または既存ノードが全て demoId を持つ（＝過去のデモのみ）
+        return
+    }
+
+    Write-Warn "実データ（demoId を持たないノード）が $realCount 件検出されました。"
+    Write-Warn "デモデータ投入は demoId ベースで実データを汚染しませんが、"
+    Write-Warn "本番データとデモの混在を避けるため、既定では投入を中断します。"
+    $ans = Read-Host "  実データがある状態でデモデータを投入しますか？ [y/N]"
+    if ($ans -notmatch "^[Yy]$") {
+        Write-Info "投入を中断しました。（デモは空 DB / デモ専用 DB での利用を推奨）"
+        exit 0
+    }
+    Write-Warn "ユーザー確認により、実データがある状態で投入を続行します。"
+}
+
 # デモデータ投入
 function Load-DemoData {
     Write-Info "デモデータを投入中..."
@@ -80,6 +140,9 @@ function Load-DemoData {
         Write-Err "デモデータファイルが見つかりません: $DEMO_FILE"
         exit 1
     }
+
+    # 投入前ガード: 実データ（demoId なし）を検出したら既定で中断
+    Confirm-NoRealData
 
     $content = Get-Content $DEMO_FILE -Encoding UTF8
     $currentStmt = ""
@@ -126,15 +189,17 @@ function Remove-DemoData {
 
     Write-Info "デモデータを削除中..."
 
-    if (Invoke-Cypher "MATCH (n) WHERE n.isDemo = true DETACH DELETE n") {
-        Write-Success "isDemo=true のノードを削除しました"
+    # demoId を持つノード（＝デモ由来）のみを削除。実ノードは demoId を
+    # 持たないため決して削除対象にならない。SupportLog / AuditLog も網羅される。
+    if (Invoke-Cypher "MATCH (n) WHERE n.demoId IS NOT NULL DETACH DELETE n") {
+        Write-Success "demoId を持つデモノードを削除しました"
     }
 
-    if (Invoke-Cypher "MATCH (sl:SupportLog) WHERE sl.isDemo = true DETACH DELETE sl") {
+    if (Invoke-Cypher "MATCH (sl:SupportLog) WHERE sl.demoId IS NOT NULL DETACH DELETE sl") {
         Write-Success "デモ支援記録を削除しました"
     }
 
-    if (Invoke-Cypher "MATCH (al:AuditLog) WHERE al.user = 'installer' AND al.action = 'DEMO_DATA_LOAD' DELETE al") {
+    if (Invoke-Cypher "MATCH (al:AuditLog) WHERE al.demoId IS NOT NULL DELETE al") {
         Write-Success "デモ監査ログを削除しました"
     }
 
