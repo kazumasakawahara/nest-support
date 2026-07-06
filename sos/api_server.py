@@ -12,7 +12,7 @@ import os
 import sys
 import httpx
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -24,6 +24,7 @@ from neo4j import GraphDatabase
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from lib.db_operations import resolve_client_raw, get_display_name, run_query
+from lib.auth import require_auth, set_session_cookie, verify_token
 
 # 環境変数読み込み
 load_dotenv()
@@ -366,10 +367,25 @@ async def receive_sos(request: SOSRequest):
         )
 
 
+class LoginInput(BaseModel):
+    token: str
+
+
+@app.post("/api/login")
+async def login(data: LoginInput, response: Response):
+    """セッション Cookie を発行する（情報取得エンドポイント用）。"""
+    if not verify_token(data.token):
+        raise HTTPException(status_code=401, detail="トークンが正しくありません")
+    set_session_cookie(response, data.token)
+    return {"status": "ok"}
+
+
 @app.get("/api/client/{client_id}")
-async def get_client(client_id: str):
+async def get_client(client_id: str, user: str = Depends(require_auth)):
     """
-    クライアント情報を取得（アプリ起動時の確認用）
+    クライアント情報を取得（アプリ起動時の確認用）。
+
+    非対称設計: SOS 送信（POST /api/sos）は無認証だが、情報取得は認証必須。
     """
     client_info = get_client_info(client_id)
 
@@ -407,4 +423,9 @@ if __name__ == "__main__":
     print("API URL: http://localhost:8000/api/sos")
     print("=" * 50)
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # 既定は 127.0.0.1（TLS・レート制限はリバースプロキシに委譲）。
+    uvicorn.run(
+        app,
+        host=os.getenv("BIND_HOST", "127.0.0.1"),
+        port=int(os.getenv("PORT", "8000")),
+    )

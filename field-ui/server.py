@@ -26,7 +26,7 @@ import tempfile
 from datetime import date, datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -38,6 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from lib.db_operations import run_query, register_to_database
+from lib.auth import require_auth, set_session_cookie, verify_token
 
 app = FastAPI(
     title="nest-support 現場UI",
@@ -79,11 +80,26 @@ async def voice_page():
 
 
 # =============================================================================
+# API: ログイン（セッション Cookie 発行）
+# =============================================================================
+
+class LoginInput(BaseModel):
+    token: str
+
+@app.post("/api/login")
+async def api_login(data: LoginInput, response: Response):
+    if not verify_token(data.token):
+        raise HTTPException(status_code=401, detail="トークンが正しくありません")
+    set_session_cookie(response, data.token)
+    return {"status": "ok"}
+
+
+# =============================================================================
 # API: クライアント一覧
 # =============================================================================
 
 @app.get("/api/clients")
-async def api_clients():
+async def api_clients(user: str = Depends(require_auth)):
     rows = run_query("MATCH (c:Client) RETURN c.name AS name ORDER BY c.name")
     return [r["name"] for r in rows]
 
@@ -105,7 +121,7 @@ class SupportLogInput(BaseModel):
     note: str = ""
 
 @app.post("/api/support-log")
-async def api_create_support_log(data: SupportLogInput):
+async def api_create_support_log(data: SupportLogInput, user: str = Depends(require_auth)):
     graph = {
         "nodes": [
             {"temp_id": "c1", "label": "Client", "properties": {"name": data.clientName}},
@@ -126,7 +142,8 @@ async def api_create_support_log(data: SupportLogInput):
             {"source_temp_id": "log1", "target_temp_id": "c1", "type": "ABOUT", "properties": {}},
         ],
     }
-    result = register_to_database(graph, user_name=f"field-ui:{data.supporterName}")
+    # 監査ログの操作者は認証済みアイデンティティ由来（自己申告の supporterName ではない）
+    result = register_to_database(graph, user_name=f"field-ui:{user}")
     return result
 
 
@@ -135,7 +152,7 @@ async def api_create_support_log(data: SupportLogInput):
 # =============================================================================
 
 @app.get("/api/dashboard/summary")
-async def api_dashboard_summary():
+async def api_dashboard_summary(user: str = Depends(require_auth)):
     """全クライアントの感情サマリー"""
     rows = run_query("""
         MATCH (c:Client)<-[:ABOUT]-(log:SupportLog)
@@ -162,7 +179,7 @@ async def api_dashboard_summary():
 
 
 @app.get("/api/dashboard/alerts/{client_name}")
-async def api_dashboard_alerts(client_name: str):
+async def api_dashboard_alerts(client_name: str, user: str = Depends(require_auth)):
     """特定クライアントのインサイト分析"""
     try:
         from lib.insight_engine import generate_risk_assessment
@@ -173,7 +190,7 @@ async def api_dashboard_alerts(client_name: str):
 
 
 @app.get("/api/dashboard/recent-logs/{client_name}")
-async def api_recent_logs(client_name: str):
+async def api_recent_logs(client_name: str, user: str = Depends(require_auth)):
     """直近の支援記録"""
     rows = run_query("""
         MATCH (c:Client {name: $name})<-[:ABOUT]-(log:SupportLog)
@@ -200,6 +217,7 @@ async def api_voice_upload(
     audio: UploadFile = File(...),
     clientName: str = Form(...),
     supporterName: str = Form(""),
+    user: str = Depends(require_auth),
 ):
     """音声ファイルをアップロードし、文字起こし→構造化→登録"""
     # 一時ファイルに保存
@@ -230,7 +248,7 @@ async def api_voice_upload(
         # Step 3: 登録
         result = register_to_database(
             graph_data,
-            user_name=f"voice-ui:{supporterName or 'anonymous'}",
+            user_name=f"voice-ui:{user}",
         )
 
         return {
@@ -244,4 +262,9 @@ async def api_voice_upload(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    # 既定は 127.0.0.1（TLS・レート制限はリバースプロキシに委譲）。
+    uvicorn.run(
+        app,
+        host=os.getenv("BIND_HOST", "127.0.0.1"),
+        port=int(os.getenv("PORT", "8001")),
+    )
