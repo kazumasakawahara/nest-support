@@ -77,15 +77,6 @@ $mcpConfig = @{
                 NEO4J_PASSWORD = "password"
             }
         }
-        "livelihood-support-db" = @{
-            command = "npx"
-            args    = @("-y", "@alanse/mcp-neo4j-server")
-            env     = @{
-                NEO4J_URI      = "bolt://localhost:7688"
-                NEO4J_USERNAME = "neo4j"
-                NEO4J_PASSWORD = "password"
-            }
-        }
     }
 }
 
@@ -100,7 +91,6 @@ if (Test-Path $CLAUDE_CONFIG_FILE) {
         }
 
         $existingConfig.mcpServers | Add-Member -NotePropertyName "neo4j" -NotePropertyValue $mcpConfig.mcpServers.neo4j -Force
-        $existingConfig.mcpServers | Add-Member -NotePropertyName "livelihood-support-db" -NotePropertyValue $mcpConfig.mcpServers."livelihood-support-db" -Force
 
         $existingConfig | ConvertTo-Json -Depth 10 | Set-Content $CLAUDE_CONFIG_FILE -Encoding UTF8
         Write-Success "Neo4j MCP を既存の設定にマージしました"
@@ -126,13 +116,6 @@ try {
 } catch {
     Write-Warn "Neo4j (port 7687): 未接続"
     Write-Host "  → docker compose up -d で Neo4j を起動してください"
-}
-
-try {
-    $null = Invoke-WebRequest -Uri "http://localhost:7475" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
-    Write-Success "Neo4j (port 7688): 接続OK"
-} catch {
-    Write-Warn "Neo4j (port 7688): 未接続"
 }
 
 Write-Host ""
