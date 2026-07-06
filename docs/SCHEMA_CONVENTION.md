@@ -1,6 +1,6 @@
 <!-- AUTO-GENERATED COPY — DO NOT EDIT.
   Synced from ~/Dev-Work/shared-schema/SCHEMA_CONVENTION.md
-  Edit the master there and run sync-schema.sh. (synced: 20260611-081922) -->
+  Edit the master there and run sync-schema.sh. (synced: 20260706-193407) -->
 
 <!--
   ============================================================================
@@ -11,7 +11,7 @@
   ============================================================================
 -->
 
-# Neo4j スキーマ命名規則（Naming Convention）— 統一正典 v3.1
+# Neo4j スキーマ命名規則（Naming Convention）— 統一正典 v3.2
 
 > **このドキュメントは、support-db（障害福祉支援DB, port 7687）のノードラベル・リレーションシップタイプ・プロパティ名の唯一の正典（Single Source of Truth）です。**
 > すべての LLM（Claude, Gemini, Hermes/その他エージェント）およびすべてのコード（Python, Cypher テンプレート, Skills）は、このドキュメントに従ってください。
@@ -84,7 +84,8 @@
 | `CarePreference` | ケアの暗黙知 | 推奨ケア | category, instruction, priority, embedding |
 | `KeyPerson` | 危機管理 | キーパーソン・緊急連絡先 | name, relationship, phone, role |
 | `Guardian` | 法的基盤 | 成年後見人等 | name, type, phone, organization |
-| `Hospital` | 危機管理 | 医療機関 | name, specialty, phone, doctor |
+| `Hospital` | 危機管理 | 医療機関 | name, specialty, phone |
+| `Doctor` | 危機管理 | かかりつけ医 | name |
 | `Certificate` | 法的基盤 | 手帳・受給者証 | type, grade, nextRenewalDate |
 | `PublicAssistance` | 法的基盤 | 公的扶助 | type, grade, startDate |
 | `Organization` | 多機関連携 | 関係機関 | name, type, contact, address |
@@ -117,6 +118,7 @@
 | `RECEIVES` | Client → PublicAssistance | — | 公的扶助の受給 |
 | `REGISTERED_AT` | Client → Organization | — | 関係機関への登録 |
 | `TREATED_AT` | Client → Hospital | since, status | 通院先 |
+| `HAS_DOCTOR` | Hospital → Doctor | — | かかりつけ医（名寄せ済み・複数病院で共有可） |
 | `SUPPORTED_BY` | Client → Supporter | since, until | 支援者の紐付け |
 | `LOGGED` | Supporter → SupportLog | — | 支援記録の作成 |
 | `RECORDED` | Supporter → MeetingRecord | — | 面談記録の作成（音声） |
@@ -230,6 +232,11 @@ WAM NET インポート時期によりレガシーの snake_case が残存。**�
 ### 7.5 SupportLog.triggerTag / context（日本語許容・自由値）
 - `triggerTag`: 出来事の引き金を短い日本語タグで表現（例: 大きな音, 環境変化, 人間関係, 体調不良, スケジュール変更, 感覚過敏）
 - `context`: 出来事の背景の自由記述（例: 「昼食時、外で工事が始まった」）
+
+### 7.6 status（Condition / Certificate / Wish / TREATED_AT・USES_SERVICE 等）
+`Active` / `Inactive` / `Pending` / `Completed` / `Suspended` / `Monitoring`
+- `Monitoring`: 経過観察中など継続監視状態（例: 術後経過観察の Condition）。
+- 小文字 `active` 等は使わない（英語 PascalCase 固定）。
 
 ---
 
@@ -381,6 +388,7 @@ REMOVE sp.office_name, sp.corp_name, sp.service_type, sp.office_number,
 
 | 日付 | バージョン | 変更内容 |
 |---|---|---|
+| 2026-07-06 | **v3.2** | **かかりつけ医の構造化と status 拡張**。(1) `Doctor` ノード＋`HAS_DOCTOR`（Hospital→Doctor）を §3/§4 に追加し、`Hospital.doctor` 文字列プロパティを廃止（nest-support で `migrate_hospital_doctor_to_node.py` 適用済み・名寄せ対応）、(2) §7.6 に status 列挙を明文化し `Monitoring`（経過観察中）を追加（nest-support で `Condition.status` のケース正規化 `active`→`Active` も適用済み）。**要追従**: agno バックエンドの実行時 allowlist（`GET /api/narrative/schema`）にも Doctor / HAS_DOCTOR / status:Monitoring を反映すること |
 | 2026-06-11 | **v3.1** | **既使用スキーマの正典追記**。(1) 第5の柱（親の機能移行）の `Relative` / `CareRole` ノードと `IS_PARENT_OF` / `FAMILY_OF` / `PERFORMS` / `CAN_BE_PERFORMED_BY` リレーションを §3/§4 に追加（resilience-checker / onboarding-wizard / data-quality-agent が使用中）、(2) `SupportLog.emotion / triggerTag / context` を §3/§7 に追加（insight-agent / field-ui / EXTRACTION_PROMPT が使用中）、(3) §1.4 の日本語許容例外に triggerTag / context を追記 |
 | 2026-06-06 | **v3.0** | **統一正典化**。neo4j-agno-agent 版（v2.6）をベースに、(1) 7688/生活保護DBを全削除し7687専用に、(2) nest の Guardian Layer 記述を §9 に統合、(3) §2 を4経路＋将来エージェントの「強制力マップ」に刷新、(4) 実行時の権威=`/api/narrative/schema` を明記、(5) shared-schema をマスターとする編集ルール・同期前提を冒頭に追加 |
 | 2026-04-14 | v2.6 | 根本的重複防止（全書込パス正規化統一・NgAction確認付きブロッキング・重複検出マージツール） |
