@@ -45,6 +45,34 @@ def test_verify_token_unset(monkeypatch):
     assert auth.verify_token(TOKEN) is False
 
 
+class _FakeReq:
+    def __init__(self, headers, cookies=None):
+        self.headers = headers  # 小文字キー（Starlette は case-insensitive）
+        self.cookies = cookies or {}
+
+
+def test_proxy_header_not_trusted_by_default(monkeypatch):
+    """R2-6: 既定では X-Authenticated-User を採用しない（監査なりすまし防止）。"""
+    monkeypatch.setenv("APP_ACCESS_TOKEN", TOKEN)
+    monkeypatch.delenv("TRUST_PROXY_HEADERS", raising=False)
+    req = _FakeReq(headers={
+        "authorization": f"Bearer {TOKEN}",
+        "x-authenticated-user": "admin_spoof",
+    })
+    assert auth.require_auth(req) == "authenticated"
+
+
+def test_proxy_header_trusted_when_enabled(monkeypatch):
+    """TRUST_PROXY_HEADERS=true のときのみヘッダを採用する。"""
+    monkeypatch.setenv("APP_ACCESS_TOKEN", TOKEN)
+    monkeypatch.setenv("TRUST_PROXY_HEADERS", "true")
+    req = _FakeReq(headers={
+        "authorization": f"Bearer {TOKEN}",
+        "x-authenticated-user": "proxied_user",
+    })
+    assert auth.require_auth(req) == "proxied_user"
+
+
 # ---------------------------------------------------------------------------
 # field-ui
 # ---------------------------------------------------------------------------
