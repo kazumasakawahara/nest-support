@@ -97,6 +97,10 @@ async def dashboard_page():
 async def voice_page():
     return FileResponse(STATIC_DIR / "voice-recorder.html")
 
+@app.get("/login")
+async def login_page():
+    return FileResponse(STATIC_DIR / "login.html")
+
 
 # =============================================================================
 # API: ログイン（セッション Cookie 発行）

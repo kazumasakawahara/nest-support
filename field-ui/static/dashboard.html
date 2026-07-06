@@ -16,6 +16,22 @@
 </style>
 </head>
 <body>
+<script>
+// 認証切れ(401)を共通ログインへ誘導する（全 fetch を横断ハンドリング）。
+// APP_ACCESS_TOKEN 設定時、未ログインだと /api/* が 401 になり画面が機能停止するため。
+(function () {
+  const _fetch = window.fetch;
+  window.fetch = function () {
+    return _fetch.apply(this, arguments).then(function (res) {
+      if (res.status === 401) {
+        location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search);
+        throw new Error('unauthenticated');
+      }
+      return res;
+    });
+  };
+})();
+</script>
 <div class="container">
     <a href="/" class="nav-back">&larr; メニューに戻る</a>
     <h1 style="font-size:20px; margin: 8px 0 4px;">ダッシュボード</h1>

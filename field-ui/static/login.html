@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ログイン — nest-support 現場UI</title>
+  <link rel="stylesheet" href="/static/shared.css">
+  <style>
+    .login-card { max-width: 360px; margin: 60px auto; padding: 24px; }
+    .login-card h1 { font-size: 18px; margin-bottom: 16px; }
+    .login-card input { width: 100%; padding: 12px; font-size: 16px;
+      border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
+    .login-card button { width: 100%; margin-top: 12px; padding: 12px;
+      font-size: 16px; border: none; border-radius: 8px; background: #4CAF50;
+      color: #fff; cursor: pointer; }
+    .login-err { color: #d32f2f; font-size: 14px; margin-top: 10px; min-height: 18px; }
+    .login-note { color: #666; font-size: 12px; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="card login-card">
+    <h1>🔐 ログイン</h1>
+    <form id="loginForm">
+      <input id="token" type="password" placeholder="合言葉（アクセストークン）"
+             autocomplete="current-password" autofocus>
+      <button type="submit">ログイン</button>
+    </form>
+    <div class="login-err" id="err"></div>
+    <p class="login-note">現場スタッフ向け。合言葉は管理者から共有されたものを入力してください。</p>
+  </div>
+  <script>
+    function safeNext() {
+      const n = new URLSearchParams(location.search).get('next');
+      // オープンリダイレクト防止: 同一オリジンの絶対パスのみ許可
+      if (n && n.charAt(0) === '/' && n.charAt(1) !== '/') return n;
+      return '/';
+    }
+    document.getElementById('loginForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const token = document.getElementById('token').value;
+      const err = document.getElementById('err');
+      err.textContent = '';
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: token })
+        });
+        if (res.ok) {
+          location.href = safeNext();
+        } else if (res.status === 401) {
+          err.textContent = '合言葉が正しくありません。';
+        } else if (res.status === 503) {
+          err.textContent = 'サーバーで認証が未設定です（管理者に連絡してください）。';
+        } else {
+          err.textContent = 'ログインに失敗しました。';
+        }
+      } catch (_) {
+        err.textContent = 'サーバーに接続できません。';
+      }
+    });
+  </script>
+</body>
+</html>
