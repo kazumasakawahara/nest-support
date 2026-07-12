@@ -1,177 +1,120 @@
-# HANDOVER — 2026-07-12 main（Review「0件問題」の解消 / セッション2・完）
+# HANDOVER — 2026-07-13 main（DRIFT-07/10 解消・棚卸し2件の処置 / セッション3）
 
-> 本日2本目のセッション。午前の「意味・ルール層の正本化」（旧 HANDOVER）の続きで、
-> そこで**未実装のまま残っていた BRS-04 の要請**を構造として実装し、運用まで開始した。
-> 旧 HANDOVER の内容は git 履歴（`a0f2042` 時点）を参照。
+> NEXT_SESSION.md（2026-07-13 用指示書）に基づくセッション。タスク B（agno allowlist 追従）
+> と C-4/C-5 は完了。A-1 は河原氏決定により中止、A-2 は**書き込み権限待ちで未完**（下記）。
+> 前セッション（Review 導入）の内容は git 履歴の 2026-07-12 時点 HANDOVER を参照。
 
-## 再開コマンド（コピペで動く・本セッション末に検証済み）
+## 再開コマンド（コピペで動く・本セッションで検証済み）
 
 ```bash
 cd ~/Dev-Work/project/nest-support
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 ./scripts/doctor.sh                              # 環境整合（検証済み: 20 passed / 0 failed）
-uv run python scripts/check_semantic_drift.py    # 三者一致（検証済み: OK=19 KNOWN=2 FAIL=0 WARN=1）
+uv run python scripts/check_semantic_drift.py    # 三者一致（検証済み: OK=21 KNOWN=0 FAIL=0 WARN=1）
 uv run pytest tests/ -q                          # 全テスト（検証済み: 162 passed）
 ```
 
-Neo4j（support-db, port 7687）は稼働中。**コンテナ名は `nest-support-neo4j`**。
-
-```bash
-docker ps --filter name=nest-support-neo4j        # 起動確認
-```
-
-> ⚠️ `SCHEMA_CONVENTION.md §0` はコンテナ名を `support-db-neo4j` と記載しているが**誤り**。
-> 同名の旧コンテナは3ヶ月前に停止済み（Exited）。→ 「既知の罠」参照。
+Neo4j（support-db, port 7687）は稼働中。コンテナ名は `nest-support-neo4j`
+（正典 §0 の誤記は 2026-07-13 に修正済み）。
 
 ---
 
 ## 現在地
 
-- 目標: **「0件問題」の解消** —— 禁忌0件が「確認したうえで無い」のか
-  「まだ聞き取れていない」のかを、DB として区別できるようにする。
-- 背景: `BRS-04` は以前から**この区別を命じていた**が、区別を表現できる構造が
-  存在せず、**ルールが構造的に遵守不能な状態だった**。本セッションはその穴を埋めた。
+- 目標: NEXT_SESSION.md の A-1（M・K キーパーソン）/ A-2（平野 駿介 Review）/
+  B（agno allowlist 追従）/ C（軽微整備）
 
 ### 進捗
 
-- [x] **正典2本**（`~/Dev-Work/shared-schema/` が正・sync 済み・**GitHub プライベートリポ化済み**）
-  - `SEMANTIC_MODEL.md` **v1.3** — v1.2（ENT-24 / BRS-12 / ENU-16・17）に加え、
-    **BRS-03 に「embedding 生成時の外部API送信」の許容範囲を明文化（DRIFT-11 解消）**
-  - `SCHEMA_CONVENTION.md` v3.3 — §3 `Review` / §4 `REVIEWED` / §7.7・7.8 値域
-- [x] **Guardian**（`lib/schema_validator.py`）— Review / REVIEWED / `LABEL_SCOPED_ENUM_VALUES`
-- [x] **スキル5本**（claude.ai 同期済み）
-  - `neo4j-support-db` / `data-quality-agent` / `emergency-protocol` / `visit-prep`（セッション前半）
-  - `onboarding-wizard` — **B-2 完了**。聞き取りガイド（「無い」も記録）・Review 登録
-    テンプレート・Phase 4 の3値判定・Phase 5 チェックリストの3値化。
-    **旧チェックリストの「禁忌1件以上が必須」という欠陥を修正**（聞いたうえで
-    本当に無い人が永久に未完了になる設計だった）
-- [x] **C-1 棚卸し実施**（禁忌＋キーパーソン）— 未確認2件を検出。
-    テスト Review で状態遷移（🚨→✅→0件のまま）を実証後、テストデータは削除済み
-    （削除も AuditLog に記録）
-- [x] **DRIFT-11 解消** — 実装調査の結果、**氏名・生年月日は意図的に送信されていない**
-    ことが判明（`build_client_summary_text` は `displayCode` 使用）。BRS-03 に明文化し、
-    `lib/embedding.py` のコメントを正典参照に格上げ
-- [x] 検証: doctor 20 passed / pytest 162 passed / drift FAIL=0（KNOWN=2＝DRIFT-07+10）
-
-### DB マイグレーションは「不要」（意図的）
-
-既存クライアントに Review を遡って作る術はなく、作るべきでもない。
-**Review の不在＝未確認**が、まさに検出したい正しい状態。
-ここで「とりあえず全員に確認済みを立てる」backfill をやると、仕組みの目的を破壊する。
-インデックスも不要（Client から辿るため）。
-
----
+- [x] **B: agno allowlist 追従（DRIFT-07 + DRIFT-10 解消）**
+  - agno の **2ファイル**を更新: `lib/db_new_operations.py`（drift チェッカーの AST 対象）と
+    `api/app/lib/db_operations.py`（**実行時の門番**・`/api/narrative/schema` の出典。
+    NEXT_SESSION は前者のみ指示だったが、後者を放置すると実行時に通らないため両方更新）
+  - ノード6件・リレーション8件を追加（API 側は Doctor / HAS_DOCTOR が v3.2 で反映済みだった）
+  - `sync_narrative_intake_schema.py --apply` でスキル側 JSON 3本も再生成
+  - 正典更新: SEMANTIC_MODEL **v1.4**（acceptedDrifts 空・台帳 DRIFT-07/10 解消）、
+    SCHEMA_CONVENTION **v3.3.1**（§0 コンテナ名訂正）→ sync-schema.sh 済み
+  - 検証: agno pytest 79 passed / nest pytest 162 passed / drift **FAIL=0 KNOWN=0**
+  - コミット・push 済み: shared-schema `5353a56` / agno `7f07e56` / nest（本コミット）
+- [x] **C-4**: 正典 §0 のコンテナ名 `support-db-neo4j` → `nest-support-neo4j`（訂正注記付き）
+- [x] **C-5**: `.gitignore` に `docs/*.bak-*` を追加
+- [ ] **A-1: 中止（2026-07-13 河原氏決定）** — M・K さんの緊急連絡先は**入手しておらず、
+  今後も入手予定なし**。よって登録も Review も**書かない**（確認行為が行われていない以上、
+  Review を書くことこそ捏造になる。BRS-04）。KeyPerson 領域の「🚨 未確認」表示が
+  **正しい現状**としてダッシュボードに残り続ける——これは仕様どおりの挙動。
+- [ ] **A-2: 仕掛かり（書き込み権限待ち）** — 平野 駿介さん（合成）の Review 登録。
+  クエリ・パラメータは確定済み（下記「未決論点」）。`neo4j:execute_query` での CREATE が
+  **Claude Code の auto mode classifier に拒否され**、DB 書き込みが実行できていない。
+- [ ] **C-6（未着手）**: narrative-extractor が語りから「確認した」旨を拾う対応
 
 ## グレーな判断（次セッション冒頭で承認確認を）
 
-1. **`Review.source`（情報源）を必須設計に含めた。**
-   BRS-04 を満たすだけなら `reviewedAt` だけで足りるが、「母親に確認して禁忌なし」と
-   「本人にしか聞けていない」は信頼度が違う。かつ**誰が情報源だったかの記録自体が、
-   親なき後に引き継がれる資産**になると判断した。過剰なら削れる。
-
-2. **`result`（確認の結果）プロパティは意図的に持たせていない。**
-   件数はグラフから引けるので冗長であり、実データとズレる余地を作るため。
-
-3. **Guardian に `LABEL_SCOPED_ENUM_VALUES` という新機構を追加した。**
-   既存の `ENUM_VALUES` はプロパティ名だけで引くため、`source` を素直に登録すると
-   **他ノードの `source` に誤検知が出る**（例: `ServiceProvider.source='WAMNET'`）。
-   ラベル限定の検証関数（`validate_label_scoped_enum`）を約20行で新設した。
-   「外科的な変更」の原則からはやや踏み込んでいるので、要確認。
-
-4. **`emergency-protocol` の既存規定を否定・削除した。**（下記「発見」参照）
-   旧規定は明示的に書かれていたものなので、独断で消してよかったか確認されたい。
-
-5. **`Review.domain` を6領域に限定**（NgAction / CarePreference / KeyPerson /
-   Guardian / Certificate / CareRole）。「0件が安全・権利に直結する」ものだけを対象とした。
-
----
-
-## 本セッションの発見（重要）
-
-### データ環境に実在の方が混在している
-
-**support-db は完全な合成データ環境ではない。「M・K」は実在の方**（2026-07-12 河原氏確認）。
-他の5名（平野駿介・テスト太郎・山田健太・田中大輝・鈴木美咲）は合成。
-**今後の書き込み・表示では、対象が実在かどうかを1件ごとに確認すること**
-（本セッションで「全部合成」と誤認してテスト書き込みに進んだ反省から）。
-
-### `emergency-protocol` に危険な規定が入っていた（前半で発見・廃止済み）
-
-旧版はこう規定していた:
-
-> **禁忌事項が0件の場合も「禁忌事項: 登録なし」と明示する**（確認済みであることを示す）
-
-**最も安全に直結するスキルが、未聴取を「確認済み」と示せと命じていた。**
-BRS-04（No Fabrication）違反であり、支援者が「なし」と読んで行動すれば事故になり得る
-（アレルギーが未登録なだけの人に、「禁忌なし」を根拠に食品を提供する等）。
-Review ベースに置き換え、**なぜ危険だったかを注記として残した**（同じ判断が再発しないように）。
-
-`data-quality-agent` の Check 2 も同様に「禁忌事項なし」を出力していた。修正済み。
-
-### `check_semantic_drift.py` の仕様（罠）
-
-`accepted()` は **`(target, kind)` の最初の1件しか見ない**。
-同一 target に acceptedDrift を2エントリ置くと、後発が無視されて FAIL になる。
-→ DRIFT-07 と DRIFT-10 を **1エントリに統合**した（`DRIFT-07a+10a` / `DRIFT-07b+10b`）。
-今後、同じ target にドリフトを足すときは既存エントリの `values` に追記すること。
-
----
+1. **agno の編集範囲を指示書の1ファイルから2ファイルへ拡大した。**
+   `api/app/lib/db_operations.py` が実行時の門番（`/api/narrative/schema` の出典）であり、
+   `lib/db_new_operations.py` だけ直しても実行時ドリフトが残るため。
+2. **新ラベルの MERGE キー設計を裁量で決めた**（正典に明文の無い部分）:
+   Doctor / Relative = `name`（名寄せ正規化あり）、Identity = `name`+`dob`（正典 §3 の主要キー）、
+   **CareRole / ProviderFeedback / Review = MERGE せず常時 CREATE**
+   （CareRole は ENT-16 の per-client 則、Review は ENT-24 の追記のみ則。
+   ProviderFeedback は feedbackId が語り抽出に含まれない場合に登録ごと落ちるのを避けた）。
+3. **SCHEMA_CONVENTION に v3.3.1 の変更履歴行を追加**（軽微訂正だが日付入り記録の文化に合わせた）。
+4. **agno の `docs/SEMANTIC_MODEL.md` を新規に git 管理へ追加**（同期コピーが未トラックだった）。
 
 ## 未決論点（河原氏の判断が要る）
 
-### 1. 再確認の推奨間隔（陳腐化判定）
+### 1. A-2 の書き込み経路（最優先・これだけで完了する）
 
-本セッションでは**スコープ外**とした（2026-07-12 河原氏決定）。
-`reviewedAt` は記録するが、古さによる警告は出さない。
-BRS-12 に `provisional` で見直しトリガーを記載済み。
+登録内容は確定済み・全て合成データ:
 
-（DRIFT-11 は本セッション後半で**解消済み**——実装調査により氏名・生年月日は
-意図的に送信されていないことが判明し、BRS-03 に明文化した。未決ではなくなった）
+- Client: `平野 駿介`（**姓と名の間に半角スペースあり**——スペース無しの完全一致は0件になる）
+- Review: `domain: NgAction` / `reviewedAt: 2026-07-13` / `source: 母親` /
+  `note: 合成データ整備（棚卸しの見本）。デモ環境の Review 運用例として登録`
+- Supporter: `河原` / 登録後に AuditLog（targetType: Review）
 
----
+選択肢:
+- **(a)** neo4j MCP の書き込みを許可して再実行（設定でルール許可 or 権限モード変更）
+- **(b)** nest の Python 経路で実行することを明示承認
+  （`lib/db_operations.py::register_to_database` は Guardian 検証＋AuditLog 統合済みで、
+  Review は CREATE フォールバックで通ることを確認済み）
+
+### 2. M・K さんの「入手不能」を将来どう記録するか（急がない）
+
+Review は「確認した」記録なので、「確認を試みたが得られなかった」は表現できない
+（`source` に該当値も無い）。当面は「🚨 未確認」のままが正——ただしダッシュボードで
+恒久的に警告が出続けるので、運用上ノイズになったら表現の設計（例: note 運用や新列挙値）を
+正典側で検討する。**勝手に値を増やさないこと**（スキーマの不可侵性）。
 
 ## 既知の罠・注意
 
-- **Neo4j のバージョンが古い**: `CALL (c, domain) { ... }` 形式のスコープ付きサブクエリは
-  **構文エラーになる**（5.23 未満）。`CALL { WITH c ... }` か、サブクエリを使わない形で書く。
-  実際に一度踏んだ。テンプレート11 は検証済みの形に書き直してある。
-- **コンテナ名**: 実体は `nest-support-neo4j`。正典 §0 の `support-db-neo4j` は誤り（未修正）。
-- **システム python3 では動かない**: `check_semantic_drift.py` は `X | None` 構文を使うため
-  3.10+ が必要。必ず `uv run python` で実行する。
-- **osascript のヒアドキュメント**は壊れる。複数行スクリプトは filesystem MCP でファイルに
-  書いてから実行すること（本セッションで再確認）。
-- **agno 経路では Review を書き込めない**（allowlist 未追従・DRIFT-07+10）。
-  現状の書き込み経路は Claude Skills（neo4j MCP 直叩き）と nest の Python 経路のみ。
-- 本セッションと**無関係な未コミット変更**が作業ツリーに混じっている:
-  `docs/FAQ.md`（M）、`docs/COMPLETE_MANUAL.md` / `.html`（未追跡）。
-  由来不明のため触っていない。コミット時に巻き込まないこと。
-- `sync-schema.sh` が `docs/*.bak-*` を生成する。コミット対象から外す。
-
----
+- **auto mode classifier が Neo4j への CREATE を拒否する**（本セッションの実障害）。
+  読み取りは通る。書き込みセッションでは権限モード/許可ルールを先に確認すること。
+- **「平野 駿介」は姓名間にスペースあり**。BRS-08 の完全一致照合前に、表示可能な
+  合成データなら CONTAINS で正確な氏名を確定してから書くこと（実在の方には使わない）。
+- **nest 自身の `lib/db_operations.py` にドリフト候補（DRIFT-12 候補・未登録）**:
+  (a) `MERGE_KEYS["Certificate"]` が `["type"]` のみ（正典 §10.3 は `["type","grade"]`。
+  client スコープなので他人との収斂は無いが、同一人の療育手帳AとBが1ノードに潰れる）、
+  (b) Doctor / Relative / CareRole / ProviderFeedback / Identity が MERGE_KEYS に無い
+  （非 MERGE ラベルは Guardian 検証つき CREATE にフォールバックするため書き込み自体は
+  可能——Review が通るのはこの仕組み）。`check_semantic_drift.py` は nest lib を
+  見ていないため機械検出されない。台帳登録と修正は次セッションで要承認。
+- drift チェックの WARN=1 は既知（Review.domain/source はラベル限定検証のため
+  チェッカーの汎用照合対象外）。
+- rtk が git 出力を圧縮する。マージ・push の検証は
+  `rtk proxy git log --format="%h parents:%p"` で行う（本セッションも使用）。
+- 本セッションと**無関係な未コミット変更**が作業ツリーに残っている:
+  `docs/FAQ.md`（M）、`docs/COMPLETE_MANUAL.md/.html`・`docs/review-report-2026-05.html`・
+  `docs/semantic-model-instruction.md`・`docs/家族聴き取りマニュアル.docx`（未追跡）。
+  由来確認が済むまでコミットに巻き込まないこと。
 
 ## 次タスク（優先度順）
 
 ### A: 必須
-
-1. **M・K さん（実在）のキーパーソン未確認の解消**。これは技術ではなく実務——
-   緊急時の連絡先が登録されていない状態。確認できたら Review も登録する。
-2. **平野駿介さん（合成）の禁忌未確認** — 合成データなので実害はないが、
-   デモデータとして整備するなら Review を入れておく（棚卸しの見本になる）
-
+1. **A-2 の完了** — 上記「未決論点1」の経路を河原氏が選択 → Review + AuditLog 登録 →
+   テンプレート11 で `✅ 確認済み（0件）` 表示を検収
 ### B: 推奨
-
-3. **agno allowlist の追従**（DRIFT-07 + DRIFT-10 を一括）。
-   `~/Dev-Work/neo4j-agno-agent/lib/db_new_operations.py` に
-   ノード6件（Doctor / Relative / CareRole / ProviderFeedback / Identity / **Review**）と
-   リレーション8件（HAS_DOCTOR / IS_PARENT_OF / FAMILY_OF / PERFORMS /
-   CAN_BE_PERFORMED_BY / HAS_FEEDBACK / WROTE / **REVIEWED**）を追加。
-   → 完了したら SEMANTIC_MODEL §6 の acceptedDrifts から該当エントリを削除し、
-     ドリフト台帳の DRIFT-07 / DRIFT-10 を「解消」に更新する。
-
+2. **nest lib のドリフト台帳登録（DRIFT-12）と修正の承認取り** — Certificate 複合キー化
+   ＋新ラベルの MERGE キー追加（agno と同じ設計判断を流用できる）
 ### C: 余裕があれば
-
-4. 正典 §0 のコンテナ名を `nest-support-neo4j` に修正（DRIFT-09 とまとめて）。
-5. `.gitignore` に `docs/*.bak-*` を追加（sync-schema.sh の副産物がたまる）。
-6. `narrative-extractor` が語りから「確認した」旨を拾えるようにするか検討
-   （例:「お母さんに聞いたけど特にないって」→ Review 登録の提案）。
+3. C-6: narrative-extractor の「確認した」検出（→ Review 登録の提案）
+4. DRIFT-09（呼称揺れ・旧関数名残存）の文書整理

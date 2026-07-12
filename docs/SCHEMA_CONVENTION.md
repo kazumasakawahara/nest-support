@@ -1,6 +1,6 @@
 <!-- AUTO-GENERATED COPY — DO NOT EDIT.
   Synced from ~/Dev-Work/shared-schema/SCHEMA_CONVENTION.md
-  Edit the master there and run sync-schema.sh. (synced: 20260712-205036) -->
+  Edit the master there and run sync-schema.sh. (synced: 20260713-083000) -->
 
 <!--
   ============================================================================
@@ -23,7 +23,10 @@
 
 ## 0. 適用範囲と対象DB
 
-- **対象**: 障害福祉支援DB（**port 7687**, コンテナ `support-db-neo4j`）のみ。
+- **対象**: 障害福祉支援DB（**port 7687**, コンテナ `nest-support-neo4j`）のみ。
+  > 訂正（2026-07-13）: 旧記載のコンテナ名 `support-db-neo4j` は誤り。同名の旧コンテナは
+  > 2026-04 に停止済みで、実データは `nest-support-neo4j`（bind mount `./neo4j_data`）に
+  > 正規化されている。
 - **対象外**: 生活困窮者自立支援DB（旧 port 7688 / `livelihood-support`）は **2026-05 に廃止**。本正典では扱いません。歴史的記録が必要な場合は `nest-support/decommissioned/` および各リポのGit履歴を参照してください。
 
 ---
@@ -405,6 +408,7 @@ REMOVE sp.office_name, sp.corp_name, sp.service_type, sp.office_number,
 
 | 日付 | バージョン | 変更内容 |
 |---|---|---|
+| 2026-07-13 | **v3.3.1** | §0 のコンテナ名誤記を修正（`support-db-neo4j` → `nest-support-neo4j`・訂正注記付き）。スキーマ本体の変更なし。あわせて v3.1〜v3.3 の「要追従」（agno 実行時 allowlist）は 2026-07-13 に完了（SEMANTIC_MODEL DRIFT-07 / DRIFT-10 解消） |
 | 2026-07-12 | **v3.3** | **`Review`（確認記録）ノードと `REVIEWED` リレーションを新設**。「確認したうえで0件」と「未確認」は、リレーションの不在としては区別がつかないが、現場での意味は正反対。(1) §3 に `Review`（domain, reviewedAt, source, note）を追加、(2) §4 に `REVIEWED`（Supporter→Review）を追加し `ABOUT` の元ノードに Review を追記、(3) §7.7/7.8 に domain（6値・PascalCase）と source（9値・日本語許容）の値域を収載。追記のみ（更新・削除をしない）。意味と表示規則は SEMANTIC_MODEL ENT-24 / BRS-12 / ENU-16-17 が正。**要追従**: agno 実行時 allowlist（`GET /api/narrative/schema`）と Guardian（`lib/schema_validator.py`）に Review / REVIEWED / domain・source の値域を反映すること（SEMANTIC_MODEL DRIFT-10） |
 | 2026-07-06 | **v3.2** | **かかりつけ医の構造化と status 拡張**。(1) `Doctor` ノード＋`HAS_DOCTOR`（Hospital→Doctor）を §3/§4 に追加し、`Hospital.doctor` 文字列プロパティを廃止（nest-support で `migrate_hospital_doctor_to_node.py` 適用済み・名寄せ対応）、(2) §7.6 に status 列挙を明文化し `Monitoring`（経過観察中）を追加（nest-support で `Condition.status` のケース正規化 `active`→`Active` も適用済み）。**要追従**: agno バックエンドの実行時 allowlist（`GET /api/narrative/schema`）にも Doctor / HAS_DOCTOR / status:Monitoring を反映すること |
 | 2026-06-11 | **v3.1** | **既使用スキーマの正典追記**。(1) 第5の柱（親の機能移行）の `Relative` / `CareRole` ノードと `IS_PARENT_OF` / `FAMILY_OF` / `PERFORMS` / `CAN_BE_PERFORMED_BY` リレーションを §3/§4 に追加（resilience-checker / onboarding-wizard / data-quality-agent が使用中）、(2) `SupportLog.emotion / triggerTag / context` を §3/§7 に追加（insight-agent / field-ui / EXTRACTION_PROMPT が使用中）、(3) §1.4 の日本語許容例外に triggerTag / context を追記 |
