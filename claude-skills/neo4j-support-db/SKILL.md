@@ -259,7 +259,6 @@ LIMIT $limit
 MATCH (s:Supporter)-[:LOGGED]->(log:SupportLog)-[:ABOUT]->(c:Client)
 WHERE c.name CONTAINS $clientName
   AND (toLower(toString(log.effectiveness)) STARTS WITH 'effective'
-       OR toLower(toString(log.effectiveness)) STARTS WITH 'excellent'
        OR toString(log.effectiveness) CONTAINS '効果')
 WITH log.action AS 対応方法, count(*) AS 回数,
     collect(DISTINCT log.situation) AS 状況一覧
@@ -269,6 +268,10 @@ ORDER BY 回数 DESC
 ```
 
 **パラメータ**: `$clientName`, `$minFrequency`（デフォルト2）
+
+> 訂正（2026-07-12）: 旧クエリは `STARTS WITH 'excellent'` も判定に含めていたが、
+> `effectiveness` の正式な値域（SEMANTIC_MODEL ENU-02: Effective / Ineffective /
+> Neutral / Unknown）に `Excellent` は存在しないため削除した（DRIFT-03）。
 
 ---
 
@@ -428,14 +431,14 @@ RETURN kp.name AS 名前, kp.relationship AS 続柄
 
 #### 手帳・受給者証の登録
 
-手帳種別（type）ごとにクライアント1人1ノード。更新時は同じノードの等級・更新期限を上書きする。
+手帳種別（type）×等級（grade）ごとに1ノード（SCHEMA_CONVENTION §10.3 の複合キー。
+等級未指定は「不明」）。等級が変わった場合は別ノードになる（療育手帳AとBは別ノード）。
 発行日・状態はスキーマ規約どおりリレーション側（`HAS_CERTIFICATE {issuedDate, status}`）に持つ。
 
 ```cypher
 MATCH (c:Client {name: $clientName})
-MERGE (c)-[r:HAS_CERTIFICATE]->(cert:Certificate {type: $type})
-SET cert.grade = COALESCE($grade, cert.grade),
-    cert.nextRenewalDate = CASE WHEN $nextRenewalDate IS NOT NULL
+MERGE (c)-[r:HAS_CERTIFICATE]->(cert:Certificate {type: $type, grade: COALESCE($grade, '不明')})
+SET cert.nextRenewalDate = CASE WHEN $nextRenewalDate IS NOT NULL
                                 THEN date($nextRenewalDate) ELSE cert.nextRenewalDate END,
     r.issuedDate = CASE WHEN $issuedDate IS NOT NULL
                         THEN date($issuedDate) ELSE r.issuedDate END,
@@ -443,7 +446,12 @@ SET cert.grade = COALESCE($grade, cert.grade),
 RETURN cert.type AS 種類, cert.grade AS 等級, cert.nextRenewalDate AS 更新日
 ```
 
-**パラメータ**: `$clientName`（完全一致）, `$type`, `$grade`, `$nextRenewalDate`, `$issuedDate`（任意・nullで省略可）, `$status`（任意・nullで省略可）
+**パラメータ**: `$clientName`（完全一致）, `$type`, `$grade`（未指定は '不明'）, `$nextRenewalDate`, `$issuedDate`（任意・nullで省略可）, `$status`（任意・nullで省略可）
+
+> 訂正（2026-07-12）: 旧テンプレートは `{type}` のみを MERGE キーとし等級を SET で
+> 上書きしていたが、SCHEMA_CONVENTION §10.3 の複合キー `["type","grade"]`（等級違いは
+> 別ノード）に合わせて修正した（DRIFT-08）。等級未設定の既存ノードは grade='不明' の
+> 新ノードとマッチしないため、更新時は既存データの等級を先に確認すること。
 
 #### 監査ログの記録
 

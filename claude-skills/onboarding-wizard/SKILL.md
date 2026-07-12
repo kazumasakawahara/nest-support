@@ -176,20 +176,23 @@ RETURN h.name AS 医療機関
 
 #### 手帳・受給者証
 
-手帳種別（type）ごとにクライアント1人1ノード。発行日・状態はスキーマ規約どおり
+手帳種別（type）×等級（grade）ごとに1ノード（SCHEMA_CONVENTION §10.3 の複合キー。
+等級未指定は「不明」）。発行日・状態はスキーマ規約どおり
 リレーション側（`HAS_CERTIFICATE {issuedDate, status}`）に持つ。
 
 ```cypher
 MATCH (c:Client {name: $clientName})
-MERGE (c)-[r:HAS_CERTIFICATE]->(cert:Certificate {type: $certType})
-SET cert.grade = COALESCE($grade, cert.grade),
-    cert.nextRenewalDate = CASE WHEN $nextRenewalDate IS NOT NULL
+MERGE (c)-[r:HAS_CERTIFICATE]->(cert:Certificate {type: $certType, grade: COALESCE($grade, '不明')})
+SET cert.nextRenewalDate = CASE WHEN $nextRenewalDate IS NOT NULL
                                 THEN date($nextRenewalDate) ELSE cert.nextRenewalDate END,
     r.issuedDate = CASE WHEN $issuedDate IS NOT NULL
                         THEN date($issuedDate) ELSE r.issuedDate END,
     r.status = COALESCE(r.status, 'Active')
 RETURN cert.type AS 種類, cert.grade AS 等級
 ```
+
+> 訂正（2026-07-12）: 旧テンプレートは `{type}` のみを MERGE キーとしていたが、
+> SCHEMA_CONVENTION §10.3 の複合キー `["type","grade"]` に合わせて修正した（DRIFT-08）。
 
 #### 後見人
 

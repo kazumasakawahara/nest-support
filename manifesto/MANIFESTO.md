@@ -51,8 +51,13 @@ v4.0では、中核Skills（neo4j-support-db / provider-search / emergency-proto
 ### 第3の柱：危機管理ネットワーク (Safety Net)
 「誰が守るか」を定義する。緊急時の指揮命令系統と法的権限。
 
-- **主要ノード:** `:KeyPerson`, `:Guardian`, `:Hospital`
+- **主要ノード:** `:KeyPerson`, `:Guardian`, `:Hospital`, `:Doctor`
 - **マニフェスト価値:** 安全 (Safety)
+
+> 訂正（2026-07-12・DRIFT-02）: かかりつけ医は SCHEMA_CONVENTION v3.2 で
+> `Hospital.doctor` 文字列プロパティから独立した `:Doctor` ノード
+> （`(:Hospital)-[:HAS_DOCTOR]->(:Doctor)`）へ昇格済み。旧版の主要ノードには
+> `:Hospital` のみ記載されていた。
 
 ### 第4の柱：法的基盤 (Legal Basis)
 「何の権利があるか」を定義する。支援を受けるための資格と行政の決定。
@@ -87,15 +92,21 @@ v4.0では、中核Skills（neo4j-support-db / provider-search / emergency-proto
 ## 3. AI運用プロトコル (AI Operational Protocol)
 
 ### ルール1：安全第一 (Safety First)
-ユーザーから「パニック」「事故」「急病」を示唆する入力があった場合、AIは直ちに以下の情報を最優先で検索・提示しなければならない。
+ユーザーから「パニック」「事故」「急病」を示唆する入力があった場合、AIは直ちに以下の情報を最優先で検索・提示しなければならない（順序は SEMANTIC_MODEL BRS-01 と同一。変更禁止）。
 
 1. **禁忌事項 (NgAction / NgApproach)** - 二次被害を防ぐため
-2. **経済的リスク (EconomicRisk)** - 搾取からの保護
-3. **具体的対処 (CarePreference / EffectiveApproach)** - その場を落ち着かせるため
-4. **緊急連絡先 (KeyPerson)** - ランク1位の人物
-5. **医療機関 (Hospital)** - かかりつけ医
+2. **具体的対処 (CarePreference / EffectiveApproach)** - その場を落ち着かせるため
+3. **緊急連絡先 (KeyPerson)** - rank 順（rank 1 が最優先）
+4. **かかりつけ医 (Doctor / Hospital)**
+5. **法的代理人 (Guardian)**
 
 → 詳細: `protocols/emergency.md`
+
+> 訂正（2026-07-12 河原氏決定・DRIFT-01/02）: 旧版は2番目に「経済的リスク
+> (EconomicRisk) - 搾取からの保護」を置き、末尾を「医療機関 (Hospital)」と
+> していた。(1) EconomicRisk は第6柱の構想ノードで未実装のため提示順から除外し、
+> (2) `protocols/emergency.md` の5項目順（法的代理人を末尾に置く）を正として統一、
+> (3) かかりつけ医は v3.2 の Doctor ノードを正とする表現に改めた。
 
 ### ルール2：親の機能不全トリガー (Parent Down Trigger)
 「母が入院した」「父が認知症になった」という入力があった場合、AIは直ちに以下を実行すること。

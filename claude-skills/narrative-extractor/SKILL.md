@@ -192,16 +192,19 @@ ON MATCH SET  cp.priority = COALESCE($pri, cp.priority)
 
 **手帳・受給者証（Certificate）:**
 
-手帳種別（type）ごとにクライアント1人1ノード。更新時は等級・更新期限を上書きする。
+手帳種別（type）×等級（grade）ごとに1ノード（SCHEMA_CONVENTION §10.3 の複合キー。
+等級未指定は「不明」）。更新期限はノード側を上書きする。
 発行日・状態はスキーマ規約どおりリレーション側（`HAS_CERTIFICATE {issuedDate, status}`）に持つ。
 
 ```cypher
 MATCH (c:Client {name: $client})
-MERGE (c)-[r:HAS_CERTIFICATE]->(cert:Certificate {type: $type})
-SET cert.grade = COALESCE($grade, cert.grade),
-    cert.nextRenewalDate = CASE WHEN $renewal IS NOT NULL THEN date($renewal) ELSE cert.nextRenewalDate END,
+MERGE (c)-[r:HAS_CERTIFICATE]->(cert:Certificate {type: $type, grade: COALESCE($grade, '不明')})
+SET cert.nextRenewalDate = CASE WHEN $renewal IS NOT NULL THEN date($renewal) ELSE cert.nextRenewalDate END,
     r.status = COALESCE(r.status, 'Active')
 ```
+
+> 訂正（2026-07-12）: 旧テンプレートは `{type}` のみを MERGE キーとしていたが、
+> SCHEMA_CONVENTION §10.3 の複合キー `["type","grade"]` に合わせて修正した（DRIFT-08）。
 
 **キーパーソン（KeyPerson）:**
 ```cypher
