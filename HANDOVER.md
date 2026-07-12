@@ -1,7 +1,7 @@
-# HANDOVER — 2026-07-12 main（Review「0件問題」の解消 / セッション2）
+# HANDOVER — 2026-07-12 main（Review「0件問題」の解消 / セッション2・完）
 
 > 本日2本目のセッション。午前の「意味・ルール層の正本化」（旧 HANDOVER）の続きで、
-> そこで**未実装のまま残っていた BRS-04 の要請**を構造として実装した。
+> そこで**未実装のまま残っていた BRS-04 の要請**を構造として実装し、運用まで開始した。
 > 旧 HANDOVER の内容は git 履歴（`a0f2042` 時点）を参照。
 
 ## 再開コマンド（コピペで動く・本セッション末に検証済み）
@@ -35,23 +35,24 @@ docker ps --filter name=nest-support-neo4j        # 起動確認
 
 ### 進捗
 
-- [x] **正典2本**（`~/Dev-Work/shared-schema/` が正・sync 済み）
-  - `SEMANTIC_MODEL.md` v1.2 — ENT-24（Review）/ BRS-12（0件の解釈と表示）/
-    ENU-16・17（domain・source）/ §6 機械検証ブロック / DRIFT-10・11 台帳登録
-  - `SCHEMA_CONVENTION.md` v3.3 — §3 `Review` ノード / §4 `REVIEWED`（`ABOUT` は再利用）/
-    §7.7・7.8 値域
-- [x] **Guardian**（`lib/schema_validator.py`）— `Review` / `REVIEWED` を allowlist に追加。
-  併せて `LABEL_SCOPED_ENUM_VALUES` を新設（後述の設計判断）
-- [x] **スキル4本**（実体は `claude-skills/`、`~/.claude/skills/` から symlink）
-  - `neo4j-support-db` — テンプレート11（確認状況の取得）/ Review 登録テンプレート /
-    ルール8（0件を「なし」と言わない）/ プロフィール取得に Review 追加
-  - `data-quality-agent` — Check 2 を「未確認の検出」に作り替え
-  - `emergency-protocol` — ルール6 新設。**危険な旧規定を廃止**（後述）
-  - `visit-prep` — Step 2 と出力に Review 反映
-- [x] **PII ルールの文言修正**（`~/.claude/CLAUDE.md` §8 / `neo4j-support-db` ルール7）
-- [x] 検証: Cypher 構文を実 DB で確認（ダミー名で 0 行・PII 非表示）／
-      Guardian のユニット確認（誤検知が出ないことを含む）／drift FAIL=0 ／pytest 162 passed
-- [ ] **未コミット**。nest-support / shared-schema とも作業ツリーに変更が残っている（後述）
+- [x] **正典2本**（`~/Dev-Work/shared-schema/` が正・sync 済み・**GitHub プライベートリポ化済み**）
+  - `SEMANTIC_MODEL.md` **v1.3** — v1.2（ENT-24 / BRS-12 / ENU-16・17）に加え、
+    **BRS-03 に「embedding 生成時の外部API送信」の許容範囲を明文化（DRIFT-11 解消）**
+  - `SCHEMA_CONVENTION.md` v3.3 — §3 `Review` / §4 `REVIEWED` / §7.7・7.8 値域
+- [x] **Guardian**（`lib/schema_validator.py`）— Review / REVIEWED / `LABEL_SCOPED_ENUM_VALUES`
+- [x] **スキル5本**（claude.ai 同期済み）
+  - `neo4j-support-db` / `data-quality-agent` / `emergency-protocol` / `visit-prep`（セッション前半）
+  - `onboarding-wizard` — **B-2 完了**。聞き取りガイド（「無い」も記録）・Review 登録
+    テンプレート・Phase 4 の3値判定・Phase 5 チェックリストの3値化。
+    **旧チェックリストの「禁忌1件以上が必須」という欠陥を修正**（聞いたうえで
+    本当に無い人が永久に未完了になる設計だった）
+- [x] **C-1 棚卸し実施**（禁忌＋キーパーソン）— 未確認2件を検出。
+    テスト Review で状態遷移（🚨→✅→0件のまま）を実証後、テストデータは削除済み
+    （削除も AuditLog に記録）
+- [x] **DRIFT-11 解消** — 実装調査の結果、**氏名・生年月日は意図的に送信されていない**
+    ことが判明（`build_client_summary_text` は `displayCode` 使用）。BRS-03 に明文化し、
+    `lib/embedding.py` のコメントを正典参照に格上げ
+- [x] 検証: doctor 20 passed / pytest 162 passed / drift FAIL=0（KNOWN=2＝DRIFT-07+10）
 
 ### DB マイグレーションは「不要」（意図的）
 
@@ -88,7 +89,14 @@ docker ps --filter name=nest-support-neo4j        # 起動確認
 
 ## 本セッションの発見（重要）
 
-### `emergency-protocol` に危険な規定が入っていた
+### データ環境に実在の方が混在している
+
+**support-db は完全な合成データ環境ではない。「M・K」は実在の方**（2026-07-12 河原氏確認）。
+他の5名（平野駿介・テスト太郎・山田健太・田中大輝・鈴木美咲）は合成。
+**今後の書き込み・表示では、対象が実在かどうかを1件ごとに確認すること**
+（本セッションで「全部合成」と誤認してテスト書き込みに進んだ反省から）。
+
+### `emergency-protocol` に危険な規定が入っていた（前半で発見・廃止済み）
 
 旧版はこう規定していた:
 
@@ -112,24 +120,14 @@ Review ベースに置き換え、**なぜ危険だったかを注記として�
 
 ## 未決論点（河原氏の判断が要る）
 
-### 1. DRIFT-11 の未決部分 —— 禁忌本文を Gemini API に送っている件
-
-support-db には既にベクトルインデックスが6本あり（`SCHEMA_CONVENTION §8.3`）、
-`NgAction.embedding` を含む。生成は **Gemini Embedding 2**。
-つまり**禁忌の本文は Google に送られている**（氏名は紐づかない）。
-
-本セッションで PII ルールの文言は「別ストアへの複製禁止」に限定して整合させたが、
-**この線引き自体が意識的な決定なのか、文書から読み取れない**。
-単独では識別性が低いので防御可能な線だとは思うが、明文化する価値がある。
-→ BRS-03 か PRIVACY_GUIDELINES に「内部 embedding の外部 API 送信は許容。理由は〜」
-   と1段落足すのが妥当か。
-
-### 2. 再確認の推奨間隔（陳腐化判定）
+### 1. 再確認の推奨間隔（陳腐化判定）
 
 本セッションでは**スコープ外**とした（2026-07-12 河原氏決定）。
 `reviewedAt` は記録するが、古さによる警告は出さない。
-「1年前に母親に確認済み」を無期限に信頼してよいかは、実務感覚を要するため保留。
-→ SEMANTIC_MODEL BRS-12 に `provisional` で見直しトリガーを記載済み。
+BRS-12 に `provisional` で見直しトリガーを記載済み。
+
+（DRIFT-11 は本セッション後半で**解消済み**——実装調査により氏名・生年月日は
+意図的に送信されていないことが判明し、BRS-03 に明文化した。未決ではなくなった）
 
 ---
 
@@ -156,31 +154,24 @@ support-db には既にベクトルインデックスが6本あり（`SCHEMA_CON
 
 ### A: 必須
 
-1. **コミット**（未実施）。2リポジトリにまたがる:
-   - `~/Dev-Work/shared-schema`: `SEMANTIC_MODEL.md`（v1.2）/ `SCHEMA_CONVENTION.md`（v3.3）
-   - `~/Dev-Work/project/nest-support`: `docs/`（sync 物）/ `lib/schema_validator.py` /
-     `claude-skills/` 4本 / `HANDOVER.md`
-   - `.bak-*` と FAQ / COMPLETE_MANUAL を巻き込まないこと
-2. **DRIFT-11 の未決論点に決着**（上記）。ここだけは判断待ちで止まっている。
-3. **スキル4本を claude.ai へ同期**（`skill-sync`）。ローカルだけ新しい版ずれ状態。
+1. **M・K さん（実在）のキーパーソン未確認の解消**。これは技術ではなく実務——
+   緊急時の連絡先が登録されていない状態。確認できたら Review も登録する。
+2. **平野駿介さん（合成）の禁忌未確認** — 合成データなので実害はないが、
+   デモデータとして整備するなら Review を入れておく（棚卸しの見本になる）
 
 ### B: 推奨
 
-4. **agno allowlist の追従**（DRIFT-07 + DRIFT-10 を一括）。
+3. **agno allowlist の追従**（DRIFT-07 + DRIFT-10 を一括）。
    `~/Dev-Work/neo4j-agno-agent/lib/db_new_operations.py` に
    ノード6件（Doctor / Relative / CareRole / ProviderFeedback / Identity / **Review**）と
    リレーション8件（HAS_DOCTOR / IS_PARENT_OF / FAMILY_OF / PERFORMS /
    CAN_BE_PERFORMED_BY / HAS_FEEDBACK / WROTE / **REVIEWED**）を追加。
    → 完了したら SEMANTIC_MODEL §6 の acceptedDrifts から該当エントリを削除し、
      ドリフト台帳の DRIFT-07 / DRIFT-10 を「解消」に更新する。
-5. **Review の初回運用**。既存クライアント全員が現在「未確認」状態。
-   テンプレート11 で棚卸しし、聞き取れているものから Review を登録していく。
-   とりわけ **NgAction の未確認**は最優先。
 
 ### C: 余裕があれば
 
-6. 正典 §0 のコンテナ名を `nest-support-neo4j` に修正（DRIFT-09 とまとめて）。
-7. `onboarding-wizard` に Review 登録を組み込む（新規受け入れ時に「誰に確認したか」を
-   最初から記録する導線）。今回は手を付けていない。
-8. `narrative-extractor` が語りから「確認した」旨を拾えるようにするか検討
+4. 正典 §0 のコンテナ名を `nest-support-neo4j` に修正（DRIFT-09 とまとめて）。
+5. `.gitignore` に `docs/*.bak-*` を追加（sync-schema.sh の副産物がたまる）。
+6. `narrative-extractor` が語りから「確認した」旨を拾えるようにするか検討
    （例:「お母さんに聞いたけど特にないって」→ Review 登録の提案）。
