@@ -5,6 +5,12 @@ description: 福祉サービス事業所の検索・管理・口コミ評価を�
 
 # provider-search スキル
 
+> **正本参照ルール（2026-07-12 追記・検収指摘対応）**: 業務的意味・運用原則・
+> 指標の解釈は、まず `docs/SEMANTIC_MODEL.md` を読むこと（プロジェクト内は
+> 同期コピー。正は `~/Dev-Work/shared-schema/SEMANTIC_MODEL.md`。特に ENU-07〜09・
+> ENU-14 の列挙値の意味と MET-08 評価スコア）。リレーション名・列挙値・命名は
+> `docs/SCHEMA_CONVENTION.md` が正。本スキルは索引に徹し、定義を二重化しない。
+
 ## 概要
 福祉サービス事業所の検索・管理・口コミ評価を行うスキル。WAM NETから取得した事業所情報（ServiceProvider）と支援者による口コミ（ProviderFeedback）をNeo4jグラフデータベースで管理する。
 
