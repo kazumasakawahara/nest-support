@@ -126,7 +126,6 @@ LIMIT 5
 MATCH (s:Supporter)-[:LOGGED]->(log:SupportLog)-[:ABOUT]->(c:Client)
 WHERE c.name CONTAINS $clientName
   AND (toLower(toString(log.effectiveness)) STARTS WITH 'effective'
-       OR toLower(toString(log.effectiveness)) STARTS WITH 'excellent'
        OR toString(log.effectiveness) CONTAINS '効果')
 WITH log.action AS 対応方法, count(*) AS 回数,
     collect(DISTINCT log.situation) AS 状況一覧
@@ -134,6 +133,10 @@ WHERE 回数 >= 2
 RETURN 対応方法, 回数, 状況一覧
 ORDER BY 回数 DESC
 ```
+
+> 訂正（2026-07-12）: 旧クエリは `STARTS WITH 'excellent'` も判定に含めていたが、
+> `effectiveness` の正式な値域（SEMANTIC_MODEL ENU-02）に `Excellent` は
+> 存在しないため削除した（DRIFT-03）。
 
 ### Step 6: 更新期限のチェック
 

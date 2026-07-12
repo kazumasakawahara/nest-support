@@ -86,8 +86,13 @@ COALESCE(sp.serviceType, sp.service_type, '') AS serviceType
 **USES_SERVICE プロパティ:**
 - `startDate`: 利用開始日
 - `endDate`: 利用終了日
-- `status`: Active（利用中）/ Pending（調整中）/ Ended（利用終了）
+- `status`: Active（利用中）/ Pending（調整中）/ Inactive（利用終了）
 - `note`: 備考
+
+> 訂正（2026-07-12 河原氏決定）: 利用終了の status は旧 `Ended` から `Inactive` へ
+> 統一（DRIFT-06）。`Ended` は SCHEMA_CONVENTION §7.6 の status 値域に無い独自値
+> だった。書き込みは `Inactive` のみ使用し、読み取りは旧データの `Ended` にも
+> 後方互換でマッチさせる。
 
 **注意**: USES_SERVICE関係も運用で作成するもの。初期状態では0件。
 
@@ -178,7 +183,8 @@ ORDER BY
   CASE r.status
     WHEN 'Active' THEN 1
     WHEN 'Pending' THEN 2
-    WHEN 'Ended' THEN 3
+    WHEN 'Inactive' THEN 3
+    WHEN 'Ended' THEN 3  // 旧値の後方互換（2026-07-12 訂正: 書き込みは Inactive のみ）
     ELSE 4
   END,
   r.startDate DESC
@@ -326,7 +332,7 @@ ON CREATE SET
 ON MATCH SET
   r.status = $status,
   r.note = $note,
-  r.endDate = CASE WHEN $status = 'Ended' THEN toString(date()) ELSE r.endDate END
+  r.endDate = CASE WHEN $status = 'Inactive' THEN toString(date()) ELSE r.endDate END
 RETURN c.name AS client, sp.name AS provider, r.status AS status, r.startDate AS startDate
 ```
 
@@ -334,7 +340,8 @@ RETURN c.name AS client, sp.name AS provider, r.status AS status, r.startDate AS
 - `$clientName`: クライアント名
 - `$providerName`: 事業所名（既存のServiceProvider.nameと完全一致させること）
 - `$startDate`: 利用開始日（YYYY-MM-DD、空の場合は事前にdate().toString()をセット）
-- `$status`: 利用状況（Active / Pending / Ended、デフォルト: Active）
+- `$status`: 利用状況（Active / Pending / Inactive、デフォルト: Active。
+  旧 `Ended` は書き込み禁止 — 2026-07-12 訂正、DRIFT-06）
 - `$note`: 備考（任意）
 
 **注意**: `MERGE` ではなく `MATCH` を使う。`MERGE (c:Client {name:...})` は氏名のタイプミス時に

@@ -67,7 +67,11 @@ DEPRECATED_RELATIONSHIPS = {
 
 ENUM_VALUES = {
     "riskLevel": {"LifeThreatening", "Panic", "Discomfort"},
-    "effectiveness": {"High", "Medium", "Low", "Effective", "Ineffective", "Neutral", "Unknown"},
+    # 訂正（2026-07-12・DRIFT-05）: 旧定義は High/Medium/Low を含んでいたが、
+    # これは priority の値域との混同。effectiveness の正式値は SCHEMA_CONVENTION
+    # §7.2 の4値のみ。priority の検証は同時に新設した。
+    "effectiveness": {"Effective", "Ineffective", "Neutral", "Unknown"},
+    "priority": {"High", "Medium", "Low"},
     "emotion": {"Joy", "Anger", "Sadness", "Fear", "Surprise", "Disgust", "Calm", "Anxiety", "Confusion", "Neutral"},
     # Monitoring: Condition の「経過観察中」など、継続監視状態（P2 / 2026-07 追加）
     "status": {"Active", "Inactive", "Pending", "Completed", "Suspended", "Monitoring"},

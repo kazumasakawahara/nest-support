@@ -303,15 +303,19 @@ ORDER BY c.name
 ```cypher
 MATCH (log:SupportLog)
 WHERE log.effectiveness IS NOT NULL
-  AND NOT log.effectiveness IN ['Effective', 'Neutral', 'Ineffective']
+  AND NOT log.effectiveness IN ['Effective', 'Neutral', 'Ineffective', 'Unknown']
 OPTIONAL MATCH (log)-[:ABOUT]->(c:Client)
 RETURN
     c.name AS クライアント名,
     log.date AS 日付,
     log.effectiveness AS 現在の値,
-    '有効値: Effective / Neutral / Ineffective' AS 期待値
+    '有効値: Effective / Neutral / Ineffective / Unknown' AS 期待値
 ORDER BY log.date DESC
 ```
+
+> 訂正（2026-07-12）: 旧チェックは有効値セットに `Unknown` を含めておらず、
+> SCHEMA_CONVENTION §7.2 で正式な値である `Unknown` を不正値として誤検出する
+> 恐れがあったため追加した（DRIFT-04）。
 
 #### 7d. HAS_KEY_PERSON の rank 衝突
 

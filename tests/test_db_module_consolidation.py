@@ -16,6 +16,7 @@ db_new_operations.py を削除する。
 
 import ast
 import importlib
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -31,11 +32,21 @@ def _source_files():
     return [p for p in targets if "__pycache__" not in p.parts]
 
 
+# 本リポジトリ内の旧モジュールへの依存（import / 本リポ内パス参照）のみを検出する。
+# 訂正（2026-07-12）: 旧判定は単純な部分文字列一致だったため、外部リポジトリ
+# （neo4j-agno-agent。あちらでは db_new_operations.py が現役）のファイルパスを
+# 参照するだけの scripts/check_semantic_drift.py に誤反応した。テストの意図
+# （統合後の起動時 ImportError 再発防止）どおり、実際の依存のみを検出する。
+_LOCAL_DEPENDENCY_RE = re.compile(
+    r"(?:from|import)\s+(?:lib\.)?db_new_operations|lib/db_new_operations"
+)
+
+
 def test_no_module_references_db_new_operations():
-    """ソースコードのどこからも db_new_operations を参照していないこと。"""
+    """ソースコードのどこからも本リポの db_new_operations に依存していないこと。"""
     offenders = []
     for path in _source_files():
-        if "db_new_operations" in path.read_text(encoding="utf-8"):
+        if _LOCAL_DEPENDENCY_RE.search(path.read_text(encoding="utf-8")):
             offenders.append(str(path.relative_to(REPO_ROOT)))
     assert not offenders, (
         f"db_new_operations への参照が残っています（統合後は db_operations を使う）: {offenders}"
