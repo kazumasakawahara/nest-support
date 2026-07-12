@@ -73,6 +73,20 @@ RETURN c.name AS 氏名, c.dob AS 生年月日
 
 聞き方のコツ: 「〇〇するとどうなりますか？」「してはいけないことはありますか？」と具体的に聞く。親の語りから暗黙知を引き出すことが重要。
 
+> ### ★ 「無い」と言われたら、それも必ず記録する（BRS-12）
+>
+> **新規登録は「聞いたが無かった」が最も発生する場面**である。
+> ここで記録しなければ、以後永久に「確認したうえで無い」と「まだ聞いていない」が
+> 区別できなくなる（リレーションの不在としては同じに見える）。
+>
+> 禁忌・配慮事項・キーパーソン等について「特にないです」と返ってきたら、
+> **Phase 3 の「確認記録（Review）」で登録する**。必ず **誰に聞いたか（source）** を
+> 控えること——「母親に確認して禁忌なし」と「本人にしか聞けていない」は、
+> 同じ「0件」でも重みが全く違う。
+>
+> **聞けていない項目には Review を登録しない。** 未確認のまま残すのが正しい
+> （空欄を埋めたいだけの登録は、未聴取を確認済みと偽ることになる）。
+
 **第3の柱: 危機管理ネットワーク (Safety Net)**
 
 聞き取り項目:
@@ -205,6 +219,41 @@ SET g.type = COALESCE($guardianType, g.type),
 RETURN g.name AS 後見人
 ```
 
+#### 確認記録（Review）——「聞いたが無かった」を残す ★新規登録では必須★
+
+聞き取りの結果「無い」だった領域は、**必ず Review を登録する**。
+登録しなければ、その聞き取りは**行われなかったのと同じ扱い**になる（次の支援者に伝わらない）。
+追記のみ。既存の Review を更新・削除してはならない。
+
+```cypher
+MATCH (c:Client {name: $clientName})
+MERGE (s:Supporter {name: $supporterName})
+CREATE (rv:Review {
+    domain: $domain,
+    reviewedAt: date($reviewedAt),
+    source: $source,
+    note: $note
+})
+MERGE (s)-[:REVIEWED]->(rv)
+MERGE (rv)-[:ABOUT]->(c)
+RETURN rv.domain AS 領域, rv.reviewedAt AS 確認日, rv.source AS 情報源
+```
+
+**パラメータ**:
+- `$clientName`（完全一致）, `$supporterName`（確認を行った支援者）
+- `$domain`: `NgAction` / `CarePreference` / `KeyPerson` / `Guardian` / `Certificate` / `CareRole`
+  （SCHEMA_CONVENTION §7.7。他の値は使わない）
+- `$reviewedAt`: 確認日（通常は面接日。YYYY-MM-DD）
+- `$source`: **誰に確認したか**。`本人` / `母親` / `父親` / `家族・親族` / `主治医` /
+  `前事業所` / `相談支援専門員` / `後見人等` / `記録のみ`（§7.8）
+- `$note`: 補足（任意）
+
+> **登録対象は「0件の領域」だけではない。**
+> 1件以上登録した領域でも、「この3件で全部だと確認した」なら Review を残す価値がある
+> （後から「他にもあるのか、これで全部なのか」を問わなくて済む）。
+
+> **`$source` を推測で埋めないこと。** 面接の相手が誰だったか不明なら、支援者に聞く。
+
 #### 監査ログ（全登録操作で必須）
 
 ```cypher
@@ -223,6 +272,7 @@ RETURN al.timestamp AS 記録日時
 ### Phase 4: 登録確認と不足項目の提示
 
 登録後にプロフィールを取得し、不足情報を明示する。
+**件数0の項目は、確認記録（Review）と照らして「確認済み」か「未確認」かを判定する（BRS-12）。**
 
 ```cypher
 MATCH (c:Client {name: $clientName})
@@ -233,37 +283,66 @@ OPTIONAL MATCH (c)-[:TREATED_AT]->(hosp:Hospital)
 OPTIONAL MATCH (c)-[:HAS_CERTIFICATE]->(cert:Certificate)
 OPTIONAL MATCH (c)-[:HAS_LEGAL_REP]->(g:Guardian)
 OPTIONAL MATCH (c)<-[:IS_PARENT_OF|FAMILY_OF]-(r:Relative)
+
+// 確認記録（Review）—— 0件の意味を判定するために必須
+OPTIONAL MATCH (rvNg:Review {domain: 'NgAction'})-[:ABOUT]->(c)
+OPTIONAL MATCH (rvCp:Review {domain: 'CarePreference'})-[:ABOUT]->(c)
+OPTIONAL MATCH (rvKp:Review {domain: 'KeyPerson'})-[:ABOUT]->(c)
+
 RETURN
     c.name AS 氏名,
     c.dob AS 生年月日,
-    count(DISTINCT ng) AS 禁忌登録数,
-    count(DISTINCT cp) AS 配慮事項数,
-    count(DISTINCT kp) AS キーパーソン数,
+    count(DISTINCT ng)   AS 禁忌登録数,
+    CASE WHEN count(DISTINCT ng) > 0 THEN '登録あり'
+         WHEN max(rvNg.reviewedAt) IS NULL THEN '🚨 未確認'
+         ELSE '✅ 確認済み（0件）' END AS 禁忌状態,
+    max(rvNg.reviewedAt) AS 禁忌確認日,
+    collect(DISTINCT rvNg.source) AS 禁忌情報源,
+    count(DISTINCT cp)   AS 配慮事項数,
+    CASE WHEN count(DISTINCT cp) > 0 THEN '登録あり'
+         WHEN max(rvCp.reviewedAt) IS NULL THEN '🚨 未確認'
+         ELSE '✅ 確認済み（0件）' END AS 配慮状態,
+    count(DISTINCT kp)   AS キーパーソン数,
+    CASE WHEN count(DISTINCT kp) > 0 THEN '登録あり'
+         WHEN max(rvKp.reviewedAt) IS NULL THEN '🚨 未確認'
+         ELSE '✅ 確認済み（0件）' END AS 連絡先状態,
     count(DISTINCT hosp) AS 医療機関数,
     count(DISTINCT cert) AS 手帳数,
-    count(DISTINCT g) AS 後見人数,
-    count(DISTINCT r) AS 家族情報数
+    count(DISTINCT g)    AS 後見人数,
+    count(DISTINCT r)    AS 家族情報数
 ```
 
+> **🚨 未確認を見つけたら、「次回確認」ではなく「今聞けないか」を提起する。**
+> 面接中ならその場で聞ける。とりわけ **NgAction の未確認のまま支援を開始しない**。
+
 ### Phase 5: チェックリスト出力
+
+**安全直結項目は2値（ある/ない）ではなく3値で表現する**——
+登録あり / ✅ 確認済み（0件）/ 🚨 未確認。
+「1件以上あること」を完了条件にすると、**聞いたうえで本当に禁忌が無い人は永久に
+未完了になる**し、逆に空欄のまま流せば未確認と区別がつかなくなる。
 
 ```markdown
 ## 登録完了チェックリスト: [クライアント名]
 
 ### 必須項目（初回）
 - [x/空] 氏名・生年月日
-- [x/空] 禁忌事項（NgAction）が1件以上
-- [x/空] キーパーソンが1名以上（rank 1）
+- 禁忌事項（NgAction）: [登録あり（N件）/ ✅ 確認済み（0件・2026-07-12、母親）/ 🚨 未確認]
+- キーパーソン: [登録あり（rank 1 あり）/ ✅ 確認済み（0件）/ 🚨 未確認]
 - [x/空] かかりつけ医
 
 ### 推奨項目（初回〜2回目）
-- [x/空] 手帳・受給者証の種類と更新日
-- [x/空] 成年後見人等の情報
+- 手帳・受給者証: [登録あり / ✅ 確認済み（0件）/ 🚨 未確認]
+- 成年後見人等: [登録あり / ✅ 確認済み（0件）/ 🚨 未確認]
 - [x/空] 主たる介護者（親）の情報
 
-### 次回確認すべき項目
-- [不足している項目のリスト]
+### 🚨 未確認の項目（最優先）
+- [未確認の領域と、次に誰に聞くべきか]
 ```
+
+> **「禁忌なし」と書いてはならない（BRS-12）。**
+> Review がある場合のみ「✅ 確認済み（0件）」と書き、**必ず確認日と情報源を併記**する。
+> Review が無い0件は「🚨 未確認」であり、**支援開始前に埋めるべき欠損**である。
 
 ---
 

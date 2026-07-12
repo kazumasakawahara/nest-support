@@ -1266,6 +1266,12 @@ def build_client_summary_text(client_name: str) -> Optional[str]:
     parts = []
 
     # 基本情報（実名・生年月日は Gemini へ送らない。非識別の表示コード/血液型のみ）
+    #
+    # ★ これは意図的な設計制約であり、正典に明文化されている（SEMANTIC_MODEL BRS-03
+    #   「embedding 生成時の外部API送信」。2026-07-12 河原氏決定）。
+    #   内部ベクトルインデックスの生成に外部API（Gemini）を使うことは許容されるが、
+    #   送信してよいのは「個人識別子と紐づかない本文」に限る。
+    #   **ここに c.name や c.dob を足さないこと。** 足すなら BRS-03 の改定が先行条件。
     code = r.get("displayCode") or r.get("clientId") or ""
     basic = code
     if r.get("bloodType"):

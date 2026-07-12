@@ -1,6 +1,6 @@
 <!-- AUTO-GENERATED COPY — DO NOT EDIT.
   Synced from ~/Dev-Work/shared-schema/SEMANTIC_MODEL.md
-  Edit the master there and run sync-schema.sh. (synced: 20260712-205036) -->
+  Edit the master there and run sync-schema.sh. (synced: 20260712-213240) -->
 
 <!--
   ============================================================================
@@ -261,7 +261,34 @@ Oracle 層（`lib/insight_engine.py`）と各スキル定型クエリの「計�
   - 登録時の重複ブロック（類似度 0.85 での 409、SCHEMA_CONVENTION §10.4）は
     「登録を止めて人間に確認を求める」安全側の使い方なので許容される。
   - 判断を伴う提示（MET-09 等）は自動修正せず、人間の確認を前提とする。
-  `source: 2026-07-12 河原氏決定` `values: [Safety, Dignity]`
+
+  **embedding 生成時の外部API送信（許容範囲と禁則）**—— 2026-07-12 確定
+
+  内部ベクトルインデックス（SCHEMA_CONVENTION §8.3 の6本）の生成に **Gemini Embedding 2
+  （外部API）を使用することは許容する**。ただし以下を厳守する:
+
+  - **氏名・生年月日は送信しない。** Client 概要の embedding では、実名ではなく
+    非識別の `displayCode` / `clientId` を用いる。
+  - 送信してよいのは**禁忌・ケア・支援記録の本文**（「禁忌: 大きな音。理由: …」等）であり、
+    **個人識別子と紐づかない形**に限る。連絡先・住所等も送らない。
+  - この制約の実装は `lib/embedding.py::build_client_summary_text` および
+    `scripts/backfill_embeddings.py` の各 `_*_text()` 関数。
+    **これらを変更する際は、氏名・生年月日を混入させていないか必ず確認すること**。
+
+  **これは「別ストアへの複製禁止」とは別の論点である**—— support-db 内部のインデックスは
+  本項が管轄し、LightRAG 等**外部ストアへの PII 複製は引き続き禁止**（CLAUDE.md §8 /
+  neo4j-support-db ルール7）。
+
+  **残存リスクの認識**: 氏名は出ないが、禁忌本文自体は外部APIに出ている。
+  クライアント数が少ないうちは、特徴的な内容（例: 稀少なアレルギー）が他情報との
+  突き合わせで再識別され得る。API 提供者側に突き合わせ材料がないため実務上の
+  リスクは低いと判断しているが、**リスクゼロではないことを明示しておく**。
+  `provisional: 見直しトリガー = クライアント数の大幅増加、ローカル embedding モデルへの
+  移行が現実的になった時点、または外部APIの利用規約変更時`
+
+  `source: 2026-07-12 河原氏決定（embedding の信頼ルール）/ 2026-07-12 河原氏決定
+  （外部API送信の許容範囲——実装に既存していた設計判断を正典に明文化。実装側コメント
+  「実名・生年月日は Gemini へ送らない」が根拠）` `values: [Safety, Dignity]`
 - **BRS-04 No Fabrication の運用** — 原則は SCHEMA_CONVENTION §11.3。運用として:
   情報の欠損は「登録されていません」と明示し、補完・推測して埋めない。推測を
   述べる場合は推測である旨を必ず明記する。**禁忌0件の表示は「確認したうえで0件」
@@ -525,7 +552,7 @@ AST 解析にフォールバック）の三者を突合する。既知の不一�
 | DRIFT-08 | ✅ 解消（2026-07-12） | Certificate の MERGE キーがスキル3本で type のみ（正典 §10.3 は type+grade 複合キー） | neo4j-support-db / onboarding-wizard / narrative-extractor の MERGE を複合キー（grade 未指定は '不明'）へ修正（各訂正注記付き） |
 | DRIFT-09 | ⏳ 残置 | 「4本柱」「7本柱」の呼称揺れ、manifesto 内の旧関数名（search_emergency_info 等）残存、wamnet-provider-sync の日付表記混在 | 軽微。文書整理時にまとめて修正 |
 | DRIFT-10 | ⏳ 残置（2026-07-12 新規） | Review / REVIEWED を本日新設したが、**agno 実行時 allowlist が未追従**（§6 acceptedDrifts の DRIFT-10a/10b）。Guardian（schema_validator.py）は 2026-07-12 に反映済み（Review / REVIEWED / LABEL_SCOPED_ENUM_VALUES） | agno 側 allowlist の更新（DRIFT-07 と同時処理推奨）。それまで agno 経路からの Review 書き込みは通らない（Claude Skills ・ nest の Python 経路は可） |
-| DRIFT-11 | ✅ 文言は修正済（2026-07-12）/ ⚠️ **一部未決** | 本日 CLAUDE.md §8 / neo4j-support-db ルール7 に追加した PII ルールの文言が、**既存の support-db 内ベクトルインデックス（NgAction.embedding 等6本、Gemini Embedding 2 で生成）をも禁止してしまっていた** | 禁止対象を「**別ストア（LightRAG 等）への複製**」に限定し、内部 embedding は BRS-03 の管轄として適用外と明記（両文書修正済）。<br>**未決の論点**: 禁忌本文を Gemini API（Google）に送って embedding を生成している現状の可否。氏名は紐づかないため単独での識別性は低いが、**この線引きが意識的な決定なのか文書から読み取れない**。河原氏の判断と明文化を要する |
+| DRIFT-11 | ✅ 解消（2026-07-12） | (a) 本日追加した PII ルールの文言が、**既存の support-db 内ベクトルインデックス（Gemini Embedding 2 で生成）をも禁止してしまっていた**。(b) そもそも embedding 生成で外部APIに何を送っているのかが正典に記録されていなかった | (a) 禁止対象を「別ストア（LightRAG 等）への複製」に限定し、内部 embedding は BRS-03 の管轄として適用外と明記（CLAUDE.md §8 / neo4j-support-db ルール7）。(b) **実装を調査した結果、氏名・生年月日は意図的に送信されていないことが判明**（`build_client_summary_text` は `displayCode` を使用し、コードコメントにも明記）。この設計判断を BRS-03 に明文化し、残存リスク（禁忌本文自体は外部に出ている）も provisional で記録 |
 
 ---
 
@@ -533,6 +560,7 @@ AST 解析にフォールバック）の三者を突合する。既知の不一�
 
 | 日付 | バージョン | 変更内容 |
 |---|---|---|
+| 2026-07-12 | **v1.3** | **BRS-03 に「embedding 生成時の外部API送信」の許容範囲を明文化（DRIFT-11 解消）**。内部ベクトルインデックスの生成に Gemini Embedding 2 を使うことは許容するが、**氏名・生年月日は送信しない**（`displayCode` 等の非識別コードに置換）。これは新規の制限ではなく、**実装（`lib/embedding.py::build_client_summary_text`）に既存していた設計判断を正典に引き上げたもの**——コードコメントの1行だけが防波堤になっていた状態を解消した。残存リスク（禁忌本文自体は外部APIに出ている）も provisional で明示 |
 | 2026-07-12 | **v1.2** | **Review（確認記録）の新設——「0件問題」の解消**。BRS-04 は以前から「確認済みの0件」と「未確認」の区別を命じていたが、**その区別を表現できる構造が存在せず、ルールが構造的に遵守不能だった**。ENT-24（Review）・BRS-12（0件の解釈と表示）・ENU-16/17（domain / source）を新設し、§6 機械検証ブロックに Review / REVIEWED / reviewDomain を反映。陳腐化判定はスコープ外（2026-07-12 河原氏決定）。DRIFT-10（agno/Guardian 未追従）・DRIFT-11（PII ルールの文言が内部 embedding まで禁止している問題）を台帳に登録 |
 | 2026-07-12 | **v1.1** | **フェーズ3（矛盾の解消・限定スコープ）反映**。DRIFT-01〜06・08 を解消し台帳を状態列付きに更新（DRIFT-07 は次セッション送り、DRIFT-09 は残置——いずれも 2026-07-12 河原氏決定）。ENU-14 を「利用終了は `Inactive`」の決定で確定。§6 機械検証ブロックに `priority` を追加し acceptedDrifts から DRIFT-05 を削除 |
 | 2026-07-12 | **v1.0** | 初版。フェーズ1調査（13スキル・manifesto・Guardian/Oracle 実装・agno allowlist の棚卸し）に基づき、entities 23 / metrics 9 / business_rules 11 / enums 15 を正本化。河原氏決定5点（Guardian 段階表現翻訳の現状維持と意図明文化・緊急時提示順は emergency.md 版・embedding 信頼ルール・形式(a)・manifesto 例示は合成例）を反映。機械検証ブロックと既知ドリフト台帳（DRIFT-01〜09）を併設 |
