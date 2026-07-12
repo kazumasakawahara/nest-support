@@ -160,6 +160,9 @@ OPTIONAL MATCH (c)-[:HAS_LEGAL_REP|HAS_GUARDIAN]->(g:Guardian)
 OPTIONAL MATCH (c)-[:SUPPORTED_BY]->(s:Supporter)
 OPTIONAL MATCH (c)-[:TREATED_AT]->(hosp:Hospital)
 
+// 確認記録（Review）—— 0件の意味を判定するために必須
+OPTIONAL MATCH (rv:Review)-[:ABOUT]->(c)
+
 RETURN
     c.name AS 氏名,
     c.dob AS 生年月日,
@@ -174,7 +177,8 @@ RETURN
     collect(DISTINCT {rank: kpRel.rank, name: kp.name, relationship: kp.relationship, phone: kp.phone, role: kp.role}) AS キーパーソン,
     collect(DISTINCT {name: g.name, type: g.type, phone: g.phone}) AS 後見人等,
     collect(DISTINCT {name: s.name, role: s.role, organization: s.organization}) AS 支援者,
-    collect(DISTINCT {name: hosp.name, specialty: hosp.specialty, phone: hosp.phone}) AS 医療機関
+    collect(DISTINCT {name: hosp.name, specialty: hosp.specialty, phone: hosp.phone}) AS 医療機関,
+    collect(DISTINCT {domain: rv.domain, reviewedAt: rv.reviewedAt, source: rv.source}) AS 確認記録
 ```
 
 **パラメータ**: `$clientName`
@@ -183,6 +187,8 @@ RETURN
 - 各collectの結果から、主要フィールドが`null`のエントリを除外する
 - 生年月日から年齢を計算して併記
 - キーパーソンは`rank`昇順でソート
+- **0件の項目は、確認記録と照らしてルール8（BRS-12）のとおり表示する**。
+  禁忌・キーパーソン等が0件で Review も無ければ、「なし」ではなく「未確認」と書く
 - 4本柱の構造に沿って整形表示:
 
 ```
@@ -484,6 +490,44 @@ RETURN al.timestamp AS 記録日時
 
 **パラメータ**: `$user`（操作者名）, `$action`（例: "CREATE", "UPDATE"）, `$targetType`（例: "SupportLog", "NgAction"）, `$targetName`（内容の要約）, `$details`（詳細）, `$clientName`
 
+#### 確認記録（Review）の登録
+
+**「確認したが、何も無かった」を記録できる唯一の手段。**
+支援者が「母親に聞いたが禁忌は無いとのことだった」と言ったら、必ずこれを登録する。
+登録しなければ、その確認は**行われなかったのと同じ扱い**になる（次の支援者には伝わらない）。
+
+**追記のみ。既存の Review を更新・削除してはならない**（確認の履歴を積み上げる）。
+
+```cypher
+MATCH (c:Client {name: $clientName})
+MERGE (s:Supporter {name: $supporterName})
+CREATE (rv:Review {
+    domain: $domain,
+    reviewedAt: date($reviewedAt),
+    source: $source,
+    note: $note
+})
+MERGE (s)-[:REVIEWED]->(rv)
+MERGE (rv)-[:ABOUT]->(c)
+RETURN rv.domain AS 領域, rv.reviewedAt AS 確認日, rv.source AS 情報源
+```
+
+**パラメータ**:
+- `$clientName`（**完全一致**。BRS-08）
+- `$supporterName`: 確認を行った支援者
+- `$domain`: `NgAction` / `CarePreference` / `KeyPerson` / `Guardian` / `Certificate` / `CareRole`
+  （SCHEMA_CONVENTION §7.7。他の値は使わない）
+- `$reviewedAt`: 確認日（YYYY-MM-DD）
+- `$source`: **誰に確認したか**。`本人` / `母親` / `父親` / `家族・親族` / `主治医` /
+  `前事業所` / `相談支援専門員` / `後見人等` / `記録のみ`（§7.8）
+- `$note`: 補足（任意）
+
+> **`$source` を推測で埋めないこと。** 誰に確認したかが不明なら、支援者に聞く。
+> 「母親に確認して禁忌なし」と「本人にしか聞けていない」は、同じ「0件」でも
+> 重みが全く違う（ENU-17）。
+
+登録後は監査ログを残す（`$targetType` = "Review"）。
+
 ---
 
 ### 9. 支援記録の全文検索
@@ -535,6 +579,79 @@ LIMIT $limit
 
 ---
 
+### 11. 確認状況（Review）の取得と未確認の検出
+
+**0件が「確認したうえで無い」のか「まだ聞いていない」のかを判定する。**
+6領域（NgAction / CarePreference / KeyPerson / Guardian / Certificate / CareRole）について、
+登録件数と最新の確認記録を並べて返す。
+
+```cypher
+MATCH (c:Client)
+WHERE ($clientName = '' OR c.name CONTAINS $clientName)
+
+// 領域ごとの登録件数（旧リレーション名にもマッチ。BRS-07）
+OPTIONAL MATCH (c)-[:MUST_AVOID|PROHIBITED]->(ng:NgAction)
+OPTIONAL MATCH (c)-[:REQUIRES|PREFERS]->(cp:CarePreference)
+OPTIONAL MATCH (c)-[:HAS_KEY_PERSON|EMERGENCY_CONTACT]->(kp:KeyPerson)
+OPTIONAL MATCH (c)-[:HAS_LEGAL_REP|HAS_GUARDIAN]->(g:Guardian)
+OPTIONAL MATCH (c)-[:HAS_CERTIFICATE|HOLDS]->(cert:Certificate)
+OPTIONAL MATCH (rel:Relative)-[:IS_PARENT_OF|FAMILY_OF]->(c)
+OPTIONAL MATCH (rel)-[:PERFORMS]->(cr:CareRole)
+WITH c,
+     count(DISTINCT ng)   AS nNg,   count(DISTINCT cp) AS nCp,
+     count(DISTINCT kp)   AS nKp,   count(DISTINCT g)  AS nG,
+     count(DISTINCT cert) AS nCert, count(DISTINCT cr) AS nCr
+
+// 6領域を行に展開
+UNWIND [
+  {domain:'NgAction',       cnt:nNg},   {domain:'CarePreference', cnt:nCp},
+  {domain:'KeyPerson',      cnt:nKp},   {domain:'Guardian',       cnt:nG},
+  {domain:'Certificate',    cnt:nCert}, {domain:'CareRole',       cnt:nCr}
+] AS d
+
+// 当該領域の最新の確認記録
+OPTIONAL MATCH (rv:Review {domain: d.domain})-[:ABOUT]->(c)
+WITH c, d, rv ORDER BY rv.reviewedAt DESC
+WITH c, d, head(collect(rv)) AS latest
+
+RETURN
+    c.name            AS クライアント,
+    d.domain          AS 領域,
+    d.cnt             AS 登録件数,
+    latest.reviewedAt AS 確認日,
+    latest.source     AS 情報源,
+    CASE
+      WHEN d.cnt > 0        THEN '登録あり'
+      WHEN latest IS NULL   THEN '🚨 未確認'
+      ELSE '✅ 確認済み（0件）'
+    END               AS 状態
+ORDER BY クライアント,
+    CASE d.domain WHEN 'NgAction' THEN 1 WHEN 'KeyPerson' THEN 2 ELSE 3 END
+```
+
+> **検証済み**（2026-07-12、nest-support-neo4j にて構文確認）。
+> なお、`CALL (c, domain) { ... }` 形式のスコープ付きサブクエリはこの Neo4j では
+> **構文エラーになる**（バージョンが 5.23 未満）。使わないこと。
+
+**パラメータ**: `$clientName`（空文字で全員）
+
+**出力加工**:
+- `🚨 未確認` を最上位に表示する。とりわけ **NgAction の未確認は最優先の欠損**
+- `✅ 確認済み（0件）` は必ず**情報源と確認日を併記**する
+  （例:「✅ 確認済み（0件）— 2026-03-10、母親に確認」）
+- `記録のみ` が情報源の場合は、弱い確認である旨を添える
+
+> クエリが重い場合は、禁忌のみに絞った簡易版でもよい:
+> ```cypher
+> MATCH (c:Client) WHERE c.name CONTAINS $clientName
+> OPTIONAL MATCH (c)-[:MUST_AVOID|PROHIBITED]->(ng:NgAction)
+> OPTIONAL MATCH (rv:Review {domain:'NgAction'})-[:ABOUT]->(c)
+> RETURN c.name AS クライアント, count(DISTINCT ng) AS 禁忌件数,
+>        max(rv.reviewedAt) AS 最終確認日, collect(DISTINCT rv.source) AS 情報源
+> ```
+
+---
+
 ## レポート生成
 
 PDFやExcelのレポート生成が必要な場合は、以下の別スキルを使用する:
@@ -562,6 +679,7 @@ PDFやExcelのレポート生成が必要な場合は、以下の別スキルを
 ### ルール3: 禁忌事項の最優先表示
 
 クライアント情報を表示する際、NgAction（禁忌事項）が存在する場合は **最初に強調表示** すること。
+**0件の場合の扱いはルール8に従う（「なし」と書いてはならない）。**
 
 ### ルール4: 支援記録の構造化ルール
 
@@ -584,6 +702,82 @@ PDFやExcelのレポート生成が必要な場合は、以下の別スキルを
 ### ルール6: パラメータ化クエリの徹底
 
 すべてのクエリで `$param` 形式のパラメータを使用すること。文字列連結によるCypher構築は**禁止**（インジェクション対策）。
+
+### ルール7: 個人紐づけデータをセマンティック検索に載せない ★standing rule の例外★
+
+**グローバル standing rule「DBアクセスはまず graphrag-hybrid（LightRAG）で検索する」は、
+このDBには適用しない。support-db の照会は常に Cypher（`neo4j:execute_query`）で行う。**
+
+これは utility による例外ではなく、**設計上の禁則**である。
+
+#### 禁止すること
+
+- クライアント個人に紐づくデータ（`NgAction` / `CarePreference` / `Condition` /
+  `SupportLog` / `KeyPerson` / `Guardian` / `Hospital` / `Certificate` / `LifeHistory` / `Wish`）を
+  **support-db の外にある別ストア（LightRAG / graphrag-hybrid 等）に複製・投入すること**
+- 上記データの照会手段として、Cypher の代わりにセマンティック検索を用いること
+- 「まずgraphrag-hybridで検索」の standing rule を根拠に、上記を実行すること
+
+#### 適用外（このルールは禁じていない）
+
+support-db **内部**のベクトルインデックス（`ng_action_embedding` 等6本。
+SCHEMA_CONVENTION §8.3）は既存の正規機能であり、本ルールの対象外。
+その**用途制限は SEMANTIC_MODEL BRS-03 が管轄する**（発見の補助・重複検出に限定。
+禁忌の確認は常に構造側が正）。本ルールが禁じるのは**別ストアへの複製**であって、
+内部 embedding の使用ではない。
+
+#### 理由（2つとも独立に致命的）
+
+1. **再現率（recall）**：禁忌事項は「取りこぼしが静かに起きる」ことが許されない否定的制約。
+   セマンティック検索は近い意味のものを上位に返す仕組みであり、5件中4件しか返らなくても
+   出力は自然に見えてしまう。欠けた1件が現場の事故に直結する。
+   Cypher なら「そのクライアントに紐づく全件」が決定的に返る（BRS-03）。
+2. **PIIの拡散**：別ストアへの複製は、個人情報の実体を増やし、管理と削除の範囲を
+   広げる。現在の LightRAG 構成は LLM 側が Anthropic API バインディング（Haiku 4.5）のため、
+   インデックス構築時に実データが外部APIに出る経路も増える。
+
+#### 代替（「意味で探したい」場合）
+
+- **Cypher で全件取得 → 取得済みの小さな集合の上で意味的に絞り込む。**
+  例：「入浴介助の場面に関係する禁忌は？」→ MUST_AVOID を全件取得したうえで解釈する。
+  網羅性を Cypher で担保し、解釈だけを柔らかくやる。
+- LightRAG に載せてよいのは **個人非紐づけの一般ケア知識**（対応技法・行動障害の一般論・
+  制度解説など）に限る。氏名・生年月日・事業所名等が結び付いた形では載せない。
+
+#### 判断が必要になったら
+
+「一般知識か、個人紐づけか」が曖昧なケースは、**LightRAG に載せない側に倒し、河原さんに確認する**。
+
+> 確定日: 2026-07-12（河原さんとの検討により、standing rule の明示的例外として固定）
+> 関連: `pii-safe-data-handling` スキル / SEMANTIC_MODEL BRS-03
+
+### ルール8: 0件を「なし」と言わない（BRS-12） ★最重要★
+
+**禁忌0件には二つの意味がある——「確認したうえで無い」と「まだ聞き取れていない」。
+前者は安心してよく、後者は事故と隣り合わせである。リレーションの不在だけではこの二つは区別できない。**
+
+判定には **Review（確認記録）** を使う。対象は0件が安全・権利に直結する6領域
+（NgAction / CarePreference / KeyPerson / Guardian / Certificate / CareRole）。
+
+| 状態 | 表示 |
+|---|---|
+| 件数 > 0 | 通常どおり内容を提示 |
+| 件数 0・当該 domain の Review **なし** | **「🚨 未確認」と表示する** |
+| 件数 0・当該 domain の Review **あり** | 「✅ 確認済み（0件）— 2026-03-10、母親に確認」のように**情報源と確認日を併記** |
+
+**禁止表現**（Review が無い0件に対して）:
+「禁忌なし」「特にありません」「該当なし」「登録されていません（だから安全）」
+
+→ これらは **No Fabrication 違反**であり、**未聴取を確認済みと偽ることに等しい**。
+支援者はこれを読んで「大丈夫なのだな」と判断する。その判断が事故につながる。
+
+**確認状況の取得はテンプレート11**。未確認を見つけたら、河原さんに「未確認です。
+誰に確認しますか」と能動的に提起すること。確認できたら**テンプレート「Review の登録」で必ず記録**する
+（記録しなければ、その確認は次の支援者に伝わらない）。
+
+> 確定日: 2026-07-12（河原氏決定）
+> 根拠: SEMANTIC_MODEL BRS-12 / BRS-04 / ENT-24 / ENU-16-17
+> 陳腐化判定（確認が古いことの警告）は**今回は実装しない**（スコープ外）
 
 ---
 
@@ -613,6 +807,13 @@ PDFやExcelのレポート生成が必要な場合は、以下の別スキルを
 - キーパーソンの連絡先
 - 医療情報
 - 後見人情報
+
+### 外部ストアへの複製禁止
+
+上記の取り扱い注意情報を含む**個人紐づけデータは、support-db の外にある別ストア
+（LightRAG / graphrag-hybrid 等）に複製・投入してはならない**（→ AI運用プロトコル ルール7）。
+support-db が個人情報の唯一のストアである状態を維持する。
+support-db 内部のベクトルインデックスは対象外（用途制限は BRS-03）。
 
 ### アクセス制御
 - 本人・家族からの要望があれば、データの修正・削除に応じる

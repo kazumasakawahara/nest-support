@@ -28,6 +28,9 @@ VALID_NODE_LABELS_7687 = frozenset({
     "Relative", "CareRole",
     # かかりつけ医の構造化（P2 / 2026-07）— Hospital.doctor 文字列から昇格
     "Doctor",
+    # 確認記録（SSOT v3.3 / 2026-07-12）—「確認したうえで0件」と「未確認」を
+    # 区別する唯一の手段（SEMANTIC_MODEL ENT-24 / BRS-12）
+    "Review",
 })
 
 # 生活困窮者自立支援DB（port 7688）は 2026-05 廃止。7688 用のラベル定義は撤去済み。
@@ -48,6 +51,9 @@ VALID_RELATIONSHIP_TYPES = frozenset({
     "IS_PARENT_OF", "FAMILY_OF", "PERFORMS", "CAN_BE_PERFORMED_BY",
     # かかりつけ医の構造化（P2 / 2026-07）
     "HAS_DOCTOR",
+    # 確認記録（SSOT v3.3 / 2026-07-12）Supporter → Review。
+    # Review → Client は既存の ABOUT を再利用する。
+    "REVIEWED",
 })
 
 # 廃止リレーション → 正式名のマッピング (書き込み時の自動修正用)
@@ -76,6 +82,54 @@ ENUM_VALUES = {
     # Monitoring: Condition の「経過観察中」など、継続監視状態（P2 / 2026-07 追加）
     "status": {"Active", "Inactive", "Pending", "Completed", "Suspended", "Monitoring"},
 }
+
+# =============================================================================
+# ラベル限定の列挙値（2026-07-12 新設・SSOT v3.3）
+# =============================================================================
+# ENUM_VALUES は「プロパティ名だけ」で引くため、`source` のような一般的な名前を
+# そこに入れると、他ノードの同名プロパティに誤検知が出る。
+# Review の domain / source はこちらでラベル限定して検証する。
+# 値域の正は SCHEMA_CONVENTION §7.7 / §7.8（意味は SEMANTIC_MODEL ENU-16 / ENU-17）。
+LABEL_SCOPED_ENUM_VALUES = {
+    "Review": {
+        # 確認した領域。対応するノードラベル名をそのまま使う。
+        # 0件が安全・権利に直結する6領域に限定。
+        "domain": {
+            "NgAction", "CarePreference", "KeyPerson",
+            "Guardian", "Certificate", "CareRole",
+        },
+        # 誰に確認したか。信頼度の判断材料なので推測で埋めてはならない。
+        # 「記録のみ」は最も弱い情報源（人に聞いていない）。
+        "source": {
+            "本人", "母親", "父親", "家族・親族", "主治医",
+            "前事業所", "相談支援専門員", "後見人等", "記録のみ",
+        },
+    },
+}
+
+
+def validate_label_scoped_enum(label: str, prop_name: str, value: str) -> tuple[bool, str]:
+    """
+    ラベル限定の列挙値を検証する（Review.domain / Review.source 等）。
+
+    ENUM_VALUES と違い、ノードラベルを見てから検証するので、
+    他ノードの同名プロパティ（例: 別のノードの source）に誤検知しない。
+
+    Returns:
+        (is_valid, message)
+    """
+    scoped = LABEL_SCOPED_ENUM_VALUES.get(label)
+    if not scoped or prop_name not in scoped:
+        return True, ""
+
+    valid_values = scoped[prop_name]
+    if value in valid_values:
+        return True, ""
+
+    return False, (
+        f"{label}.{prop_name} の値 '{value}' は不正です。"
+        f" 有効な値: {sorted(valid_values)}"
+    )
 
 # 安全クリティカルな riskLevel の別名 → 正規値（小文字キーで照合）。
 # 誤入力による禁忌の優先度低下を防ぐ。ここに無い値は補正せず警告する
@@ -307,6 +361,11 @@ def validate_and_normalize_graph(extracted_graph: dict) -> tuple[dict, list[str]
         for prop_name, value in normalized_props.items():
             if isinstance(value, str):
                 is_valid, msg = validate_enum_value(prop_name, value)
+                if not is_valid:
+                    warnings.append(msg)
+
+                # ラベル限定の列挙値（Review.domain / Review.source）
+                is_valid, msg = validate_label_scoped_enum(label, prop_name, value)
                 if not is_valid:
                     warnings.append(msg)
 

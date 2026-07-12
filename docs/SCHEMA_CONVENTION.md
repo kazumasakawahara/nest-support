@@ -1,6 +1,6 @@
 <!-- AUTO-GENERATED COPY — DO NOT EDIT.
   Synced from ~/Dev-Work/shared-schema/SCHEMA_CONVENTION.md
-  Edit the master there and run sync-schema.sh. (synced: 20260712-173408) -->
+  Edit the master there and run sync-schema.sh. (synced: 20260712-205036) -->
 
 <!--
   ============================================================================
@@ -100,6 +100,7 @@
 | `ProviderFeedback` | 多機関連携 | 事業所口コミ | feedbackId, category, content, rating |
 | `Relative` | 親の機能移行 | 家族・主たる介護者（親等） | name, relationship, healthStatus, age |
 | `CareRole` | 親の機能移行 | 親が担う機能・タスク（食事準備・服薬管理等） | name, frequency, priority, notes |
+| `Review` | 記録 | **確認記録**（「確認したうえで0件」と「未確認」を区別する唯一の手段） | domain, reviewedAt, source, note |
 
 ---
 
@@ -122,7 +123,8 @@
 | `SUPPORTED_BY` | Client → Supporter | since, until | 支援者の紐付け |
 | `LOGGED` | Supporter → SupportLog | — | 支援記録の作成 |
 | `RECORDED` | Supporter → MeetingRecord | — | 面談記録の作成（音声） |
-| `ABOUT` | SupportLog/MeetingRecord → Client | — | 記録の対象者 |
+| `REVIEWED` | Supporter → Review | — | 確認を行った支援者（追記のみ・更新しない） |
+| `ABOUT` | SupportLog/MeetingRecord/Review → Client | — | 記録の対象者 |
 | `FOLLOWS` | SupportLog → SupportLog | — | 時系列チェーン（新→旧） |
 | `AUDIT_FOR` | AuditLog → Client | — | 監査ログの対象クライアント |
 | `HAS_HISTORY` | Client → LifeHistory | — | 生育歴 |
@@ -237,6 +239,21 @@ WAM NET インポート時期によりレガシーの snake_case が残存。**�
 `Active` / `Inactive` / `Pending` / `Completed` / `Suspended` / `Monitoring`
 - `Monitoring`: 経過観察中など継続監視状態（例: 術後経過観察の Condition）。
 - 小文字 `active` 等は使わない（英語 PascalCase 固定）。
+
+### 7.7 Review.domain（確認した領域）
+対応するノードラベル名をそのまま使う（PascalCase）。
+
+`NgAction` / `CarePreference` / `KeyPerson` / `Guardian` / `Certificate` / `CareRole`
+
+> この6領域は「0件が安全・権利に直結する」ものに限定される。上記以外は使わない。
+> 意味と運用は SEMANTIC_MODEL ENU-16 / BRS-12。
+
+### 7.8 Review.source（情報源）
+**日本語値を許容**（§1.4 の例外。支援者が直接読む値のため）。
+
+`本人` / `母親` / `父親` / `家族・親族` / `主治医` / `前事業所` / `相談支援専門員` / `後見人等` / `記録のみ`
+
+> `記録のみ` は最も弱い情報源（人に確認していない）。意味は SEMANTIC_MODEL ENU-17。
 
 ---
 
@@ -388,6 +405,7 @@ REMOVE sp.office_name, sp.corp_name, sp.service_type, sp.office_number,
 
 | 日付 | バージョン | 変更内容 |
 |---|---|---|
+| 2026-07-12 | **v3.3** | **`Review`（確認記録）ノードと `REVIEWED` リレーションを新設**。「確認したうえで0件」と「未確認」は、リレーションの不在としては区別がつかないが、現場での意味は正反対。(1) §3 に `Review`（domain, reviewedAt, source, note）を追加、(2) §4 に `REVIEWED`（Supporter→Review）を追加し `ABOUT` の元ノードに Review を追記、(3) §7.7/7.8 に domain（6値・PascalCase）と source（9値・日本語許容）の値域を収載。追記のみ（更新・削除をしない）。意味と表示規則は SEMANTIC_MODEL ENT-24 / BRS-12 / ENU-16-17 が正。**要追従**: agno 実行時 allowlist（`GET /api/narrative/schema`）と Guardian（`lib/schema_validator.py`）に Review / REVIEWED / domain・source の値域を反映すること（SEMANTIC_MODEL DRIFT-10） |
 | 2026-07-06 | **v3.2** | **かかりつけ医の構造化と status 拡張**。(1) `Doctor` ノード＋`HAS_DOCTOR`（Hospital→Doctor）を §3/§4 に追加し、`Hospital.doctor` 文字列プロパティを廃止（nest-support で `migrate_hospital_doctor_to_node.py` 適用済み・名寄せ対応）、(2) §7.6 に status 列挙を明文化し `Monitoring`（経過観察中）を追加（nest-support で `Condition.status` のケース正規化 `active`→`Active` も適用済み）。**要追従**: agno バックエンドの実行時 allowlist（`GET /api/narrative/schema`）にも Doctor / HAS_DOCTOR / status:Monitoring を反映すること |
 | 2026-06-11 | **v3.1** | **既使用スキーマの正典追記**。(1) 第5の柱（親の機能移行）の `Relative` / `CareRole` ノードと `IS_PARENT_OF` / `FAMILY_OF` / `PERFORMS` / `CAN_BE_PERFORMED_BY` リレーションを §3/§4 に追加（resilience-checker / onboarding-wizard / data-quality-agent が使用中）、(2) `SupportLog.emotion / triggerTag / context` を §3/§7 に追加（insight-agent / field-ui / EXTRACTION_PROMPT が使用中）、(3) §1.4 の日本語許容例外に triggerTag / context を追記 |
 | 2026-06-06 | **v3.0** | **統一正典化**。neo4j-agno-agent 版（v2.6）をベースに、(1) 7688/生活保護DBを全削除し7687専用に、(2) nest の Guardian Layer 記述を §9 に統合、(3) §2 を4経路＋将来エージェントの「強制力マップ」に刷新、(4) 実行時の権威=`/api/narrative/schema` を明記、(5) shared-schema をマスターとする編集ルール・同期前提を冒頭に追加 |

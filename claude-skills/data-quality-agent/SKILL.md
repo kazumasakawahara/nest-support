@@ -48,7 +48,7 @@ description: Neo4jデータベースの品質を定期的に監視し、更新�
 | カテゴリ | 内容 | 深刻度 |
 |---------|------|--------|
 | 期限アラート | 手帳・受給者証の更新期限が近い/超過 | Critical / Warning |
-| 安全データ欠損 | 禁忌事項やキーパーソンが未登録 | Critical |
+| 安全データ欠損・未確認 | 禁忌事項やキーパーソンが**未確認**（0件かつ Review なし） | Critical |
 | データ陳腐化 | 長期間更新のないノード | Warning |
 | 関連性の欠損 | 孤立ノード、リレーション不足 | Warning |
 | スキーマ違反 | 廃止リレーション名の使用、不正な列挙値 | Info |
@@ -93,9 +93,12 @@ ORDER BY remainingDays ASC
 - **WARNING**: 60日以内。準備を始める時期 → Warning
 - **NOTICE**: 90日以内。次回訪問時に話題にする → Info
 
-### Check 2: 安全データ欠損（Critical）
+### Check 2: 安全データ欠損と未確認の検出（Critical）
 
 支援の安全を確保するために不可欠なデータが欠けているクライアントを検出する。
+
+**このチェックの核心は「0件」を二つに分けることである**——確認記録（Review）の有無で、
+「確認したうえで0件（= 問題なし）」と「未確認（= 最優先の欠損）」を区別する（BRS-12）。
 
 ```cypher
 MATCH (c:Client)
@@ -109,26 +112,59 @@ OPTIONAL MATCH (c)-[:HAS_KEY_PERSON|EMERGENCY_CONTACT]->(kp:KeyPerson)
 // かかりつけ医の有無
 OPTIONAL MATCH (c)-[:TREATED_AT]->(hosp:Hospital)
 
-WITH c,
-     count(DISTINCT ng) AS ngCount,
-     count(DISTINCT kp) AS kpCount,
-     count(DISTINCT hosp) AS hospCount
+// 確認記録（Review）—— 0件の意味を判定するために必須
+OPTIONAL MATCH (rvNg:Review {domain: 'NgAction'})-[:ABOUT]->(c)
+OPTIONAL MATCH (rvKp:Review {domain: 'KeyPerson'})-[:ABOUT]->(c)
 
-WHERE ngCount = 0 OR kpCount = 0 OR hospCount = 0
+WITH c,
+     count(DISTINCT ng)   AS ngCount,
+     count(DISTINCT kp)   AS kpCount,
+     count(DISTINCT hosp) AS hospCount,
+     max(rvNg.reviewedAt) AS ngReviewedAt,
+     max(rvKp.reviewedAt) AS kpReviewedAt,
+     collect(DISTINCT rvNg.source) AS ngSources
+
+// 未確認・欠損のいずれかがあるクライアントのみ
+WHERE (ngCount = 0) OR (kpCount = 0) OR (hospCount = 0)
 
 RETURN
-    c.name AS クライアント名,
-    ngCount AS 禁忌事項数,
-    kpCount AS キーパーソン数,
-    hospCount AS 医療機関数,
-    CASE WHEN ngCount = 0 THEN '禁忌事項なし' ELSE '' END AS 禁忌警告,
-    CASE WHEN kpCount = 0 THEN 'キーパーソンなし' ELSE '' END AS 連絡先警告,
-    CASE WHEN hospCount = 0 THEN 'かかりつけ医なし' ELSE '' END AS 医療警告
+    c.name    AS クライアント名,
+    ngCount   AS 禁忌事項数,
+    CASE
+      WHEN ngCount > 0            THEN '登録あり'
+      WHEN ngReviewedAt IS NULL   THEN '🚨 未確認（最優先）'
+      ELSE '✅ 確認済み（0件）'
+    END       AS 禁忌状態,
+    ngReviewedAt AS 禁忌確認日,
+    ngSources    AS 禁忌情報源,
+    kpCount   AS キーパーソン数,
+    CASE
+      WHEN kpCount > 0            THEN '登録あり'
+      WHEN kpReviewedAt IS NULL   THEN '🚨 未確認'
+      ELSE '✅ 確認済み（0件）'
+    END       AS 連絡先状態,
+    hospCount AS 医療機関数
 
-ORDER BY ngCount ASC, kpCount ASC
+ORDER BY
+    CASE WHEN ngCount = 0 AND ngReviewedAt IS NULL THEN 0 ELSE 1 END,
+    ngCount ASC, kpCount ASC
 ```
 
-特に禁忌事項（NgAction）がゼロのクライアントは最優先で対応する。禁忌事項がないということは「ない」のではなく「聞き取れていない」可能性が高い。
+**判定と表示の原則（BRS-12。厳守）**
+
+| 状態 | 深刻度 | 表示 |
+|---|---|---|
+| 禁忌0件・Review なし | **Critical（最優先）** | 🚨 未確認 |
+| 禁忌0件・Review あり | OK | ✅ 確認済み（0件）— 確認日と情報源を必ず併記 |
+
+> **「禁忌事項なし」という表示を使ってはならない。**
+> 登録が無いことは、禁忌が無いことを意味しない。大半は「まだ聞き取れていない」であり、
+> 支援者がこれを「なし」と読むと二次被害につながる。
+> 未確認を見つけたら、単に報告するだけでなく**「誰に確認するか」を提起**すること。
+> 確認が取れたら `neo4j-support-db` の「Review の登録」テンプレートで必ず記録する。
+
+> なお、`記録のみ` が情報源の Review は弱い確認（人に聞いていない）。
+> 確認済みとして扱う際はその旨を添える（ENU-17）。
 
 ### Check 3: データ陳腐化（Warning）
 
@@ -447,10 +483,13 @@ uv run python scripts/check_weight_consistency.py --client "テスト太郎"
 |------------|--------|------|---------|------|
 | [名前] | [種類] | [日付] | [日数] | EXPIRED/CRITICAL |
 
-#### 安全データ欠損
-| クライアント | 禁忌事項 | キーパーソン | かかりつけ医 |
-|------------|---------|------------|------------|
-| [名前] | ⚠️なし | ✅あり | ⚠️なし |
+#### 安全データの未確認（🚨 を最上位に）
+| クライアント | 禁忌 | キーパーソン | かかりつけ医 |
+|------------|------|------------|------------|
+| [名前] | 🚨 未確認 | ✅ 確認済み（0件・2026-03-10、母親） | ⚠️なし |
+
+> **禁忌・キーパーソンの欄に「なし」と書かないこと**（BRS-12）。
+> 0件は、Review が無ければ「🚨 未確認」、あれば「✅ 確認済み（0件）」と情報源つきで書く。
 
 ---
 
