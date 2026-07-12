@@ -1,6 +1,6 @@
 <!-- AUTO-GENERATED COPY — DO NOT EDIT.
   Synced from ~/Dev-Work/shared-schema/SEMANTIC_MODEL.md
-  Edit the master there and run sync-schema.sh. (synced: 20260712-173408) -->
+  Edit the master there and run sync-schema.sh. (synced: 20260712-205036) -->
 
 <!--
   ============================================================================
@@ -135,6 +135,18 @@
   `values: [Continuity, Dignity]`
 - **ENT-20 AuditLog（監査ログ）** — 誰がいつ何を変更したかの記録。要配慮個人情報を
   扱うシステムとしての説明責任の基盤。全書き込みで必須（BRS-11）。 `values: [Advocacy]`
+- **ENT-24 Review（確認記録）** — 「ある領域について、いつ、誰に確認したか」の記録。
+  **このDBで唯一「無いことを確認した」を表現できる記録**である。
+  禁忌0件には二つの意味がある——「確認したうえで無い」と「まだ聞き取れていない」。
+  前者は安心してよく、後者は**最優先で埋めるべき欠損**であり、両者は現場での意味が
+  正反対にもかかわらず、リレーションの不在としては区別がつかない。Review はこの
+  区別を担う（BRS-04 / BRS-12）。
+  `source` に**情報源**（母親・本人・主治医・前事業所等）を持つことが要点で、
+  「母親に確認して禁忌なし」と「本人にしか聞けていない」は信頼度が異なる。
+  加えて、**誰が情報源だったかという記録それ自体が、親なき後に引き継がれるべき
+  資産**になる（親の死後、その情報が誰由来だったかは二度と辿れない）。
+  追記のみで、更新・削除はしない（確認の履歴は積み上げる）。
+  `source: 2026-07-12 河原氏決定` `values: [Safety, Continuity, Advocacy]`
 
 ### 多機関連携（第7柱の実装済み部分）
 
@@ -254,7 +266,9 @@ Oracle 層（`lib/insight_engine.py`）と各スキル定型クエリの「計�
   情報の欠損は「登録されていません」と明示し、補完・推測して埋めない。推測を
   述べる場合は推測である旨を必ず明記する。**禁忌0件の表示は「確認したうえで0件」
   なのか「まだ聞き取れていない」のかを区別する**（後者はデータ品質チェックで
-  最優先の欠損として扱う）。 `source: narrative-extractor / data-quality-agent SKILL.md`
+  最優先の欠損として扱う）。**この区別の実装機構が Review（ENT-24）であり、
+  判定と表示の規則は BRS-12 が定める。**
+  `source: narrative-extractor / data-quality-agent SKILL.md`
   `values: [Dignity, Safety]`
 - **BRS-05 Guardian 自動修正の範囲と限界** — Guardian Layer（`lib/schema_validator.py`）
   の自動修正は「意味を変えない変換」を原則とする: プロパティ名の camelCase 化、
@@ -294,6 +308,35 @@ Oracle 層（`lib/insight_engine.py`）と各スキル定型クエリの「計�
 - **BRS-11 説明責任（AuditLog）** — すべての書き込み（登録・更新・削除・廃棄）は
   AuditLog に記録する。データ廃棄（退所・保存期間超過）も監査記録を残す。
   `source: SCHEMA_CONVENTION §11.1-7 / docs/PRIVACY_GUIDELINES.md` `values: [Advocacy]`
+- **BRS-12 0件の解釈と表示（Review の運用）** — BRS-04 が求める「確認済みの0件」と
+  「未確認」の区別を、Review（ENT-24）で実装する。
+
+  **表示の規則**（0件が安全に直結する領域＝ NgAction / CarePreference / KeyPerson /
+  Guardian / Certificate / CareRole で必須）:
+
+  | 状態 | 表示 |
+  |---|---|
+  | 件数 > 0 | 通常どおり内容を提示 |
+  | 件数 0・当該 domain の Review **なし** | **「未確認」と表示する。「なし」「該当なし」と表示してはならない** |
+  | 件数 0・当該 domain の Review **あり** | 「◯年◯月に◯◯（source）に確認、登録なし」と**情報源つきで**表示 |
+
+  **「禁忌なし」という表示は、Review がある場合にのみ許される。**
+  Review が無い0件を「禁忌なし」と表示することは、No Fabrication 違反であり、
+  未聴取を確認済みと偽ることに等しい。
+
+  **データ品質上の扱い**: Review の無い0件は、data-quality-agent が**最優先の欠損**
+  として検出する（BRS-04）。とりわけ NgAction の未確認は、新規クライアントの
+  受け入れ・初回訪問前に解消すべき項目とする。
+
+  **記録は追記のみ**——確認をやり直したら Review を新たに1件追加する（既存を
+  上書きしない）。確認の履歴が積み上がることで「いつ・誰に聞いた情報か」が
+  親なき後も辿れる（ENT-24）。
+
+  **スコープ外（今回は実装しない）**: `reviewedAt` の古さによる**陳腐化判定は行わない**
+  （記録はするが、閾値による警告は出さない）。
+  `provisional: 再確認の推奨間隔は未定。見直しトリガー = 運用開始後、確認の古さが
+  実務上の問題として顕在化した時点（2026-07-12 河原氏決定によりスコープ外とした）`
+  `source: 2026-07-12 河原氏決定` `values: [Safety, Continuity, Dignity]`
 
 ---
 
@@ -366,6 +409,23 @@ Oracle 層（`lib/insight_engine.py`）と各スキル定型クエリの「計�
 - **ENU-15 CareRole.priority**: 値域未定義（High/Medium/Low か数値か曖昧）。
   レジリエンス診断の並び順に影響するため要決定。
 
+### 確認記録（Review）の列挙値
+
+- **ENU-16 Review.domain（確認した領域）** — どの領域について確認したか。
+  対応するノードラベル名をそのまま使う（対応関係を自明にするため）:
+  `NgAction` / `CarePreference` / `KeyPerson` / `Guardian` / `Certificate` / `CareRole`。
+  この6領域はいずれも**0件が安全・権利に直結する**（禁忌が無い、緊急連絡先が
+  無い、手帳が無い、いずれも「本当に無い」のか「聞いていない」のかで意味が
+  正反対）。上記以外の domain は使わない。
+- **ENU-17 Review.source（情報源）** — **誰に確認したか**。日本語値を許容する
+  （支援者が直接読む値のため。SCHEMA_CONVENTION §1.4 の日本語許容例外）:
+  `本人` / `母親` / `父親` / `家族・親族` / `主治医` / `前事業所` / `相談支援専門員` /
+  `後見人等` / `記録のみ`。
+  **この値は信頼度の判断材料であり、欠いてはならない**——「母親に確認して禁忌なし」
+  と「本人にしか聞けていない」は、同じ「0件」でも重みが全く違う。
+  `記録のみ`（既存文書を見ただけで、人には確認していない）は**最も弱い情報源**であり、
+  これだけで「確認済み」とするのは推奨しない（記録の不在は不在の証明ではない）。
+
 ---
 
 ## 6. 機械検証ブロック（三者一致チェック）
@@ -385,7 +445,7 @@ AST 解析にフォールバック）の三者を突合する。既知の不一�
       "Guardian", "Hospital", "Doctor", "Certificate", "PublicAssistance",
       "Organization", "Supporter", "SupportLog", "MeetingRecord", "AuditLog",
       "LifeHistory", "Wish", "Identity", "ServiceProvider", "ProviderFeedback",
-      "Relative", "CareRole"
+      "Relative", "CareRole", "Review"
     ],
     "relationshipTypes": [
       "HAS_CONDITION", "MUST_AVOID", "IN_CONTEXT", "REQUIRES", "ADDRESSES",
@@ -393,7 +453,8 @@ AST 解析にフォールバック）の三者を突合する。既知の不一�
       "REGISTERED_AT", "TREATED_AT", "HAS_DOCTOR", "SUPPORTED_BY", "LOGGED",
       "RECORDED", "ABOUT", "FOLLOWS", "AUDIT_FOR", "HAS_HISTORY", "HAS_WISH",
       "HAS_IDENTITY", "USES_SERVICE", "HAS_FEEDBACK", "WROTE",
-      "IS_PARENT_OF", "FAMILY_OF", "PERFORMS", "CAN_BE_PERFORMED_BY"
+      "IS_PARENT_OF", "FAMILY_OF", "PERFORMS", "CAN_BE_PERFORMED_BY",
+      "REVIEWED"
     ],
     "enums": {
       "riskLevel": ["LifeThreatening", "Panic", "Discomfort"],
@@ -402,7 +463,9 @@ AST 解析にフォールバック）の三者を突合する。既知の不一�
       "emotion": ["Joy", "Anger", "Sadness", "Fear", "Surprise", "Disgust",
                   "Calm", "Anxiety", "Confusion", "Neutral"],
       "status": ["Active", "Inactive", "Pending", "Completed", "Suspended",
-                 "Monitoring"]
+                 "Monitoring"],
+      "reviewDomain": ["NgAction", "CarePreference", "KeyPerson", "Guardian",
+                       "Certificate", "CareRole"]
     },
     "negativeEmotions": ["Anger", "Sadness", "Fear", "Disgust", "Anxiety"]
   },
@@ -416,23 +479,23 @@ AST 解析にフォールバック）の三者を突合する。既知の不一�
   },
   "acceptedDrifts": [
     {
-      "id": "DRIFT-07a",
+      "id": "DRIFT-07a+10a",
       "target": "agno.nodeLabels",
       "kind": "missing-values",
-      "values": ["Doctor", "Relative", "CareRole", "ProviderFeedback", "Identity"],
+      "values": ["Doctor", "Relative", "CareRole", "ProviderFeedback", "Identity", "Review"],
       "since": "2026-07-12",
-      "reason": "SCHEMA_CONVENTION v3.1/v3.2 への実行時 allowlist の追従漏れ（v3.2 変更履歴の『要追従』が未消化）",
-      "resolution": "agno 側 allowlist の更新（別作業・要河原氏承認）"
+      "reason": "agno 実行時 allowlist の追従漏れ。Doctor/Relative/CareRole/ProviderFeedback/Identity は SCHEMA_CONVENTION v3.1/v3.2 分（DRIFT-07a）、Review は v3.3 分（DRIFT-10a）。Guardian（schema_validator.py）は Review 反映済み。※ チェッカーは (target, kind) で最初の1件しか見ないため、同一 target のドリフトは1エントリに統合すること",
+      "resolution": "agno 側 allowlist の一括更新（別作業・要河原氏承認）"
     },
     {
-      "id": "DRIFT-07b",
+      "id": "DRIFT-07b+10b",
       "target": "agno.relationshipTypes",
       "kind": "missing-values",
       "values": ["HAS_DOCTOR", "IS_PARENT_OF", "FAMILY_OF", "PERFORMS",
-                 "CAN_BE_PERFORMED_BY", "HAS_FEEDBACK", "WROTE"],
+                 "CAN_BE_PERFORMED_BY", "HAS_FEEDBACK", "WROTE", "REVIEWED"],
       "since": "2026-07-12",
-      "reason": "同上",
-      "resolution": "agno 側 allowlist の更新（別作業・要河原氏承認）"
+      "reason": "同上。REVIEWED のみ v3.3 分（DRIFT-10b）、他は v3.1/v3.2 分（DRIFT-07b）",
+      "resolution": "agno 側 allowlist の一括更新（別作業・要河原氏承認）"
     }
   ]
 }
@@ -461,6 +524,8 @@ AST 解析にフォールバック）の三者を突合する。既知の不一�
 | DRIFT-07 | ⏳ 残置 | agno 実行時 allowlist が v3.1/v3.2 未追従（§6 acceptedDrifts 参照）。HAS_IDENTITY は許可済みなのに Identity ラベル不在という不整合も | agno 側 allowlist 更新（4層伝播手順）。**次セッション送り（2026-07-12 河原氏決定）** |
 | DRIFT-08 | ✅ 解消（2026-07-12） | Certificate の MERGE キーがスキル3本で type のみ（正典 §10.3 は type+grade 複合キー） | neo4j-support-db / onboarding-wizard / narrative-extractor の MERGE を複合キー（grade 未指定は '不明'）へ修正（各訂正注記付き） |
 | DRIFT-09 | ⏳ 残置 | 「4本柱」「7本柱」の呼称揺れ、manifesto 内の旧関数名（search_emergency_info 等）残存、wamnet-provider-sync の日付表記混在 | 軽微。文書整理時にまとめて修正 |
+| DRIFT-10 | ⏳ 残置（2026-07-12 新規） | Review / REVIEWED を本日新設したが、**agno 実行時 allowlist が未追従**（§6 acceptedDrifts の DRIFT-10a/10b）。Guardian（schema_validator.py）は 2026-07-12 に反映済み（Review / REVIEWED / LABEL_SCOPED_ENUM_VALUES） | agno 側 allowlist の更新（DRIFT-07 と同時処理推奨）。それまで agno 経路からの Review 書き込みは通らない（Claude Skills ・ nest の Python 経路は可） |
+| DRIFT-11 | ✅ 文言は修正済（2026-07-12）/ ⚠️ **一部未決** | 本日 CLAUDE.md §8 / neo4j-support-db ルール7 に追加した PII ルールの文言が、**既存の support-db 内ベクトルインデックス（NgAction.embedding 等6本、Gemini Embedding 2 で生成）をも禁止してしまっていた** | 禁止対象を「**別ストア（LightRAG 等）への複製**」に限定し、内部 embedding は BRS-03 の管轄として適用外と明記（両文書修正済）。<br>**未決の論点**: 禁忌本文を Gemini API（Google）に送って embedding を生成している現状の可否。氏名は紐づかないため単独での識別性は低いが、**この線引きが意識的な決定なのか文書から読み取れない**。河原氏の判断と明文化を要する |
 
 ---
 
@@ -468,5 +533,6 @@ AST 解析にフォールバック）の三者を突合する。既知の不一�
 
 | 日付 | バージョン | 変更内容 |
 |---|---|---|
+| 2026-07-12 | **v1.2** | **Review（確認記録）の新設——「0件問題」の解消**。BRS-04 は以前から「確認済みの0件」と「未確認」の区別を命じていたが、**その区別を表現できる構造が存在せず、ルールが構造的に遵守不能だった**。ENT-24（Review）・BRS-12（0件の解釈と表示）・ENU-16/17（domain / source）を新設し、§6 機械検証ブロックに Review / REVIEWED / reviewDomain を反映。陳腐化判定はスコープ外（2026-07-12 河原氏決定）。DRIFT-10（agno/Guardian 未追従）・DRIFT-11（PII ルールの文言が内部 embedding まで禁止している問題）を台帳に登録 |
 | 2026-07-12 | **v1.1** | **フェーズ3（矛盾の解消・限定スコープ）反映**。DRIFT-01〜06・08 を解消し台帳を状態列付きに更新（DRIFT-07 は次セッション送り、DRIFT-09 は残置——いずれも 2026-07-12 河原氏決定）。ENU-14 を「利用終了は `Inactive`」の決定で確定。§6 機械検証ブロックに `priority` を追加し acceptedDrifts から DRIFT-05 を削除 |
 | 2026-07-12 | **v1.0** | 初版。フェーズ1調査（13スキル・manifesto・Guardian/Oracle 実装・agno allowlist の棚卸し）に基づき、entities 23 / metrics 9 / business_rules 11 / enums 15 を正本化。河原氏決定5点（Guardian 段階表現翻訳の現状維持と意図明文化・緊急時提示順は emergency.md 版・embedding 信頼ルール・形式(a)・manifesto 例示は合成例）を反映。機械検証ブロックと既知ドリフト台帳（DRIFT-01〜09）を併設 |

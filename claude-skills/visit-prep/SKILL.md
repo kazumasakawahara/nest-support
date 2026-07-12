@@ -61,6 +61,9 @@ OPTIONAL MATCH (c)-[:REQUIRES|PREFERS]->(cp:CarePreference)
 // 特性・診断
 OPTIONAL MATCH (c)-[:HAS_CONDITION]->(con:Condition)
 
+// 確認記録（Review）—— 禁忌0件の意味を判定するために必須（BRS-12）
+OPTIONAL MATCH (rvNg:Review {domain: 'NgAction'})-[:ABOUT]->(c)
+
 RETURN
     c.name AS 氏名,
     c.dob AS 生年月日,
@@ -71,6 +74,9 @@ RETURN
         riskLevel: ng.riskLevel,
         context: ngCon.name
     }) AS 禁忌事項,
+    count(DISTINCT ng) AS 禁忌件数,
+    max(rvNg.reviewedAt)          AS 禁忌確認日,
+    collect(DISTINCT rvNg.source) AS 禁忌情報源,
     collect(DISTINCT {
         category: cp.category,
         instruction: cp.instruction,
@@ -83,6 +89,13 @@ RETURN
 ```
 
 **パラメータ**: `$clientName`
+
+> **禁忌件数が 0 のときの表示（BRS-12。厳守）**
+> - `禁忌確認日` が null → **🚨 未確認。「避けるべきことはありません」とは書かない**
+> - `禁忌確認日` あり → ✅ 禁忌なし（確認日と情報源を併記）
+>
+> 訪問で最も危険なのは「知らなかったこと」による事故であり、
+> **未聴取を「安全確認済み」と誤認させるブリーフィングはその原因そのもの**になる。
 
 ### Step 3: 緊急連絡先の取得
 
@@ -166,6 +179,7 @@ ORDER BY 残り日数 ASC
 ### Step 7: ブリーフィングシートの出力
 
 以下の形式で整形して表示する。**禁忌事項は必ず最初に配置**すること。
+**禁忌0件のときの書き方は BRS-12 に従う（「なし」と書いてはならない）。**
 
 ```markdown
 ## 訪問前ブリーフィング
@@ -178,6 +192,14 @@ ORDER BY 残り日数 ASC
 ### 絶対に避けること
 [riskLevel順: LifeThreatening → Panic → Discomfort]
 - [禁忌事項] — 理由: [reason]
+
+（禁忌0件かつ Review なしの場合は、代わりに以下を表示）
+> 🚨 **禁忌未確認**
+> 登録が無いだけで、避けるべきことが無いとは確認されていません。
+> 今回の訪問でキーパーソンに聞き取り、Review を登録してください。
+
+（禁忌0件かつ Review ありの場合）
+> ✅ 禁忌なし（2026-03-10、母親に確認済み）
 
 ### 効果的な関わり方
 - [推奨ケアリスト]

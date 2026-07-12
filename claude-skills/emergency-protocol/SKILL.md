@@ -89,6 +89,28 @@ NgActionには3段階のリスクレベルがあり、以下の順で表示す�
 このスキルは**読み取り専用**。緊急時にデータの書き込みは行わない。
 すべてのクエリは `neo4j:execute_query`（読み取り）を使用する。
 
+### ルール6: 禁忌0件を「登録なし（だから安全）」と言わない（BRS-12） ★人命に直結★
+
+**禁忌0件には二つの意味がある——「確認したうえで無い」と「まだ聞き取れていない」。**
+緊急時にこの二つを混同することは、**未聴取を「安全確認済み」と偽って支援者に伝える**ことに等しい。
+支援者はそれを読んで行動する。アレルギーが未登録なだけの人に、「禁忌なし」を根拠に
+食品を提供する事態が起き得る。
+
+判定には **Review（確認記録）** を使う（テンプレート1・2 に含まれている）。
+
+| 状態 | 緊急時の表示 |
+|---|---|
+| 禁忌あり | 通常どおり riskLevel 順に提示 |
+| 禁忌0件・Review **なし** | **🚨 禁忌未確認——登録が無いだけで、禁忌が無いとは確認されていません。慎重に行動し、キーパーソンに確認してください** |
+| 禁忌0件・Review **あり** | ✅ 禁忌なし（2026-03-10、母親に確認済み） |
+
+**禁止表現**（Review が無い0件に対して）:
+「禁忌事項: 登録なし」「禁忌なし」「特にありません」——いずれも**使用禁止**。
+
+> 根拠: SEMANTIC_MODEL BRS-12 / BRS-04 / ENT-24（2026-07-12 河原氏決定）
+> このルールは、旧版の「禁忌0件も『登録なし』と明示する（確認済みであることを示す）」
+> という記述を**否定して置き換えるもの**である（旧記述は未聴取を確認済みと偽る危険な規定だった）。
+
 ---
 
 ## 使用するMCPツール
@@ -146,6 +168,10 @@ WITH c, ngActions, carePrefs, keyPersons, collect(DISTINCT {
 }) AS hospitals
 
 OPTIONAL MATCH (c)-[:HAS_LEGAL_REP|HAS_GUARDIAN]->(g:Guardian)
+
+// 確認記録（Review）—— 禁忌0件の意味を判定するために必須（BRS-12 / ルール6）
+OPTIONAL MATCH (rvNg:Review {domain: 'NgAction'})-[:ABOUT]->(c)
+
 RETURN
     c.name AS clientName,
     c.dob AS dob,
@@ -154,6 +180,8 @@ RETURN
     carePrefs,
     keyPersons,
     hospitals,
+    max(rvNg.reviewedAt)          AS ngReviewedAt,
+    collect(DISTINCT rvNg.source) AS ngReviewSources,
     collect(DISTINCT {
         name: g.name,
         type: g.type,
@@ -164,28 +192,40 @@ RETURN
 
 **パラメータ**: `$clientName` — クライアント名（部分一致）
 
+> `ngActions` が空の場合は、`ngReviewedAt` を見て**ルール6 のとおり表示を分ける**。
+> `ngReviewedAt` が null なら「🚨 禁忌未確認」。「登録なし」とは書かない。
+
 ### テンプレート2: 禁忌事項のみ取得（最速）
 
 緊急度が最も高い場合に使用。禁忌事項だけを即座に取得する。
 
+> **注意**: `MATCH (c)-[:MUST_AVOID]->(ng)` だけだと、**禁忌0件の人は行が返らない**。
+> 「0件なのか、人違いなのか」も区別できないため、**Client を起点に OPTIONAL MATCH する**。
+
 ```cypher
-MATCH (c:Client)-[:MUST_AVOID|PROHIBITED]->(ng:NgAction)
+MATCH (c:Client)
 WHERE c.name CONTAINS $clientName
+OPTIONAL MATCH (c)-[:MUST_AVOID|PROHIBITED]->(ng:NgAction)
 OPTIONAL MATCH (ng)-[:IN_CONTEXT|RELATES_TO]->(cond:Condition)
-RETURN DISTINCT
+OPTIONAL MATCH (rv:Review {domain: 'NgAction'})-[:ABOUT]->(c)
+RETURN
     c.name AS clientName,
-    ng.action AS action,
-    ng.reason AS reason,
-    ng.riskLevel AS riskLevel,
-    cond.name AS relatedCondition
-ORDER BY
-    CASE ng.riskLevel
-        WHEN 'LifeThreatening' THEN 1
-        WHEN 'Panic' THEN 2
-        WHEN 'Discomfort' THEN 3
-        ELSE 4
-    END
+    collect(DISTINCT {
+        action: ng.action,
+        reason: ng.reason,
+        riskLevel: ng.riskLevel,
+        relatedCondition: cond.name
+    }) AS ngActions,
+    count(DISTINCT ng)            AS ngCount,
+    max(rv.reviewedAt)            AS ngReviewedAt,
+    collect(DISTINCT rv.source)   AS ngReviewSources
 ```
+
+**提示順**: `riskLevel` を LifeThreatening → Panic → Discomfort の順に並べ直す（ルール2）。
+
+**`ngCount` が 0 のとき**（ルール6）:
+- `ngReviewedAt` が null → **🚨 禁忌未確認。「禁忌なし」とは絶対に言わない**
+- `ngReviewedAt` あり → ✅ 禁忌なし（確認日と情報源を併記）
 
 ### テンプレート3: 状況別フィルタ付き取得
 
@@ -296,8 +336,25 @@ ORDER BY r.rank
 
 各セクションでデータが空（`null`値のみ）の場合:
 - 空のエントリを除外する（`action`や`name`が`null`のレコードは表示しない）
-- 「登録されていません」と表示する
-- **禁忌事項が0件の場合も「禁忌事項: 登録なし」と明示する**（確認済みであることを示す）
+- 連絡先・医療機関・法的代理人が0件なら「登録されていません」と表示する
+
+**禁忌事項（NgAction）が0件の場合は、ルール6（BRS-12）に従うこと**——
+確認記録（Review）の有無で表示を分ける:
+
+```
+【Review なし】
+🚨 禁忌事項: 未確認
+   登録が無いだけで、禁忌が無いとは確認されていません。
+   慎重に行動し、キーパーソン（下記）に確認してください。
+
+【Review あり】
+✅ 禁忌事項: なし（2026-03-10、母親に確認済み）
+```
+
+> **旧規定は廃止**（2026-07-12）: 旧版は「禁忌事項が0件の場合も『禁忌事項: 登録なし』と
+> 明示する（確認済みであることを示す）」と規定していたが、これは**未聴取を
+> 確認済みと偽る危険な規定**であり、BRS-04（No Fabrication）違反だった。
+> Review（ENT-24）の新設により、本当に確認済みのときだけ「なし」と言えるようになった。
 
 ---
 
