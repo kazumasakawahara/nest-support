@@ -1,7 +1,7 @@
-# HANDOVER — 2026-07-13 main（DRIFT-07/10 解消・棚卸し2件の処置 / セッション3）
+# HANDOVER — 2026-07-13 main（DRIFT-07/10 解消・棚卸し2件の処置 / セッション3・完）
 
 > NEXT_SESSION.md（2026-07-13 用指示書）に基づくセッション。タスク B（agno allowlist 追従）
-> と C-4/C-5 は完了。A-1 は河原氏決定により中止、A-2 は**書き込み権限待ちで未完**（下記）。
+> と A-2・C-4/C-5 は完了。A-1 は河原氏決定により中止（正当な状態として残置）。
 > 前セッション（Review 導入）の内容は git 履歴の 2026-07-12 時点 HANDOVER を参照。
 
 ## 再開コマンド（コピペで動く・本セッションで検証済み）
@@ -43,9 +43,13 @@ Neo4j（support-db, port 7687）は稼働中。コンテナ名は `nest-support-
   今後も入手予定なし**。よって登録も Review も**書かない**（確認行為が行われていない以上、
   Review を書くことこそ捏造になる。BRS-04）。KeyPerson 領域の「🚨 未確認」表示が
   **正しい現状**としてダッシュボードに残り続ける——これは仕様どおりの挙動。
-- [ ] **A-2: 仕掛かり（書き込み権限待ち）** — 平野 駿介さん（合成）の Review 登録。
-  クエリ・パラメータは確定済み（下記「未決論点」）。`neo4j:execute_query` での CREATE が
-  **Claude Code の auto mode classifier に拒否され**、DB 書き込みが実行できていない。
+- [x] **A-2: 完了** — 平野 駿介さん（合成）の Review 登録。
+  `neo4j:execute_query` での CREATE が auto mode classifier に拒否されたため、
+  **河原氏の承認を得て nest の Python 経路**（`register_to_database`＝Guardian 検証＋
+  監査統合）で実行。domain=NgAction / reviewedAt=2026-07-13 / source=母親 /
+  note に合成データ整備の旨。AuditLog（targetType=Review）も明示登録
+  （Review は `_audit_node_creation` のフック対象外のため）。
+  検収: ngCount=0 / reviewCount=1 / source=母親 → 「✅ 確認済み（0件）」状態を確認済み。
 - [ ] **C-6（未着手）**: narrative-extractor が語りから「確認した」旨を拾う対応
 
 ## グレーな判断（次セッション冒頭で承認確認を）
@@ -63,22 +67,7 @@ Neo4j（support-db, port 7687）は稼働中。コンテナ名は `nest-support-
 
 ## 未決論点（河原氏の判断が要る）
 
-### 1. A-2 の書き込み経路（最優先・これだけで完了する）
-
-登録内容は確定済み・全て合成データ:
-
-- Client: `平野 駿介`（**姓と名の間に半角スペースあり**——スペース無しの完全一致は0件になる）
-- Review: `domain: NgAction` / `reviewedAt: 2026-07-13` / `source: 母親` /
-  `note: 合成データ整備（棚卸しの見本）。デモ環境の Review 運用例として登録`
-- Supporter: `河原` / 登録後に AuditLog（targetType: Review）
-
-選択肢:
-- **(a)** neo4j MCP の書き込みを許可して再実行（設定でルール許可 or 権限モード変更）
-- **(b)** nest の Python 経路で実行することを明示承認
-  （`lib/db_operations.py::register_to_database` は Guardian 検証＋AuditLog 統合済みで、
-  Review は CREATE フォールバックで通ることを確認済み）
-
-### 2. M・K さんの「入手不能」を将来どう記録するか（急がない）
+### 1. M・K さんの「入手不能」を将来どう記録するか（急がない）
 
 Review は「確認した」記録なので、「確認を試みたが得られなかった」は表現できない
 （`source` に該当値も無い）。当面は「🚨 未確認」のままが正——ただしダッシュボードで
@@ -110,11 +99,8 @@ Review は「確認した」記録なので、「確認を試みたが得られ�
 ## 次タスク（優先度順）
 
 ### A: 必須
-1. **A-2 の完了** — 上記「未決論点1」の経路を河原氏が選択 → Review + AuditLog 登録 →
-   テンプレート11 で `✅ 確認済み（0件）` 表示を検収
-### B: 推奨
-2. **nest lib のドリフト台帳登録（DRIFT-12）と修正の承認取り** — Certificate 複合キー化
+1. **nest lib のドリフト台帳登録（DRIFT-12）と修正の承認取り** — Certificate 複合キー化
    ＋新ラベルの MERGE キー追加（agno と同じ設計判断を流用できる）
 ### C: 余裕があれば
-3. C-6: narrative-extractor の「確認した」検出（→ Review 登録の提案）
-4. DRIFT-09（呼称揺れ・旧関数名残存）の文書整理
+2. C-6: narrative-extractor の「確認した」検出（→ Review 登録の提案）
+3. DRIFT-09（呼称揺れ・旧関数名残存）の文書整理
