@@ -44,6 +44,8 @@
 
 ## 注意事項
 
+- **shared-schema はリモートなしのローカル運用**（2026-07-12 確認。バックアップは
+  各プロジェクトへの同期コピーと nest-support 等の push 済みリポジトリが実質的に担う）
 - SEMANTIC_MODEL.md / SCHEMA_CONVENTION.md の各プロジェクト内コピーは
   **read-only 同期物**。編集は shared-schema のマスターのみ
 - oyagami-local / neo4j-agno-agent 側の同期コピーは配布済みだが**未コミット**
