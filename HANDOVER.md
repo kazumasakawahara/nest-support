@@ -32,14 +32,23 @@
    agno 側 `lib/db_new_operations.py` の MERGE_KEYS / ALLOWED_CREATE_LABELS /
    ALLOWED_REL_TYPES を更新 → 完了後に SEMANTIC_MODEL.md §6 の acceptedDrifts
    から DRIFT-07a/b を削除し、`check_semantic_drift.py --strict` green を確認
-2. **検収（未実施）**: 完全新規チャットで実施。質問例は
-   `docs/semantic-model-instruction.md` フェーズ4 参照
-3. **横断セマンティックレイヤー**（nest-system の利用者 ↔ nest-support の
+2. ~~検収（未実施）~~ → **検収は 2026-07-12 に完全新規チャットで実施済み**。
+   判明した欠落「主要スキルから正本への参照導線が無い」は同日対応
+   （6スキルの SKILL.md 冒頭に正本参照ルールを追記。nest-system ADR-007 の
+   「索引は薄く」方式の前例に従う）
+3. **BRS-04 強化: 積極的陰性の記録**（検収Q2 起点の改善提案・2026-07-12）:
+   「確認したうえで禁忌なし」を記録可能にし、「未聴取の0件」とデータ上も
+   区別できるようにする。案: Client に `contraindicationReviewedAt` /
+   `reviewedBy` 相当のプロパティを追加（提案時表記は snake_case だったが
+   正典の camelCase 規則に合わせる）。**スキーマ追加を伴うため
+   SCHEMA_CONVENTION 追記＋4層伝播＋河原氏承認が前提**。承認後は
+   SEMANTIC_MODEL の BRS-04 と data-quality-agent の欠損チェックにも反映する
+4. **横断セマンティックレイヤー**（nest-system の利用者 ↔ nest-support の
    クライアントの横断ID対応と用語の橋渡し。対応表自体が高度な PII のため
    pii-safe-data-handling 適用で設計すること）
-4. DRIFT-09（軽微）: 「4本柱/7本柱」呼称揺れ・manifesto 内の旧関数名残存・
+5. DRIFT-09（軽微）: 「4本柱/7本柱」呼称揺れ・manifesto 内の旧関数名残存・
    wamnet-provider-sync の日付表記混在。文書整理時にまとめて
-5. SCHEMA_CONVENTION v3.3 改版時: 未正典化列挙値（SEMANTIC_MODEL ENU-07〜15）の
+6. SCHEMA_CONVENTION v3.3 改版時: 未正典化列挙値（SEMANTIC_MODEL ENU-07〜15）の
    §7 収載、priority 値域の正式化
 
 ## 注意事項
