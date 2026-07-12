@@ -53,6 +53,11 @@
 
 ## 注意事項
 
+- **配布4層チェックリスト（2026-07-12 追記）**: shared-schema（正本編集）→
+  sync-schema.sh（3プロジェクト配布）→ ~/.claude/skills symlink（Claude Code は
+  即時有効）→ **skill-sync（claude.ai / Desktop へ ZIP 再アップロード）**。
+  スキルを直したら skill-sync までがワンセット（検収再診断 2026-07-12 の教訓:
+  symlink で安心して claude.ai 側が旧版のままだった）
 - **shared-schema はリモートなしのローカル運用**（2026-07-12 確認。バックアップは
   各プロジェクトへの同期コピーと nest-support 等の push 済みリポジトリが実質的に担う）
 - SEMANTIC_MODEL.md / SCHEMA_CONVENTION.md の各プロジェクト内コピーは
