@@ -15,6 +15,9 @@ wheels/
 .env.local
 .env.*.local
 
+# sync-schema.sh のバックアップ副産物
+docs/*.bak-*
+
 # Neo4j data (ローカルデータ)
 neo4j_data/
 neo4j_logs/

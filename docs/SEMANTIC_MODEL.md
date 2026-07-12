@@ -1,6 +1,6 @@
 <!-- AUTO-GENERATED COPY — DO NOT EDIT.
   Synced from ~/Dev-Work/shared-schema/SEMANTIC_MODEL.md
-  Edit the master there and run sync-schema.sh. (synced: 20260712-213240) -->
+  Edit the master there and run sync-schema.sh. (synced: 20260713-083000) -->
 
 <!--
   ============================================================================
@@ -504,27 +504,7 @@ AST 解析にフォールバック）の三者を突合する。既知の不一�
     "carePattern": {"discoverMinFrequency": 2, "promoteMinFrequency": 3},
     "renewalUrgency": {"immediateDays": 30, "warningDays": 60, "planningDays": 90}
   },
-  "acceptedDrifts": [
-    {
-      "id": "DRIFT-07a+10a",
-      "target": "agno.nodeLabels",
-      "kind": "missing-values",
-      "values": ["Doctor", "Relative", "CareRole", "ProviderFeedback", "Identity", "Review"],
-      "since": "2026-07-12",
-      "reason": "agno 実行時 allowlist の追従漏れ。Doctor/Relative/CareRole/ProviderFeedback/Identity は SCHEMA_CONVENTION v3.1/v3.2 分（DRIFT-07a）、Review は v3.3 分（DRIFT-10a）。Guardian（schema_validator.py）は Review 反映済み。※ チェッカーは (target, kind) で最初の1件しか見ないため、同一 target のドリフトは1エントリに統合すること",
-      "resolution": "agno 側 allowlist の一括更新（別作業・要河原氏承認）"
-    },
-    {
-      "id": "DRIFT-07b+10b",
-      "target": "agno.relationshipTypes",
-      "kind": "missing-values",
-      "values": ["HAS_DOCTOR", "IS_PARENT_OF", "FAMILY_OF", "PERFORMS",
-                 "CAN_BE_PERFORMED_BY", "HAS_FEEDBACK", "WROTE", "REVIEWED"],
-      "since": "2026-07-12",
-      "reason": "同上。REVIEWED のみ v3.3 分（DRIFT-10b）、他は v3.1/v3.2 分（DRIFT-07b）",
-      "resolution": "agno 側 allowlist の一括更新（別作業・要河原氏承認）"
-    }
-  ]
+  "acceptedDrifts": []
 }
 ```
 
@@ -548,10 +528,10 @@ AST 解析にフォールバック）の三者を突合する。既知の不一�
 | DRIFT-04 | ✅ 解消（2026-07-12） | data-quality-agent の effectiveness 検証セットに `Unknown` が欠落していた | 検証セットへ Unknown を追加（訂正注記付き） |
 | DRIFT-05 | ✅ 解消（2026-07-12） | schema_validator の ENUM_VALUES.effectiveness に High/Medium/Low が混入・priority 検証が不存在だった | effectiveness を正式4値に修正し priority 検証を新設（コード内訂正注記付き）。§6 acceptedDrifts から削除済み |
 | DRIFT-06 | ✅ 解消（2026-07-12 河原氏決定） | provider-search の USES_SERVICE.status に `Ended`（ENU-05 値域外） | 利用終了は `Inactive` へ統一。書き込みは Inactive のみ・読み取りは旧 Ended に後方互換（ENU-14 参照） |
-| DRIFT-07 | ⏳ 残置 | agno 実行時 allowlist が v3.1/v3.2 未追従（§6 acceptedDrifts 参照）。HAS_IDENTITY は許可済みなのに Identity ラベル不在という不整合も | agno 側 allowlist 更新（4層伝播手順）。**次セッション送り（2026-07-12 河原氏決定）** |
+| DRIFT-07 | ✅ 解消（2026-07-13） | agno 実行時 allowlist が v3.1/v3.2 未追従。HAS_IDENTITY は許可済みなのに Identity ラベル不在という不整合も | agno の `lib/db_new_operations.py` と `api/app/lib/db_operations.py`（実行時の門番・`/api/narrative/schema` の出典）の両方へノード5件（Doctor/Relative/CareRole/ProviderFeedback/Identity）・リレーション7件を追加し、`sync_narrative_intake_schema.py --apply` でスキル側 JSON も再生成。CareRole は ENT-16 に従い MERGE ではなく常時 CREATE（per-client スコープ） |
 | DRIFT-08 | ✅ 解消（2026-07-12） | Certificate の MERGE キーがスキル3本で type のみ（正典 §10.3 は type+grade 複合キー） | neo4j-support-db / onboarding-wizard / narrative-extractor の MERGE を複合キー（grade 未指定は '不明'）へ修正（各訂正注記付き） |
 | DRIFT-09 | ⏳ 残置 | 「4本柱」「7本柱」の呼称揺れ、manifesto 内の旧関数名（search_emergency_info 等）残存、wamnet-provider-sync の日付表記混在 | 軽微。文書整理時にまとめて修正 |
-| DRIFT-10 | ⏳ 残置（2026-07-12 新規） | Review / REVIEWED を本日新設したが、**agno 実行時 allowlist が未追従**（§6 acceptedDrifts の DRIFT-10a/10b）。Guardian（schema_validator.py）は 2026-07-12 に反映済み（Review / REVIEWED / LABEL_SCOPED_ENUM_VALUES） | agno 側 allowlist の更新（DRIFT-07 と同時処理推奨）。それまで agno 経路からの Review 書き込みは通らない（Claude Skills ・ nest の Python 経路は可） |
+| DRIFT-10 | ✅ 解消（2026-07-13） | Review / REVIEWED を 2026-07-12 新設したが、**agno 実行時 allowlist が未追従**だった。Guardian（schema_validator.py）は 2026-07-12 に反映済み（Review / REVIEWED / LABEL_SCOPED_ENUM_VALUES） | DRIFT-07 と一括で agno allowlist（2ファイル＋スキル JSON）へ Review / REVIEWED を追加。Review は ENT-24（追記のみ）に従い常時 CREATE。acceptedDrifts の DRIFT-07a+10a / 07b+10b を削除 |
 | DRIFT-11 | ✅ 解消（2026-07-12） | (a) 本日追加した PII ルールの文言が、**既存の support-db 内ベクトルインデックス（Gemini Embedding 2 で生成）をも禁止してしまっていた**。(b) そもそも embedding 生成で外部APIに何を送っているのかが正典に記録されていなかった | (a) 禁止対象を「別ストア（LightRAG 等）への複製」に限定し、内部 embedding は BRS-03 の管轄として適用外と明記（CLAUDE.md §8 / neo4j-support-db ルール7）。(b) **実装を調査した結果、氏名・生年月日は意図的に送信されていないことが判明**（`build_client_summary_text` は `displayCode` を使用し、コードコメントにも明記）。この設計判断を BRS-03 に明文化し、残存リスク（禁忌本文自体は外部に出ている）も provisional で記録 |
 
 ---
@@ -560,6 +540,7 @@ AST 解析にフォールバック）の三者を突合する。既知の不一�
 
 | 日付 | バージョン | 変更内容 |
 |---|---|---|
+| 2026-07-13 | **v1.4** | **DRIFT-07 / DRIFT-10 解消（agno allowlist 追従）**。agno の実行時 allowlist 2ファイル（`lib/db_new_operations.py` / `api/app/lib/db_operations.py`）へノード6件（Doctor / Relative / CareRole / ProviderFeedback / Identity / Review。API 側は Doctor 反映済みだったため実質5件）とリレーション8件（HAS_DOCTOR / IS_PARENT_OF / FAMILY_OF / PERFORMS / CAN_BE_PERFORMED_BY / HAS_FEEDBACK / WROTE / REVIEWED。API 側は HAS_DOCTOR 反映済み）を追加。MERGE キーは正典 §3 に整合（Doctor/Relative=name・名寄せ、Identity=name+dob）。**CareRole と Review は MERGE ではなく常時 CREATE**（ENT-16 の per-client スコープ則・ENT-24 の追記のみ則）。§6 acceptedDrifts から DRIFT-07a+10a / 07b+10b を削除 |
 | 2026-07-12 | **v1.3** | **BRS-03 に「embedding 生成時の外部API送信」の許容範囲を明文化（DRIFT-11 解消）**。内部ベクトルインデックスの生成に Gemini Embedding 2 を使うことは許容するが、**氏名・生年月日は送信しない**（`displayCode` 等の非識別コードに置換）。これは新規の制限ではなく、**実装（`lib/embedding.py::build_client_summary_text`）に既存していた設計判断を正典に引き上げたもの**——コードコメントの1行だけが防波堤になっていた状態を解消した。残存リスク（禁忌本文自体は外部APIに出ている）も provisional で明示 |
 | 2026-07-12 | **v1.2** | **Review（確認記録）の新設——「0件問題」の解消**。BRS-04 は以前から「確認済みの0件」と「未確認」の区別を命じていたが、**その区別を表現できる構造が存在せず、ルールが構造的に遵守不能だった**。ENT-24（Review）・BRS-12（0件の解釈と表示）・ENU-16/17（domain / source）を新設し、§6 機械検証ブロックに Review / REVIEWED / reviewDomain を反映。陳腐化判定はスコープ外（2026-07-12 河原氏決定）。DRIFT-10（agno/Guardian 未追従）・DRIFT-11（PII ルールの文言が内部 embedding まで禁止している問題）を台帳に登録 |
 | 2026-07-12 | **v1.1** | **フェーズ3（矛盾の解消・限定スコープ）反映**。DRIFT-01〜06・08 を解消し台帳を状態列付きに更新（DRIFT-07 は次セッション送り、DRIFT-09 は残置——いずれも 2026-07-12 河原氏決定）。ENU-14 を「利用終了は `Inactive`」の決定で確定。§6 機械検証ブロックに `priority` を追加し acceptedDrifts から DRIFT-05 を削除 |
