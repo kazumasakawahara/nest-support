@@ -1,6 +1,6 @@
 <!-- AUTO-GENERATED COPY — DO NOT EDIT.
   Synced from ~/Dev-Work/shared-schema/SEMANTIC_MODEL.md
-  Edit the master there and run sync-schema.sh. (synced: 20260713-092005) -->
+  Edit the master there and run sync-schema.sh. (synced: 20260713-093404) -->
 
 <!--
   ============================================================================
