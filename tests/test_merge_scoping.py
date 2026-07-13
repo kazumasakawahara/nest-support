@@ -1,8 +1,8 @@
 """
 register_to_database の MERGE スコープのテスト。
 
-MERGE_KEYS が弱い識別キー（NgAction=["action"], Certificate=["type"],
-KeyPerson=["name"] 等）でグローバル MERGE を行うと、複数クライアントの
+MERGE_KEYS が弱い識別キー（NgAction=["action"], KeyPerson=["name"] 等）で
+グローバル MERGE を行うと、複数クライアントの
 同種ノードが 1 ノードに収斂し、`SET n += $props` で互いのプロパティ
 （nextRenewalDate, riskLevel 等）を上書きし合う。
 
@@ -199,6 +199,104 @@ class TestClientScopedChildNodes:
 
         wish_ids = store.node_ids_for_label("Wish")
         assert len(wish_ids) == 1, "同一クライアントの同内容 Wish が重複登録された"
+
+
+def _reverse_graph(client_name, child_label, child_props, rel_type, rel_props=None):
+    """(node)-[rel]->(Client) の逆向きリレーションを持つグラフ（Relative 等）。"""
+    return {
+        "nodes": [
+            {"temp_id": "c1", "label": "Client",
+             "properties": {"name": client_name}},
+            {"temp_id": "x1", "label": child_label,
+             "properties": child_props},
+        ],
+        "relationships": [
+            {"source_temp_id": "x1", "target_temp_id": "c1",
+             "type": rel_type, "properties": rel_props or {}},
+        ],
+    }
+
+
+class TestReverseScopedRelative:
+    """Relative は (Relative)-[:IS_PARENT_OF]->(Client) と逆向きだが
+    クライアント配下にスコープされること（DRIFT-12）。"""
+
+    def test_same_relative_name_across_clients_creates_separate_nodes(self, store):
+        """別クライアントの同姓同名の家族は別ノードになる。"""
+        db_operations.register_to_database(
+            _reverse_graph("山田太郎", "Relative",
+                           {"name": "田中花子", "relationship": "母"},
+                           "IS_PARENT_OF"),
+            user_name="pytest")
+        db_operations.register_to_database(
+            _reverse_graph("佐藤次郎", "Relative",
+                           {"name": "田中花子", "relationship": "母"},
+                           "IS_PARENT_OF"),
+            user_name="pytest")
+
+        rel_ids = store.node_ids_for_label("Relative")
+        assert len(rel_ids) == 2, (
+            "別クライアントの同姓同名 Relative が同一ノードに収斂している"
+            "（healthStatus 等が相互上書きされる）")
+
+    def test_reregistering_same_relative_is_idempotent(self, store):
+        """同一クライアントへの同名 Relative の再登録は同一ノードに解決される。"""
+        graph = _reverse_graph("山田太郎", "Relative",
+                               {"name": "田中花子", "relationship": "母"},
+                               "IS_PARENT_OF")
+        db_operations.register_to_database(graph, user_name="pytest")
+        db_operations.register_to_database(graph, user_name="pytest")
+
+        rel_ids = store.node_ids_for_label("Relative")
+        assert len(rel_ids) == 1, "同一クライアントの同名 Relative が重複登録された"
+
+    def test_relative_relationship_direction_is_preserved(self, store):
+        """スコープ付き MERGE でも向きは (Relative)->(Client) のまま。"""
+        db_operations.register_to_database(
+            _reverse_graph("山田太郎", "Relative",
+                           {"name": "田中花子", "relationship": "母"},
+                           "IS_PARENT_OF"),
+            user_name="pytest")
+
+        calls = store.queries_containing("IS_PARENT_OF")
+        assert calls, "IS_PARENT_OF が書き込まれていない"
+        assert any("(n:Relative" in q and "]->(c)" in q for q, _ in calls), \
+            "逆向きリレーションの向きが保存されていない（Client→Relative になっている）"
+
+
+class TestCertificateCompositeKey:
+    """Certificate は type+grade の複合キー（正典 §10.3・DRIFT-12）。"""
+
+    def test_different_grades_for_same_client_are_separate_nodes(self, store):
+        """同一人の療育手帳 A と B は別ノード（旧 type 単独キーの実バグ）。"""
+        db_operations.register_to_database(
+            _graph("山田太郎", "Certificate",
+                   {"type": "療育手帳", "grade": "A"},
+                   "HAS_CERTIFICATE"),
+            user_name="pytest")
+        db_operations.register_to_database(
+            _graph("山田太郎", "Certificate",
+                   {"type": "療育手帳", "grade": "B"},
+                   "HAS_CERTIFICATE"),
+            user_name="pytest")
+
+        cert_ids = store.node_ids_for_label("Certificate")
+        assert len(cert_ids) == 2, (
+            "同一人の等級違い Certificate が1ノードに潰れている（DRIFT-12 の実バグ）")
+
+    def test_missing_grade_defaults_to_unknown(self, store):
+        """grade 未指定は「不明」で補完される（複合キーの欠落防止・正典 §10.3）。"""
+        db_operations.register_to_database(
+            _graph("山田太郎", "Certificate",
+                   {"type": "療育手帳"},
+                   "HAS_CERTIFICATE"),
+            user_name="pytest")
+
+        cert_calls = [(q, p, nid) for q, p, nid in store.node_calls
+                      if "n:Certificate" in q]
+        assert cert_calls, "Certificate が書き込まれていない"
+        assert all(p.get("grade") == "不明" for _, p, _ in cert_calls), \
+            "grade 未指定時に「不明」が補完されていない"
 
 
 class TestSharedEntitiesRemainGlobal:

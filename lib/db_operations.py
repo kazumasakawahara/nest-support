@@ -90,6 +90,9 @@ def execute_write(query, params=None):
 # =============================================================================
 
 # MERGE用の一致キー定義
+# 訂正（2026-07-13・DRIFT-12）: Certificate を正典 §10.3 の複合キー ["type","grade"] に
+# 修正（旧 ["type"] は同一人の療育手帳 A と B が1ノードに潰れる）。
+# Doctor / Relative / Identity を正典 §3 のキーで追加。
 MERGE_KEYS = {
     "Client": ["name"],
     "Supporter": ["name"],
@@ -100,21 +103,32 @@ MERGE_KEYS = {
     "Organization": ["name"],
     "ServiceProvider": ["name"],
     "Hospital": ["name"],
+    "Doctor": ["name"],
     "Guardian": ["name"],
-    "Certificate": ["type"],
+    "Relative": ["name"],
+    "Identity": ["name", "dob"],
+    "Certificate": ["type", "grade"],
     "Wish": ["content"],
     "LifeHistory": ["episode"]
 }
+
+# 意図的に MERGE_KEYS へ入れないラベル（常時 CREATE）:
+# - CareRole: per-client スコープ則（ENT-16）。共有ノード化すると未カバーのタスクが
+#   「カバー済み」と誤診断される。親が Client でなく Relative のためスコープ機構にも乗せない
+# - Review: 確認記録は追記のみ（ENT-24）。MERGE は追記性を壊す
+# - ProviderFeedback: feedbackId が語り抽出に含まれない場合に登録ごと落ちるのを避ける
 
 # Client 配下の子ノードラベル。一致キーが弱い（action / type / name のみ等）ため、
 # グローバル MERGE では複数クライアントの同種ノードが 1 ノードに収斂し
 # `SET n += $props` で互いのプロパティを上書きし合う。これを防ぐため、
 # 登録時は Client とのリレーションを含むパターン MERGE にスコープする。
-# Supporter / Hospital / Organization / ServiceProvider / Condition は
-# 実体共有が正しいためグローバル MERGE を維持する。
+# Relative は (Relative)-[:IS_PARENT_OF|FAMILY_OF]->(Client) と逆向き（node が source）
+# だが、_build_parent_link が両方向を解決するためスコープ対象にできる（DRIFT-12）。
+# Supporter / Hospital / Organization / ServiceProvider / Condition / Doctor は
+# 実体共有（名寄せ）が正しいためグローバル MERGE を維持する。
 CLIENT_SCOPED_LABELS = frozenset({
     "NgAction", "CarePreference", "Certificate", "Wish", "LifeHistory",
-    "KeyPerson", "Guardian",
+    "KeyPerson", "Guardian", "Relative",
 })
 
 # Embedding生成用のテキスト構築ルール（感情・タグ・文脈を包含）
@@ -195,10 +209,7 @@ def register_to_database(extracted_graph: dict, user_name: str = "system") -> di
 
     # Client を親とする子ノードの紐付けを relationships から先に解決する
     # （CLIENT_SCOPED_LABELS のスコープ付きパターン MERGE 用）
-    parent_link = {}
-    for rel in relationships:
-        if rel.get("source_temp_id") in client_temp_ids and rel.get("type"):
-            parent_link.setdefault(rel.get("target_temp_id"), rel)
+    parent_link = _build_parent_link(relationships, client_temp_ids)
 
     driver = get_driver()
     if driver is None:
@@ -246,6 +257,25 @@ def register_to_database(extracted_graph: dict, user_name: str = "system") -> di
     }
 
 
+def _build_parent_link(relationships, client_temp_ids):
+    """Client と直接つながる子ノードの紐付けを両方向で解決する。
+
+    戻り値: {子ノードの temp_id: rel}
+    (Client)-[r]->(node) の順方向に加え、(node)-[r]->(Client) の逆向き
+    （Relative の IS_PARENT_OF / FAMILY_OF 等）も対象にする（DRIFT-12）。
+    向きは _register_graph_tx 側で rel の source/target と temp_id の照合により復元する。
+    """
+    parent_link = {}
+    for rel in relationships:
+        if not rel.get("type"):
+            continue
+        if rel.get("source_temp_id") in client_temp_ids:
+            parent_link.setdefault(rel.get("target_temp_id"), rel)
+        elif rel.get("target_temp_id") in client_temp_ids:
+            parent_link.setdefault(rel.get("source_temp_id"), rel)
+    return parent_link
+
+
 def _register_graph_tx(tx, nodes, relationships, parent_link,
                        valid_labels, valid_types):
     """ノード＋リレーションを1トランザクション内で書き込む。
@@ -280,17 +310,32 @@ def _register_graph_tx(tx, nodes, relationships, parent_link,
         internal_id = None
         action_type = "CREATE"
 
+        if label == "Certificate" and not props.get("grade"):
+            props["grade"] = "不明"  # 正典 §10.3: 等級未指定は「不明」（複合キー欠落の防止）
+
         if label in MERGE_KEYS:
             match_props = {k: props[k] for k in MERGE_KEYS[label] if k in props}
             if match_props:
                 match_clause = ", ".join([f"{k}: ${k}" for k in match_props.keys()])
                 if label in CLIENT_SCOPED_LABELS:
                     link = parent_link.get(temp_id)
-                    parent_id = temp_id_map.get(link.get("source_temp_id")) if link else None
+                    if link and link.get("target_temp_id") == temp_id:
+                        # 順方向: (Client)-[r]->(node)
+                        parent_id, inbound = temp_id_map.get(link.get("source_temp_id")), False
+                    elif link:
+                        # 逆向き: (node)-[r]->(Client)。Relative 等（DRIFT-12）
+                        parent_id, inbound = temp_id_map.get(link.get("target_temp_id")), True
+                    else:
+                        parent_id, inbound = None, False
                     if parent_id and _reltype_allowed(link.get("type"), valid_types):
+                        pattern = (
+                            f"(n:{label} {{{match_clause}}})-[r:{link['type']}]->(c)"
+                            if inbound else
+                            f"(c)-[r:{link['type']}]->(n:{label} {{{match_clause}}})"
+                        )
                         cypher = f"""
                             MATCH (c) WHERE elementId(c) = $parentId
-                            MERGE (c)-[r:{link['type']}]->(n:{label} {{{match_clause}}})
+                            MERGE {pattern}
                             SET n += $props, r += $relProps
                             RETURN elementId(n) AS id
                         """
