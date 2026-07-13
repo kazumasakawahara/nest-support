@@ -1,6 +1,6 @@
 <!-- AUTO-GENERATED COPY — DO NOT EDIT.
   Synced from ~/Dev-Work/shared-schema/SEMANTIC_MODEL.md
-  Edit the master there and run sync-schema.sh. (synced: 20260713-083000) -->
+  Edit the master there and run sync-schema.sh. (synced: 20260713-092005) -->
 
 <!--
   ============================================================================
@@ -455,13 +455,15 @@ Oracle 層（`lib/insight_engine.py`）と各スキル定型クエリの「計�
 
 ---
 
-## 6. 機械検証ブロック（三者一致チェック）
+## 6. 機械検証ブロック（四者一致チェック）
 
 以下の JSON は `nest-support/scripts/check_semantic_drift.py` が読み取り、
 ① 本ブロック（あるべき仕様） ② `lib/schema_validator.py`（Guardian の実装） ③
 `GET /api/narrative/schema`（agno 実行時 allowlist。API 停止時は agno ソースの
-AST 解析にフォールバック）の三者を突合する。既知の不一致は `acceptedDrifts` に
-日付・理由付きで登録し、**未登録の不一致のみを FAIL** とする。
+AST 解析にフォールバック） ④ nest `lib/db_operations.py`（Python 登録経路の
+MERGE_KEYS / CLIENT_SCOPED_LABELS。AST 解析）を突合する。既知の不一致は
+`acceptedDrifts` に日付・理由付きで登録し、**未登録の不一致のみを FAIL** とする。
+（④ は 2026-07-13 追加——DRIFT-12 が機械検出されなかった死角の解消。`nestLib` キーが正値）
 
 ```json machine-check
 {
@@ -504,6 +506,15 @@ AST 解析にフォールバック）の三者を突合する。既知の不一�
     "carePattern": {"discoverMinFrequency": 2, "promoteMinFrequency": 3},
     "renewalUrgency": {"immediateDays": 30, "warningDays": 60, "planningDays": 90}
   },
+  "nestLib": {
+    "mergeKeys": {
+      "Certificate": ["type", "grade"],
+      "Doctor": ["name"],
+      "Relative": ["name"],
+      "Identity": ["name", "dob"]
+    },
+    "neverMergeLabels": ["Review", "CareRole", "ProviderFeedback"]
+  },
   "acceptedDrifts": []
 }
 ```
@@ -532,6 +543,7 @@ AST 解析にフォールバック）の三者を突合する。既知の不一�
 | DRIFT-08 | ✅ 解消（2026-07-12） | Certificate の MERGE キーがスキル3本で type のみ（正典 §10.3 は type+grade 複合キー） | neo4j-support-db / onboarding-wizard / narrative-extractor の MERGE を複合キー（grade 未指定は '不明'）へ修正（各訂正注記付き） |
 | DRIFT-09 | ⏳ 残置 | 「4本柱」「7本柱」の呼称揺れ、manifesto 内の旧関数名（search_emergency_info 等）残存、wamnet-provider-sync の日付表記混在 | 軽微。文書整理時にまとめて修正 |
 | DRIFT-10 | ✅ 解消（2026-07-13） | Review / REVIEWED を 2026-07-12 新設したが、**agno 実行時 allowlist が未追従**だった。Guardian（schema_validator.py）は 2026-07-12 に反映済み（Review / REVIEWED / LABEL_SCOPED_ENUM_VALUES） | DRIFT-07 と一括で agno allowlist（2ファイル＋スキル JSON）へ Review / REVIEWED を追加。Review は ENT-24（追記のみ）に従い常時 CREATE。acceptedDrifts の DRIFT-07a+10a / 07b+10b を削除 |
+| DRIFT-12 | ✅ 解消（2026-07-13） | nest `lib/db_operations.py`（Python 登録経路）が正典未追従だった。(a) `MERGE_KEYS["Certificate"]` が `["type"]` のみ（正典 §10.3 は type+grade。同一人の療育手帳 A と B が1ノードに潰れる実バグ候補）、(b) Doctor / Relative / Identity が MERGE_KEYS 不在。`check_semantic_drift.py` が nest lib を検査対象にしていなかったため機械検出されなかった | (1) MERGE_KEYS を正典整合に修正（Certificate=type+grade・grade 未指定は「不明」補完、Doctor/Relative=name、Identity=name+dob）。CareRole / Review / ProviderFeedback は**意図して MERGE しない**（ENT-16 / ENT-24 / feedbackId 欠落時の登録喪失回避）——不在が正しいことをテストで固定。(2) Relative は逆向きリレーション（Relative→Client）のため既存スコープ機構の死角だった——`_build_parent_link` を双方向解決に拡張し client スコープ化（同姓同名家族の収斂防止）。(3) チェッカーに ④ nest lib の AST 照合を追加し、§6 に `nestLib` 正値ブロックを新設（死角の恒久解消） |
 | DRIFT-11 | ✅ 解消（2026-07-12） | (a) 本日追加した PII ルールの文言が、**既存の support-db 内ベクトルインデックス（Gemini Embedding 2 で生成）をも禁止してしまっていた**。(b) そもそも embedding 生成で外部APIに何を送っているのかが正典に記録されていなかった | (a) 禁止対象を「別ストア（LightRAG 等）への複製」に限定し、内部 embedding は BRS-03 の管轄として適用外と明記（CLAUDE.md §8 / neo4j-support-db ルール7）。(b) **実装を調査した結果、氏名・生年月日は意図的に送信されていないことが判明**（`build_client_summary_text` は `displayCode` を使用し、コードコメントにも明記）。この設計判断を BRS-03 に明文化し、残存リスク（禁忌本文自体は外部に出ている）も provisional で記録 |
 
 ---
@@ -540,6 +552,7 @@ AST 解析にフォールバック）の三者を突合する。既知の不一�
 
 | 日付 | バージョン | 変更内容 |
 |---|---|---|
+| 2026-07-13 | **v1.5** | **DRIFT-12 解消（nest Python 登録経路の正典追従）＋検査の死角解消**。nest `lib/db_operations.py` の MERGE_KEYS を正典整合に修正（Certificate 複合キー・Doctor/Relative/Identity 追加）。Relative は逆向きリレーションのためスコープ機構を双方向対応に拡張して client スコープ化。CareRole / Review / ProviderFeedback は意図的に MERGE しない（不在をテストで固定）。§6 を「四者一致」に拡張——`nestLib` 正値ブロックを追加し、チェッカーが nest lib も AST 照合するようにした（DRIFT-12 が機械検出されなかった原因の恒久対策） |
 | 2026-07-13 | **v1.4** | **DRIFT-07 / DRIFT-10 解消（agno allowlist 追従）**。agno の実行時 allowlist 2ファイル（`lib/db_new_operations.py` / `api/app/lib/db_operations.py`）へノード6件（Doctor / Relative / CareRole / ProviderFeedback / Identity / Review。API 側は Doctor 反映済みだったため実質5件）とリレーション8件（HAS_DOCTOR / IS_PARENT_OF / FAMILY_OF / PERFORMS / CAN_BE_PERFORMED_BY / HAS_FEEDBACK / WROTE / REVIEWED。API 側は HAS_DOCTOR 反映済み）を追加。MERGE キーは正典 §3 に整合（Doctor/Relative=name・名寄せ、Identity=name+dob）。**CareRole と Review は MERGE ではなく常時 CREATE**（ENT-16 の per-client スコープ則・ENT-24 の追記のみ則）。§6 acceptedDrifts から DRIFT-07a+10a / 07b+10b を削除 |
 | 2026-07-12 | **v1.3** | **BRS-03 に「embedding 生成時の外部API送信」の許容範囲を明文化（DRIFT-11 解消）**。内部ベクトルインデックスの生成に Gemini Embedding 2 を使うことは許容するが、**氏名・生年月日は送信しない**（`displayCode` 等の非識別コードに置換）。これは新規の制限ではなく、**実装（`lib/embedding.py::build_client_summary_text`）に既存していた設計判断を正典に引き上げたもの**——コードコメントの1行だけが防波堤になっていた状態を解消した。残存リスク（禁忌本文自体は外部APIに出ている）も provisional で明示 |
 | 2026-07-12 | **v1.2** | **Review（確認記録）の新設——「0件問題」の解消**。BRS-04 は以前から「確認済みの0件」と「未確認」の区別を命じていたが、**その区別を表現できる構造が存在せず、ルールが構造的に遵守不能だった**。ENT-24（Review）・BRS-12（0件の解釈と表示）・ENU-16/17（domain / source）を新設し、§6 機械検証ブロックに Review / REVIEWED / reviewDomain を反映。陳腐化判定はスコープ外（2026-07-12 河原氏決定）。DRIFT-10（agno/Guardian 未追従）・DRIFT-11（PII ルールの文言が内部 embedding まで禁止している問題）を台帳に登録 |

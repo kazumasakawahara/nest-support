@@ -1,11 +1,13 @@
 """
-三者一致チェッカー（意味・ルール層のドリフト検知）
+四者一致チェッカー（意味・ルール層のドリフト検知）
 
 SEMANTIC_MODEL.md §6 の機械検証ブロック（あるべき仕様）を基準に、
   ① 正本ドキュメント（docs/SEMANTIC_MODEL.md、無ければ shared-schema のマスター）
   ② lib/schema_validator.py（Guardian の実装）
   ③ GET /api/narrative/schema（agno 実行時 allowlist。停止時はソース AST 解析）
-の三者を突合する。
+  ④ lib/db_operations.py（nest Python 登録経路の MERGE_KEYS / CLIENT_SCOPED_LABELS。
+    AST 解析。2026-07-13 追加——DRIFT-12 が機械検出されなかった死角の解消）
+を突合する。
 
 既知の不一致は正本の acceptedDrifts に登録されており KNOWN として報告する。
 未登録の不一致のみ FAIL（終了コード 1）。--strict で KNOWN も FAIL 扱い。
@@ -206,6 +208,65 @@ def check_insight_engine(spec: dict):
             report("WARN", f"閾値 {label}: ソース内に見つからず（手動確認要）")
 
 
+def check_nest_lib(spec: dict):
+    """④ nest lib/db_operations.py の MERGE_KEYS / CLIENT_SCOPED_LABELS を AST 照合。
+
+    実行時 import は Neo4j ドライバ等を巻き込むため、agno フォールバックと同じく
+    AST（literal_eval）で読む。CLIENT_SCOPED_LABELS は frozenset({...}) の Call
+    形式なので引数の集合リテラルを取り出す。
+    """
+    src = REPO_ROOT / "lib" / "db_operations.py"
+    if not src.is_file():
+        report("WARN", "nest lib: lib/db_operations.py が見つかりません（未検証）")
+        return
+    tree = ast.parse(src.read_text(encoding="utf-8"))
+    consts: dict[str, object] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+            if isinstance(target, ast.Name) and target.id in (
+                "MERGE_KEYS", "CLIENT_SCOPED_LABELS",
+            ):
+                value = node.value
+                if (isinstance(value, ast.Call) and isinstance(value.func, ast.Name)
+                        and value.func.id == "frozenset" and value.args):
+                    value = value.args[0]
+                try:
+                    consts[target.id] = ast.literal_eval(value)
+                except ValueError:
+                    pass
+    if "MERGE_KEYS" not in consts:
+        report("WARN", "nest lib: MERGE_KEYS を AST で取得できません（手動確認要）")
+        return
+    merge_keys: dict = consts["MERGE_KEYS"]
+    scoped = set(consts.get("CLIENT_SCOPED_LABELS", set()))
+
+    # ラベル整合: lib が扱うラベルはすべて正典の nodeLabels に存在すること
+    lib_labels = set(merge_keys) | scoped
+    unknown = lib_labels - set(spec["canonical"]["nodeLabels"])
+    if unknown:
+        report("FAIL", f"nest lib ラベル: 正典に無いラベル {sorted(unknown)}")
+    else:
+        report("OK", f"nest lib ラベル: すべて正典内（{len(lib_labels)}件）")
+
+    nest_spec = spec.get("nestLib")
+    if not nest_spec:
+        report("WARN", "nest lib: 正本に nestLib ブロックが無く MERGE キーは未検証")
+        return
+    for label, expected in nest_spec.get("mergeKeys", {}).items():
+        actual = merge_keys.get(label)
+        if actual == expected:
+            report("OK", f"nest lib MERGE キー {label} = {expected}")
+        else:
+            report("FAIL", f"nest lib MERGE キー {label}: 正本={expected} 実装={actual}")
+    for label in nest_spec.get("neverMergeLabels", []):
+        if label in merge_keys:
+            report("FAIL", f"nest lib: {label} が MERGE_KEYS に存在"
+                           "（常時 CREATE が正。ENT-16 / ENT-24 参照）")
+        else:
+            report("OK", f"nest lib: {label} は MERGE_KEYS に無い（常時 CREATE・正）")
+
+
 def check_agno(spec: dict):
     fetched = fetch_agno_allowlist()
     if fetched is None:
@@ -233,6 +294,8 @@ def main():
     check_insight_engine(spec)
     print("--- ③ agno 実行時 allowlist ---")
     check_agno(spec)
+    print("--- ④ nest lib (lib/db_operations.py) ---")
+    check_nest_lib(spec)
 
     print(f"\n結果: OK={results['OK']} KNOWN={results['KNOWN']} "
           f"FAIL={results['FAIL']} WARN={results['WARN']}")
