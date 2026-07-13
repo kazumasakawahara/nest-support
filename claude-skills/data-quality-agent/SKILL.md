@@ -48,6 +48,7 @@ description: Neo4jデータベースの品質を定期的に監視し、更新�
 | カテゴリ | 内容 | 深刻度 |
 |---------|------|--------|
 | 期限アラート | 手帳・受給者証の更新期限が近い/超過 | Critical / Warning |
+| 等級未把握・残骸 | Certificate の grade="不明"（未把握）、実等級判明後に残る不明ノード | Warning |
 | 安全データ欠損・未確認 | 禁忌事項やキーパーソンが**未確認**（0件かつ Review なし） | Critical |
 | データ陳腐化 | 長期間更新のないノード | Warning |
 | 関連性の欠損 | 孤立ノード、リレーション不足 | Warning |
@@ -92,6 +93,53 @@ ORDER BY remainingDays ASC
 - **CRITICAL**: 30日以内。手続き開始が必要 → Critical
 - **WARNING**: 60日以内。準備を始める時期 → Warning
 - **NOTICE**: 90日以内。次回訪問時に話題にする → Info
+
+### Check 1b: Certificate の等級未把握・残骸候補（Warning）
+
+> 追加（2026-07-13）: DRIFT-12 修正により、grade 未指定の Certificate 登録には
+> sentinel 値 **"不明"** が補完される（SCHEMA_CONVENTION §10.3。複合 MERGE キーの
+> 欠落防止）。`"不明"` の意味は「**等級を把握していない**」であって「等級が無い」
+> ではない（BRS-04 の区別）。本チェックはその2つの帰結を検出する。
+
+#### (a) 等級未把握（Warning）
+
+grade="不明" の Certificate を持つクライアントを列挙する。
+
+```cypher
+MATCH (c:Client)-[:HAS_CERTIFICATE|HOLDS]->(cert:Certificate {grade: '不明'})
+RETURN c.name AS クライアント名,
+       cert.type AS 証明書種類,
+       cert.nextRenewalDate AS 更新期限
+ORDER BY クライアント名, 証明書種類
+```
+
+**表示原則: 「等級なし」と書いてはならない。**
+「**等級未把握——本人・家族・手帳現物で確認を**」と行動につながる表現を使う
+（未把握は「無い」ではない。等級は支給量・利用可能サービスに直結するため、
+把握しないまま放置すると支援計画の根拠が崩れる）。
+
+#### (b) 残骸候補（Warning・手動対応の提案のみ）
+
+「不明」で登録された後に実等級が判明すると、複合キーが違うため**新ノードが別に立ち、
+不明ノードが残骸として残る**（構造上の必然）。同一クライアント・同一 type で
+grade="不明" と具体的等級が併存しているペアを検出する。
+
+```cypher
+MATCH (c:Client)-[:HAS_CERTIFICATE|HOLDS]->(u:Certificate {grade: '不明'})
+MATCH (c)-[:HAS_CERTIFICATE|HOLDS]->(k:Certificate)
+WHERE k.type = u.type AND k.grade <> '不明'
+RETURN c.name AS クライアント名,
+       u.type AS 証明書種類,
+       collect(DISTINCT k.grade) AS 判明済み等級
+ORDER BY クライアント名
+```
+
+**対応は検出と提案まで。** 残骸の削除は「河原氏の承認と AuditLog を伴う手動作業」
+として提起するにとどめる（本スキルはレポート専用。**自動修正・自動削除を行わない**。
+不明ノード側にだけ更新期限等の情報が残っている場合もあるため、削除前に
+プロパティの引き継ぎ要否を人間が判断する）。
+
+> 両クエリは 2026-07-13 に nest-support-neo4j へ読み取り実行して構文・挙動を検証済み。
 
 ### Check 2: 安全データ欠損と未確認の検出（Critical）
 
