@@ -1,6 +1,6 @@
 <!-- AUTO-GENERATED COPY — DO NOT EDIT.
   Synced from ~/Dev-Work/shared-schema/SEMANTIC_MODEL.md
-  Edit the master there and run sync-schema.sh. (synced: 20260713-093404) -->
+  Edit the master there and run sync-schema.sh. (synced: 20260808-162145) -->
 
 <!--
   ============================================================================
@@ -10,7 +10,7 @@
   ============================================================================
 -->
 
-# nest-support 意味・ルールモデル（SEMANTIC MODEL）— 正本 v1.0
+# nest-support 意味・ルールモデル（SEMANTIC MODEL）— 正本 v1.6
 
 > **このドキュメントは、support-db（障害福祉支援DB, port 7687）の「意味とルール」
 > （概念の業務的定義・運用原則・指標の計算意図・列挙値の意味・暫定事項）の唯一の正本です。**
@@ -146,6 +146,10 @@
   加えて、**誰が情報源だったかという記録それ自体が、親なき後に引き継がれるべき
   資産**になる（親の死後、その情報が誰由来だったかは二度と辿れない）。
   追記のみで、更新・削除はしない（確認の履歴は積み上げる）。
+  **2026-08-08 拡張（Track A）**: Review は `CONFIRMS` リレーションで**個々の事実**
+  （NgAction / CarePreference）を指せるようになった。CONFIRMS を持たない Review は
+  従来どおり「領域の0件確認」、持つ Review は「その事実の個別再確認」を意味する
+  （BRS-13）。Review ノード自体の構造は不変。
   `source: 2026-07-12 河原氏決定` `values: [Safety, Continuity, Advocacy]`
 
 ### 多機関連携（第7柱の実装済み部分）
@@ -359,11 +363,40 @@ Oracle 層（`lib/insight_engine.py`）と各スキル定型クエリの「計�
   上書きしない）。確認の履歴が積み上がることで「いつ・誰に聞いた情報か」が
   親なき後も辿れる（ENT-24）。
 
-  **スコープ外（今回は実装しない）**: `reviewedAt` の古さによる**陳腐化判定は行わない**
-  （記録はするが、閾値による警告は出さない）。
-  `provisional: 再確認の推奨間隔は未定。見直しトリガー = 運用開始後、確認の古さが
-  実務上の問題として顕在化した時点（2026-07-12 河原氏決定によりスコープ外とした）`
-  `source: 2026-07-12 河原氏決定` `values: [Safety, Continuity, Dignity]`
+  ~~**スコープ外（今回は実装しない）**: `reviewedAt` の古さによる陳腐化判定は行わない~~
+  → **2026-08-08 解消**: 陳腐化判定は BRS-13（証拠・鮮度モデル）が事実側の
+  `lastConfirmedAt` / `staleAfter` を基準に導入した（Review の reviewedAt 自体を
+  閾値判定しない点は不変。判定対象は事実ノードの鮮度）。
+  `source: 2026-07-12 河原氏決定 → 2026-08-08 Track A 承認で更新` `values: [Safety, Continuity, Dignity]`
+- **BRS-13 証拠・鮮度モデル（Track A Phase 1）** — 「DBの中身は事実ではなく、
+  賞味期限つきの観測である」を NgAction / CarePreference に実装する。
+  要件書・技術仕様は oya-inai-db/docs/evidence-freshness-{requirements,technical-spec}.md
+  （2026-08-08 河原氏承認）。
+
+  **証拠**: 安全系事実は `source`（ENU-17 の語彙）と `sourceDetail` を持つ。
+  確信度スコアは導入しない（自己採点は役に立って見える方向に間違える）。
+
+  **鮮度**: `lastConfirmedAt` ＋ `coalesce(staleAfter, freshnessDefaults[label])` で
+  期限判定。期限超過は**「要再確認」への降格表示であって、削除も非表示もしない**。
+  再確認したら Review ＋ CONFIRMS を追記し lastConfirmedAt を更新（1トランザクション）。
+
+  **二段階承認**: 弱い書き込み経路（AI抽出・MCP直接）からの安全系事実は
+  `status: Pending` で作成され、人間の承認で `Active` に昇格する（チャット承認・
+  approvedBy 必須・AuditLog 記録。禁忌系の承認は管理者=河原氏のみ〔運用ルール〕）。
+
+  **矛盾の保留**: 情報源が食い違ったら `CONTRADICTS`（新観測→既存事実。追記専用・
+  `resolvedAt IS NULL`=未解決）で保持し、人間が裁定するまで「係争中」を表示し続ける。
+  上書き・平均・自動裁定はしない。
+
+  **非対称ルール（最重要）**: NgAction の警告は、矛盾・期限超過・Pending の
+  いずれでも**自動では決して消えない**。表示停止の唯一の経路は管理者裁定による
+  `status: Inactive` 化（AuditLog 必須）。
+
+  **表示経路の網羅性**: `Pending` → チャット承認待ち一覧（禁忌は照会時にも「未確定」
+  表示）/ 未解決 CONTRADICTS → 照会時の係争中警告（status 非依存）/ `Active`×期限超過
+  → 再確認キュー / `Inactive` → 非表示（管理者裁定のみが到達経路）。この2ラベルの
+  status は上記3値に制限されるため、**どのリストにも出ない禁忌は構造的に生じない**。
+  `source: 2026-08-08 河原氏承認` `values: [Safety, Continuity, Advocacy]`
 
 ---
 
@@ -405,6 +438,9 @@ Oracle 層（`lib/insight_engine.py`）と各スキル定型クエリの「計�
   `Monitoring`（経過観察中。例: 術後経過観察の Condition）。
   ※ ワークフロー文書の「手配済み / 調整中 / 緊急対応必要」等の表示ラベルは
   レポート上の表現であって、DB の status 値ではない（混同しない）。
+  ※ **NgAction / CarePreference の status は `Active` / `Pending` / `Inactive` の
+  3値に制限**（BRS-13。2026-08-08 Track A）。Pending=承認待ち、Inactive=管理者裁定
+  による解除のみ。
 - **ENU-06 CarePreference.priority（推奨ケアの優先度）** — `High / Medium / Low`。
   High はケアの成否を左右するもの、Low は「できれば」の配慮。
   ※ Guardian の priority 検証は 2026-07-12 に新設済み（DRIFT-05 解消時）。
@@ -452,6 +488,9 @@ Oracle 層（`lib/insight_engine.py`）と各スキル定型クエリの「計�
   と「本人にしか聞けていない」は、同じ「0件」でも重みが全く違う。
   `記録のみ`（既存文書を見ただけで、人には確認していない）は**最も弱い情報源**であり、
   これだけで「確認済み」とするのは推奨しない（記録の不在は不在の証明ではない）。
+  **2026-08-08 拡張（Track A / BRS-13）**: この語彙は Review だけでなく
+  **NgAction / CarePreference の `source` プロパティ**と **CONTRADICTS の `source`**
+  にもそのまま使う。新語彙は発明しない。既存データの一括初期化では `記録のみ` を入れる。
 
 ---
 
@@ -483,7 +522,8 @@ MERGE_KEYS / CLIENT_SCOPED_LABELS。AST 解析）を突合する。既知の不�
       "RECORDED", "ABOUT", "FOLLOWS", "AUDIT_FOR", "HAS_HISTORY", "HAS_WISH",
       "HAS_IDENTITY", "USES_SERVICE", "HAS_FEEDBACK", "WROTE",
       "IS_PARENT_OF", "FAMILY_OF", "PERFORMS", "CAN_BE_PERFORMED_BY",
-      "REVIEWED"
+      "REVIEWED",
+      "CONTRADICTS", "CONFIRMS"
     ],
     "enums": {
       "riskLevel": ["LifeThreatening", "Panic", "Discomfort"],
@@ -505,6 +545,22 @@ MERGE_KEYS / CLIENT_SCOPED_LABELS。AST 解析）を突合する。既知の不�
     "staffOverload": {"days": 7, "negativeRatioThreshold": 0.5, "minLogs": 3},
     "carePattern": {"discoverMinFrequency": 2, "promoteMinFrequency": 3},
     "renewalUrgency": {"immediateDays": 30, "warningDays": 60, "planningDays": 90}
+  },
+  "freshnessDefaults": {
+    "NgAction": 365,
+    "CarePreference": 365,
+    "KeyPerson": 180,
+    "Doctor": 365,
+    "Hospital": 365,
+    "_note": "staleAfter の既定日数（BRS-13）。Certificate は nextRenewalDate が正で対象外。ノード個別の staleAfter プロパティが優先（coalesce）。Phase 1 の適用対象は NgAction / CarePreference のみ"
+  },
+  "requiredProperties": {
+    "NgAction": ["source", "status", "lastConfirmedAt"],
+    "CarePreference": ["source", "status", "lastConfirmedAt"]
+  },
+  "restrictedStatus": {
+    "NgAction": ["Active", "Pending", "Inactive"],
+    "CarePreference": ["Active", "Pending", "Inactive"]
   },
   "nestLib": {
     "mergeKeys": {
@@ -552,6 +608,7 @@ MERGE_KEYS / CLIENT_SCOPED_LABELS。AST 解析）を突合する。既知の不�
 
 | 日付 | バージョン | 変更内容 |
 |---|---|---|
+| 2026-08-08 | **v1.6** | **証拠・鮮度モデル（Track A Phase 1）の正本化**（河原氏承認 2026-08-08。要件書・技術仕様は oya-inai-db/docs/evidence-freshness-{requirements,technical-spec}.md）。**BRS-13 新設**（証拠=source/sourceDetail・鮮度=lastConfirmedAt/staleAfter・二段階承認 Pending・矛盾の保留 CONTRADICTS・**非対称ルール**=禁忌の警告は自動で消えない・表示経路の網羅性）。ENT-24 に CONFIRMS 拡張（0件確認と個別確認の区別）、BRS-12 の陳腐化スコープ外を解消、ENU-05 に NgAction/CarePreference の status 3値制限、ENU-17 を事実側 source に再利用。§6 machine-check に `CONTRADICTS`/`CONFIRMS`・`freshnessDefaults`・`requiredProperties`・`restrictedStatus` を追加。SCHEMA_CONVENTION v3.4 と対 |
 | 2026-07-13 | **v1.5** | **DRIFT-12 解消（nest Python 登録経路の正典追従）＋検査の死角解消**。nest `lib/db_operations.py` の MERGE_KEYS を正典整合に修正（Certificate 複合キー・Doctor/Relative/Identity 追加）。Relative は逆向きリレーションのためスコープ機構を双方向対応に拡張して client スコープ化。CareRole / Review / ProviderFeedback は意図的に MERGE しない（不在をテストで固定）。§6 を「四者一致」に拡張——`nestLib` 正値ブロックを追加し、チェッカーが nest lib も AST 照合するようにした（DRIFT-12 が機械検出されなかった原因の恒久対策） |
 | 2026-07-13 | **v1.4** | **DRIFT-07 / DRIFT-10 解消（agno allowlist 追従）**。agno の実行時 allowlist 2ファイル（`lib/db_new_operations.py` / `api/app/lib/db_operations.py`）へノード6件（Doctor / Relative / CareRole / ProviderFeedback / Identity / Review。API 側は Doctor 反映済みだったため実質5件）とリレーション8件（HAS_DOCTOR / IS_PARENT_OF / FAMILY_OF / PERFORMS / CAN_BE_PERFORMED_BY / HAS_FEEDBACK / WROTE / REVIEWED。API 側は HAS_DOCTOR 反映済み）を追加。MERGE キーは正典 §3 に整合（Doctor/Relative=name・名寄せ、Identity=name+dob）。**CareRole と Review は MERGE ではなく常時 CREATE**（ENT-16 の per-client スコープ則・ENT-24 の追記のみ則）。§6 acceptedDrifts から DRIFT-07a+10a / 07b+10b を削除 |
 | 2026-07-12 | **v1.3** | **BRS-03 に「embedding 生成時の外部API送信」の許容範囲を明文化（DRIFT-11 解消）**。内部ベクトルインデックスの生成に Gemini Embedding 2 を使うことは許容するが、**氏名・生年月日は送信しない**（`displayCode` 等の非識別コードに置換）。これは新規の制限ではなく、**実装（`lib/embedding.py::build_client_summary_text`）に既存していた設計判断を正典に引き上げたもの**——コードコメントの1行だけが防波堤になっていた状態を解消した。残存リスク（禁忌本文自体は外部APIに出ている）も provisional で明示 |

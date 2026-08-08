@@ -322,3 +322,16 @@ RETURN al.timestamp AS 記録日時
 ユーザー: 山田健太さんの情報に以下を追加してください。
 かかりつけは産業医科大学病院の中村先生（精神科）です。
 ```
+
+## 証拠・鮮度モデル（Track A Phase 1・2026-08-08 正典収載）
+
+SCHEMA_CONVENTION **v3.4 §7.9** / SEMANTIC_MODEL **v1.6 BRS-13**（河原氏承認 2026-08-08）で
+NgAction / CarePreference に `source`（ENU-17 語彙）/ `sourceDetail` / `status`（Active・Pending・
+Inactive の3値制限）/ `lastConfirmedAt` / `staleAfter` が、リレーション `CONTRADICTS`（矛盾の保留・
+追記専用）/ `CONFIRMS`（Review→事実の個別確認）が正典収載された。
+
+本スキルへの影響（挙動実装は Phase 1 ステップ3以降）:
+- AI抽出由来の NgAction / CarePreference は `status: Pending` で作成する（二段階承認 R2。
+  人間の承認で Active に昇格・AuditLog 必須）。
+- 既存事実と食い違う情報を抽出したら**上書きせず** CONTRADICTS（claim / raisedAt / source）で
+  保留する（R3。矛盾は未解決として保持し人間が裁定する）。

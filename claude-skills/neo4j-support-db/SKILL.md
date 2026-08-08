@@ -225,7 +225,7 @@ WHERE cert.nextRenewalDate IS NOT NULL
   AND ($clientName = '' OR c.name CONTAINS $clientName)
 WITH c, cert,
      duration.inDays(date(), cert.nextRenewalDate).days AS daysUntilRenewal
-WHERE daysUntilRenewal <= $days AND daysUntilRenewal >= 0
+WHERE daysUntilRenewal <= $days
 RETURN
     c.name AS クライアント,
     cert.type AS 証明書種類,
@@ -238,9 +238,17 @@ ORDER BY daysUntilRenewal ASC
 **パラメータ**: `$clientName`（空文字で全員）, `$days`（デフォルト90）
 
 **出力加工**: 残り日数で緊急度をグループ化:
+- 🔥 期限切れ: 残り日数がマイナス（最優先で警告）
 - 🔴 緊急: 30日以内
 - 🟡 注意: 31-60日
 - 🟢 確認: 61日以上
+
+> 訂正（2026-07-18）: 旧クエリは `daysUntilRenewal >= 0` で期限切れを除外しており、
+> 既に期限を超過した証明書が静かに結果から落ちる盲点があった（Bionic検証で発見・DRIFT扱い）。
+> 下限を撤廃し、期限切れ（マイナス値）も必ず報告する。
+> 結果が0行のときは「90日以内に更新期限を迎える手帳はありません」と報告すること。
+> 「期限が設定されていない」と言ってはならない（それは別の状態。設定有無は
+> `count(cert)` と `count(cert.nextRenewalDate)` の比較で確認する）。
 
 ---
 
@@ -793,6 +801,7 @@ SCHEMA_CONVENTION §8.3）は既存の正規機能であり、本ルールの対
 
 | スキル | 連携タイミング |
 |--------|---------------|
+| `support-db-write-gate` | 書き込み（MERGE/更新/削除）の直前に必読 |
 | `emergency-protocol` | 緊急ワード検知時に即座に切り替え |
 | `ecomap-generator` | 支援ネットワーク図の生成 |
 | `provider-search` | 事業所検索・利用状況の確認 |
@@ -834,3 +843,15 @@ support-db 内部のベクトルインデックスは対象外（用途制限は
 - v3.0.0 (2026-03-09) - テンプレート9・10追加、FOLLOWS/AUDIT_FORリレーション、リレーションプロパティ拡張
 - v2.0.0 (2026-02-12) - neo4j MCPツールベースに移行、Cypherテンプレート集追加
 - v1.0.0 - support-db カスタムMCPツールベース（旧版）
+
+## 証拠・鮮度モデル（Track A Phase 1・2026-08-08 正典収載）
+
+SCHEMA_CONVENTION **v3.4 §7.9** / SEMANTIC_MODEL **v1.6 BRS-13**（河原氏承認 2026-08-08）で
+NgAction / CarePreference に `source`（ENU-17 語彙）/ `sourceDetail` / `status`（Active・Pending・
+Inactive の3値制限）/ `lastConfirmedAt` / `staleAfter` が、リレーション `CONTRADICTS`（矛盾の保留・
+追記専用）/ `CONFIRMS`（Review→事実の個別確認）が正典収載された。
+
+本スキルへの影響（挙動実装は Phase 1 ステップ3以降。語彙は使用可）:
+- 照会時の表示は BRS-13 に従う: `status: Pending` は「未確定」を明示（禁忌は未確定でも警告する）、
+  未解決 CONTRADICTS（`resolvedAt IS NULL`）は「係争中」を併記、期限超過は「要再確認」に降格表示。
+- **非対称ルール**: NgAction の警告は自動で消えない。非表示は管理者裁定の `status: Inactive` のみ。

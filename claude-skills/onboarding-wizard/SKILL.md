@@ -361,7 +361,20 @@ RETURN
 
 | スキル | 連携タイミング |
 |--------|---------------|
+| `support-db-write-gate` | 書き込み（MERGE/更新/削除）の直前に必読 |
 | `narrative-extractor` | 面談メモからの一括抽出 |
 | `resilience-checker` | 第5の柱（CareRole）の登録後にカバー率診断 |
 | `ecomap-generator` | 登録完了後にエコマップ自動生成 |
 | `neo4j-support-db` | Cypherテンプレートの参照・プロフィール確認 |
+
+## 証拠・鮮度モデル（Track A Phase 1・2026-08-08 正典収載）
+
+SCHEMA_CONVENTION **v3.4 §7.9** / SEMANTIC_MODEL **v1.6 BRS-13**（河原氏承認 2026-08-08）で
+NgAction / CarePreference に `source`（ENU-17 語彙）/ `sourceDetail` / `status`（Active・Pending・
+Inactive の3値制限）/ `lastConfirmedAt` / `staleAfter` が、リレーション `CONTRADICTS`（矛盾の保留・
+追記専用）/ `CONFIRMS`（Review→事実の個別確認）が正典収載された。
+
+本スキルへの影響（挙動実装は Phase 1 ステップ3以降）:
+- 新規登録する NgAction / CarePreference には `source`（ENU-17 語彙。聞き取り相手）と
+  `lastConfirmedAt`（=登録日）の付与が必須になる（正典 §7.9・requiredProperties）。
+- `sourceDetail` に「2026-07 面談で母親から聴取」のような支援者が読める文を残す。

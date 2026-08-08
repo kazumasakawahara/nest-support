@@ -54,6 +54,10 @@ VALID_RELATIONSHIP_TYPES = frozenset({
     # 確認記録（SSOT v3.3 / 2026-07-12）Supporter → Review。
     # Review → Client は既存の ABOUT を再利用する。
     "REVIEWED",
+    # 証拠・鮮度モデル（SSOT v3.4 / 2026-08-08・BRS-13）。いずれも追記専用。
+    # CONTRADICTS: 新観測 → 既存事実（矛盾の保留。resolvedAt IS NULL = 係争中）
+    # CONFIRMS:    Review → 既存事実（個別確認。無印 Review は従来の0件確認）
+    "CONTRADICTS", "CONFIRMS",
 })
 
 # 廃止リレーション → 正式名のマッピング (書き込み時の自動修正用)

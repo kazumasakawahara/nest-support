@@ -1,6 +1,6 @@
 <!-- AUTO-GENERATED COPY — DO NOT EDIT.
   Synced from ~/Dev-Work/shared-schema/SCHEMA_CONVENTION.md
-  Edit the master there and run sync-schema.sh. (synced: 20260713-093404) -->
+  Edit the master there and run sync-schema.sh. (synced: 20260808-162145) -->
 
 <!--
   ============================================================================
@@ -11,7 +11,7 @@
   ============================================================================
 -->
 
-# Neo4j スキーマ命名規則（Naming Convention）— 統一正典 v3.2
+# Neo4j スキーマ命名規則（Naming Convention）— 統一正典 v3.4
 
 > **このドキュメントは、support-db（障害福祉支援DB, port 7687）のノードラベル・リレーションシップタイプ・プロパティ名の唯一の正典（Single Source of Truth）です。**
 > すべての LLM（Claude, Gemini, Hermes/その他エージェント）およびすべてのコード（Python, Cypher テンプレート, Skills）は、このドキュメントに従ってください。
@@ -83,8 +83,8 @@
 |---|---|---|---|
 | `Client` | 本人性 | 中心ノード（本人） | name, dob, bloodType, clientId, displayCode, kana, summaryEmbedding |
 | `Condition` | ケアの暗黙知 | 特性・医学的診断 | name, diagnosisDate, status |
-| `NgAction` | ケアの暗黙知 | 禁忌事項（**最重要**） | action, reason, riskLevel, embedding |
-| `CarePreference` | ケアの暗黙知 | 推奨ケア | category, instruction, priority, embedding |
+| `NgAction` | ケアの暗黙知 | 禁忌事項（**最重要**） | action, reason, riskLevel, source, sourceDetail, status, lastConfirmedAt, staleAfter, embedding |
+| `CarePreference` | ケアの暗黙知 | 推奨ケア | category, instruction, priority, source, sourceDetail, status, lastConfirmedAt, staleAfter, embedding |
 | `KeyPerson` | 危機管理 | キーパーソン・緊急連絡先 | name, relationship, phone, role |
 | `Guardian` | 法的基盤 | 成年後見人等 | name, type, phone, organization |
 | `Hospital` | 危機管理 | 医療機関 | name, specialty, phone |
@@ -140,6 +140,8 @@
 | `FAMILY_OF` | Relative → Client | — | 親以外の家族関係 |
 | `PERFORMS` | Relative → CareRole | — | 家族が担っている役割（第5の柱） |
 | `CAN_BE_PERFORMED_BY` | CareRole → ServiceProvider / Supporter / KeyPerson | — | 役割の代替手段（レジリエンス診断用） |
+| `CONTRADICTS` | 新観測（同種事実 / SupportLog / MeetingRecord）→ 既存事実（NgAction / CarePreference） | claim, raisedAt, source, resolvedAt, resolution, resolvedBy | **矛盾の保留**（証拠・鮮度モデル v3.4）。追記専用・裁定しても削除しない。`resolvedAt IS NULL` = 未解決（係争中）。§7.9 |
+| `CONFIRMS` | Review → 既存事実（NgAction / CarePreference） | — | **事実単位の確認**（証拠・鮮度モデル v3.4）。CONFIRMS の有無が「0件確認」と「個別確認」を区別する。追記専用。§7.9 |
 
 ---
 
@@ -257,6 +259,22 @@ WAM NET インポート時期によりレガシーの snake_case が残存。**�
 `本人` / `母親` / `父親` / `家族・親族` / `主治医` / `前事業所` / `相談支援専門員` / `後見人等` / `記録のみ`
 
 > `記録のみ` は最も弱い情報源（人に確認していない）。意味は SEMANTIC_MODEL ENU-17。
+
+### 7.9 証拠・鮮度プロパティ（NgAction / CarePreference・v3.4 / 2026-08-08）
+
+Track A（証拠・鮮度モデル）Phase 1。技術仕様は oya-inai-db/docs/evidence-freshness-technical-spec.md（承認済み 2026-08-08）。
+
+| プロパティ | 型 | 必須 | 意味 |
+|---|---|---|---|
+| `source` | string | ✅ | 情報源。**ENU-17（Review.source）の語彙をそのまま使う**（新語彙なし） |
+| `sourceDetail` | string | — | 自由記述（例: 「2026-07 面談で母親から聴取」） |
+| `status` | string | ✅ | この2ラベルでは **`Active` / `Pending` / `Inactive` の3値に制限**（§7.6 の語彙の部分集合）。弱い書き込み経路（AI抽出・MCP直接）は `Pending` で作成される |
+| `lastConfirmedAt` | date | ✅ | 最終確認日。最新の CONFIRMS 元 Review の reviewedAt と常に一致（既存データの初期値は登録日） |
+| `staleAfter` | int（日数） | — | 鮮度期限の**個別上書き用**。未設定時は SEMANTIC_MODEL machine-check JSON の `freshnessDefaults`（ラベル既定値）を使う。Phase 1 の書き込み経路では書かない |
+
+**非対称ルール（最重要）**: NgAction は矛盾（未解決 CONTRADICTS）や期限超過があっても
+**警告は自動で消えない**。表示停止の唯一の経路は管理者裁定による `status: Inactive` 化
+（AuditLog 必須）。期限超過は「要再確認」への降格表示であり非表示ではない。
 
 ---
 
@@ -414,6 +432,7 @@ REMOVE sp.office_name, sp.corp_name, sp.service_type, sp.office_number,
 
 | 日付 | バージョン | 変更内容 |
 |---|---|---|
+| 2026-08-08 | **v3.4** | **証拠・鮮度モデル（Track A Phase 1）の正典収載**（河原氏承認 2026-08-08・技術仕様は oya-inai-db/docs/evidence-freshness-technical-spec.md）。(1) §3 の `NgAction` / `CarePreference` に `source`（ENU-17 語彙）/ `sourceDetail` / `status`（3値制限）/ `lastConfirmedAt` / `staleAfter` を追加、(2) §4 に `CONTRADICTS`（矛盾の保留・追記専用）と `CONFIRMS`（Review→事実の個別確認）を新設、(3) §7.9 に値域・必須区分・**非対称ルール**（禁忌の警告は自動で消えない。解除は管理者裁定の Inactive 化のみ）を収載。鮮度既定値は SEMANTIC_MODEL machine-check JSON の `freshnessDefaults` が正。**要追従**: Guardian（schema_validator.py）・agno allowlist ×2 に CONTRADICTS / CONFIRMS を反映（同日実施） |
 | 2026-07-13 | **v3.3.2** | **§10.3 の grade="不明" sentinel を明文化**。従来の「grade 未指定は "不明"」の一言に、(1) 補完の意図＝複合 MERGE キーの欠落防止、(2) 意味＝「等級を把握していない」であって「等級が無い」ではない（BRS-04 の区別）、(3) data-quality-agent が欠損（等級未把握・残骸候補）として検出する旨を追記。コードコメント（nest `lib/db_operations.py`）が正典引用形式で参照する記載の実在を保証 |
 | 2026-07-13 | **v3.3.1** | §0 のコンテナ名誤記を修正（`support-db-neo4j` → `nest-support-neo4j`・訂正注記付き）。スキーマ本体の変更なし。あわせて v3.1〜v3.3 の「要追従」（agno 実行時 allowlist）は 2026-07-13 に完了（SEMANTIC_MODEL DRIFT-07 / DRIFT-10 解消） |
 | 2026-07-12 | **v3.3** | **`Review`（確認記録）ノードと `REVIEWED` リレーションを新設**。「確認したうえで0件」と「未確認」は、リレーションの不在としては区別がつかないが、現場での意味は正反対。(1) §3 に `Review`（domain, reviewedAt, source, note）を追加、(2) §4 に `REVIEWED`（Supporter→Review）を追加し `ABOUT` の元ノードに Review を追記、(3) §7.7/7.8 に domain（6値・PascalCase）と source（9値・日本語許容）の値域を収載。追記のみ（更新・削除をしない）。意味と表示規則は SEMANTIC_MODEL ENT-24 / BRS-12 / ENU-16-17 が正。**要追従**: agno 実行時 allowlist（`GET /api/narrative/schema`）と Guardian（`lib/schema_validator.py`）に Review / REVIEWED / domain・source の値域を反映すること（SEMANTIC_MODEL DRIFT-10） |

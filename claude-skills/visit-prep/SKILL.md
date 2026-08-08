@@ -251,3 +251,16 @@ ORDER BY 残り日数 ASC
 | `emergency-protocol` | 訪問中に緊急事態が発生した場合 |
 | `neo4j-support-db` | Cypherテンプレートの参照元 |
 | `ecomap-generator` | 支援ネットワークの可視化が必要な場合 |
+
+## 証拠・鮮度モデル（Track A Phase 1・2026-08-08 正典収載）
+
+SCHEMA_CONVENTION **v3.4 §7.9** / SEMANTIC_MODEL **v1.6 BRS-13**（河原氏承認 2026-08-08）で
+NgAction / CarePreference に `source`（ENU-17 語彙）/ `sourceDetail` / `status`（Active・Pending・
+Inactive の3値制限）/ `lastConfirmedAt` / `staleAfter` が、リレーション `CONTRADICTS`（矛盾の保留・
+追記専用）/ `CONFIRMS`（Review→事実の個別確認）が正典収載された。
+
+本スキルへの影響（挙動実装は Phase 1 ステップ4以降）:
+- ブリーフィングに鮮度・状態の注記を追加する: 期限超過（`coalesce(staleAfter,
+  freshnessDefaults)` 超え）は「この推奨ケアは最終確認から◯日経過」、未解決 CONTRADICTS は
+  「係争中」、`Pending` は「未確定」。**いずれも禁忌の警告自体は消さない**（BRS-13 非対称ルール）。
+- 再確認キューの抽出クエリは data-quality-agent と共用（技術仕様 §5）。

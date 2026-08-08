@@ -639,3 +639,15 @@ RETURN count(*) AS マイグレーション完了件数
 | `onboarding-wizard` | Check 2 で欠損が見つかったクライアントへの情報追加 |
 | `resilience-checker` | Check 4 でCareRole未登録が見つかった場合の登録支援 |
 | `schedule` | 定期実行のスケジューリング |
+
+## 証拠・鮮度モデル（Track A Phase 1・2026-08-08 正典収載）
+
+SCHEMA_CONVENTION **v3.4 §7.9** / SEMANTIC_MODEL **v1.6 BRS-13**（河原氏承認 2026-08-08）で
+NgAction / CarePreference に `source`（ENU-17 語彙）/ `sourceDetail` / `status`（Active・Pending・
+Inactive の3値制限）/ `lastConfirmedAt` / `staleAfter` が、リレーション `CONTRADICTS`（矛盾の保留・
+追記専用）/ `CONFIRMS`（Review→事実の個別確認）が正典収載された。
+
+本スキルへの影響（挙動実装は Phase 1 ステップ4以降）:
+- 棚卸しレポートに追加: (1) requiredProperties（source / status / lastConfirmedAt）欠落ノードの
+  検出、(2) 期限超過（要再確認）の一覧（再確認キューを visit-prep と共用）、(3) 未解決
+  CONTRADICTS の滞留日数。
