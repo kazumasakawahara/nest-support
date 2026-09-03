@@ -19,6 +19,10 @@ services:
       - ./neo4j_logs:/logs
       - ./neo4j_plugins:/plugins
       - ./neo4j_backup:/backup
+    # 停止猶予（2026-09-03 追加・未検証）: 既定の 10 秒では Neo4j が落ちきらず SIGKILL（Exited 137）
+    # になり、PID ファイルが残って次回起動が再起動ループ（"Neo4j is already running"）になる疑い。
+    # 効果が確認できるまでは、ループしたら docker compose up -d --force-recreate neo4j で復旧する。
+    stop_grace_period: 60s
     restart: unless-stopped
 
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
