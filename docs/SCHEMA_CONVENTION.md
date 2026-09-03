@@ -1,6 +1,6 @@
 <!-- AUTO-GENERATED COPY — DO NOT EDIT.
   Synced from ~/Dev-Work/shared-schema/SCHEMA_CONVENTION.md
-  Edit the master there and run sync-schema.sh. (synced: 20260808-162145) -->
+  Edit the master there and run sync-schema.sh. (synced: 20260903-200832) -->
 
 <!--
   ============================================================================
@@ -11,7 +11,7 @@
   ============================================================================
 -->
 
-# Neo4j スキーマ命名規則（Naming Convention）— 統一正典 v3.4
+# Neo4j スキーマ命名規則（Naming Convention）— 統一正典 v3.5
 
 > **このドキュメントは、support-db（障害福祉支援DB, port 7687）のノードラベル・リレーションシップタイプ・プロパティ名の唯一の正典（Single Source of Truth）です。**
 > すべての LLM（Claude, Gemini, Hermes/その他エージェント）およびすべてのコード（Python, Cypher テンプレート, Skills）は、このドキュメントに従ってください。
@@ -83,19 +83,19 @@
 |---|---|---|---|
 | `Client` | 本人性 | 中心ノード（本人） | name, dob, bloodType, clientId, displayCode, kana, summaryEmbedding |
 | `Condition` | ケアの暗黙知 | 特性・医学的診断 | name, diagnosisDate, status |
-| `NgAction` | ケアの暗黙知 | 禁忌事項（**最重要**） | action, reason, riskLevel, source, sourceDetail, status, lastConfirmedAt, staleAfter, embedding |
-| `CarePreference` | ケアの暗黙知 | 推奨ケア | category, instruction, priority, source, sourceDetail, status, lastConfirmedAt, staleAfter, embedding |
+| `NgAction` | ケアの暗黙知 | 禁忌事項（**最重要**） | action, reason, riskLevel, source, sourceDetail, status, lastConfirmedAt, staleAfter, registeredAt, validFrom, validTo, embedding |
+| `CarePreference` | ケアの暗黙知 | 推奨ケア | category, instruction, priority, source, sourceDetail, status, lastConfirmedAt, staleAfter, registeredAt, validFrom, validTo, embedding |
 | `KeyPerson` | 危機管理 | キーパーソン・緊急連絡先 | name, relationship, phone, role |
 | `Guardian` | 法的基盤 | 成年後見人等 | name, type, phone, organization |
 | `Hospital` | 危機管理 | 医療機関 | name, specialty, phone |
 | `Doctor` | 危機管理 | かかりつけ医 | name |
 | `Certificate` | 法的基盤 | 手帳・受給者証 | type, grade, nextRenewalDate |
-| `PublicAssistance` | 法的基盤 | 公的扶助 | type, grade, startDate |
+| `PublicAssistance` | 法的基盤 | 公的扶助 | type, grade, startDate, endDate |
 | `Organization` | 多機関連携 | 関係機関 | name, type, contact, address |
 | `Supporter` | 多機関連携 | 支援者 | name, role, organization, phone |
 | `SupportLog` | 記録 | 支援記録 | date, situation, action, effectiveness, note, type, duration, nextAction, emotion, triggerTag, context, embedding |
 | `MeetingRecord` | 記録 | 音声面談記録 | date, title, duration, filePath, mimeType, transcript, note, embedding, textEmbedding |
-| `AuditLog` | 監査 | 監査ログ | timestamp, user, action, targetType, targetName, details |
+| `AuditLog` | 監査 | 監査ログ | timestamp, user, action, targetType, targetName, details, sourceHash, correlationId |
 | `LifeHistory` | 本人性 | 生育歴 | era, episode, emotion |
 | `Wish` | 本人性 | 本人・家族の願い | content, status, date |
 | `Identity` | 本人性 | 仮名化用個人情報（将来） | name, dob |
@@ -116,7 +116,7 @@
 | `IN_CONTEXT` | NgAction → Condition | — | 禁忌の文脈（関連特性） |
 | `REQUIRES` | Client → CarePreference | — | 推奨ケアの紐付け |
 | `ADDRESSES` | CarePreference → Condition | — | ケアが対応する特性 |
-| `HAS_KEY_PERSON` | Client → KeyPerson | rank | キーパーソン（rank で優先順位） |
+| `HAS_KEY_PERSON` | Client → KeyPerson | rank, startDate, endDate, status | キーパーソン（rank で優先順位。**交代は張り替えず endDate + Inactive を記入して新規追加**。§7.10） |
 | `HAS_LEGAL_REP` | Client → Guardian | — | 法定代理人 |
 | `HAS_CERTIFICATE` | Client → Certificate | issuedDate, status | 手帳・受給者証 |
 | `RECEIVES` | Client → PublicAssistance | — | 公的扶助の受給 |
@@ -276,6 +276,33 @@ Track A（証拠・鮮度モデル）Phase 1。技術仕様は oya-inai-db/docs/
 **警告は自動で消えない**。表示停止の唯一の経路は管理者裁定による `status: Inactive` 化
 （AuditLog 必須）。期限超過は「要再確認」への降格表示であり非表示ではない。
 
+### 7.10 事実時間軸プロパティ（NgAction / CarePreference / HAS_KEY_PERSON・v3.5 / 2026-09-03）
+
+Track A Phase 2。技術仕様は oya-inai-db/docs/valid-time-axis-technical-spec.md（河原氏決定 2026-09-03）。
+
+support-db は2本の時間軸を持つ。**知得時間**（いつ知り・確認し・裁定したか）は
+lastConfirmedAt / Review / CONTRADICTS / AuditLog が担う（§7.9）。**事実時間**（その事実が
+現実に有効だった期間）は本節のプロパティが担う。両者を混ぜない。
+
+| プロパティ | 型 | 必須 | 意味 |
+|---|---|---|---|
+| `registeredAt` | date | ✅ | 初回登録日。**不変**。lastConfirmedAt とは別（後者は再確認で更新される）。CREATE 時に書き込み経路が自動付与し、更新時に入力に含まれていても破棄する |
+| `validFrom` | date | — | 事実が有効になった日。不明なら空（推定で埋めない）。照会時は `coalesce(validFrom, registeredAt)` |
+| `validTo` | date | 条件付き✅ | 有効でなくなった日。**status=Inactive で必須・Active/Pending で null 必須**。管理者裁定の Inactive 化と同一トランザクションで記入する（validTo が入る唯一の経路） |
+
+`validFrom` と `validTo` が両方あるときは `validFrom <= validTo`。
+
+**HAS_KEY_PERSON** は `startDate`（✅。CREATE 時の既定値は当日）/ `endDate`（Inactive で必須）/
+`status`（`Active` / `Inactive` の2値。既定値 Active）を持つ。**交代は張り替えず**、旧リレーションに
+endDate + Inactive を書いて新規 CREATE する（USES_SERVICE と同型）。旧リレーションの DELETE は禁止。
+「現在のキーパーソン」は `status = 'Active' AND endDate IS NULL` で定義する（SEMANTIC_MODEL ENT-08）。
+
+**PublicAssistance.endDate**（date・任意）は startDate と対になる受給終了日。型検証のみ。
+
+**既存データの初期値**（移行 Cypher は oya-inai-db/scripts/migrate_valid_time_axis.cypher・冪等）:
+`registeredAt = coalesce(registeredAt, lastConfirmedAt, 移行実行日)`、
+`HAS_KEY_PERSON.status = 'Active'`、`startDate = 移行実行日`（真の開始日は不明のため。注記を AuditLog に残す）。
+
 ---
 
 ## 8. インデックスと制約
@@ -432,6 +459,8 @@ REMOVE sp.office_name, sp.corp_name, sp.service_type, sp.office_number,
 
 | 日付 | バージョン | 変更内容 |
 |---|---|---|
+| 2026-09-03 | **v3.5** | **事実時間軸（Track A Phase 2）の正典収載**（河原氏決定 2026-09-03・技術仕様は oya-inai-db/docs/valid-time-axis-technical-spec.md）。(1) §3 NgAction/CarePreference に `registeredAt`（不変）/`validFrom`/`validTo`、PublicAssistance に `endDate` を追加、(2) §4 HAS_KEY_PERSON に `startDate`/`endDate`/`status` を追加し交代規則（張り替え禁止）を明記、(3) §7.10 に知得時間と事実時間の2軸と値域を収載。知得時間側（§7.9）は不変。**要追従**: Guardian・API 門番・agno allowlist・check_semantic_drift（同日実施） |
+| 2026-08-11 | **v3.4.1** | **AuditLog に `sourceHash` / `correlationId` を追加**（スキル層 Phase E 発見1・河原氏裁定 (a) 案）。`sourceHash` = raw/ 原本のバイト列 SHA256（両系突合の橋・routing §0-2）。`correlationId` = API `/api/narrative/intake` が返す `auditLogId` と同一の合成文字列（`sessionId:sourceHash先頭12桁`）で、**返却 ID が実在ノードに解決できる**ことを保証する。事実ノード側へ出所スカラーを持たせる案は不採用（後の語りが先の出所を上書きするため。「事実ごとの出所を Review／CONFIRMS 側に持たせるか」は dual-intake ADR 未決論点9）。**要追従**: oya-inai-db `api/app/lib/db_operations.py`（同日実施） |
 | 2026-08-08 | **v3.4** | **証拠・鮮度モデル（Track A Phase 1）の正典収載**（河原氏承認 2026-08-08・技術仕様は oya-inai-db/docs/evidence-freshness-technical-spec.md）。(1) §3 の `NgAction` / `CarePreference` に `source`（ENU-17 語彙）/ `sourceDetail` / `status`（3値制限）/ `lastConfirmedAt` / `staleAfter` を追加、(2) §4 に `CONTRADICTS`（矛盾の保留・追記専用）と `CONFIRMS`（Review→事実の個別確認）を新設、(3) §7.9 に値域・必須区分・**非対称ルール**（禁忌の警告は自動で消えない。解除は管理者裁定の Inactive 化のみ）を収載。鮮度既定値は SEMANTIC_MODEL machine-check JSON の `freshnessDefaults` が正。**要追従**: Guardian（schema_validator.py）・agno allowlist ×2 に CONTRADICTS / CONFIRMS を反映（同日実施） |
 | 2026-07-13 | **v3.3.2** | **§10.3 の grade="不明" sentinel を明文化**。従来の「grade 未指定は "不明"」の一言に、(1) 補完の意図＝複合 MERGE キーの欠落防止、(2) 意味＝「等級を把握していない」であって「等級が無い」ではない（BRS-04 の区別）、(3) data-quality-agent が欠損（等級未把握・残骸候補）として検出する旨を追記。コードコメント（nest `lib/db_operations.py`）が正典引用形式で参照する記載の実在を保証 |
 | 2026-07-13 | **v3.3.1** | §0 のコンテナ名誤記を修正（`support-db-neo4j` → `nest-support-neo4j`・訂正注記付き）。スキーマ本体の変更なし。あわせて v3.1〜v3.3 の「要追従」（agno 実行時 allowlist）は 2026-07-13 に完了（SEMANTIC_MODEL DRIFT-07 / DRIFT-10 解消） |

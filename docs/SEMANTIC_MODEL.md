@@ -1,6 +1,6 @@
 <!-- AUTO-GENERATED COPY — DO NOT EDIT.
   Synced from ~/Dev-Work/shared-schema/SEMANTIC_MODEL.md
-  Edit the master there and run sync-schema.sh. (synced: 20260808-162145) -->
+  Edit the master there and run sync-schema.sh. (synced: 20260903-200832) -->
 
 <!--
   ============================================================================
@@ -10,7 +10,7 @@
   ============================================================================
 -->
 
-# nest-support 意味・ルールモデル（SEMANTIC MODEL）— 正本 v1.6
+# nest-support 意味・ルールモデル（SEMANTIC MODEL）— 正本 v1.8
 
 > **このドキュメントは、support-db（障害福祉支援DB, port 7687）の「意味とルール」
 > （概念の業務的定義・運用原則・指標の計算意図・列挙値の意味・暫定事項）の唯一の正本です。**
@@ -95,7 +95,10 @@
 
 - **ENT-08 KeyPerson（キーパーソン・緊急連絡先）** — 緊急時に「誰に」連絡するか。
   `rank` は連絡の優先順位で、rank 1 が最優先。順位が曖昧だと緊急時に迷いが生じる
-  ため、rank の重複・欠損はデータ品質チェックの対象（MET-09 付随）。 `values: [Safety]`
+  ため、rank の重複・欠損はデータ品質チェックの対象（MET-09 付随）。
+  **「現在のキーパーソン」は HAS_KEY_PERSON が `status = Active` かつ `endDate IS NULL` の
+  リレーションで定義する**（BRS-14。2026-09-03 Track A Phase 2）。rank は Active なものの
+  間の順位。交代しても旧リレーションは消さない（endDate + Inactive を書いて履歴にする）。 `values: [Safety]`
 - **ENT-09 Hospital（医療機関）** / **ENT-10 Doctor（かかりつけ医）** — 本人を
   診てきた医療機関と医師。Doctor は 2026-07 に Hospital の文字列プロパティから
   独立ノードへ昇格（名寄せ済み・複数病院で共有可）。 `values: [Safety]`
@@ -338,7 +341,13 @@ Oracle 層（`lib/insight_engine.py`）と各スキル定型クエリの「計�
   `values: [Dignity]`
 - **BRS-11 説明責任（AuditLog）** — すべての書き込み（登録・更新・削除・廃棄）は
   AuditLog に記録する。データ廃棄（退所・保存期間超過）も監査記録を残す。
-  `source: SCHEMA_CONVENTION §11.1-7 / docs/PRIVACY_GUIDELINES.md` `values: [Advocacy]`
+  ナラティブ由来の書き込みでは、監査記録が**出所（`sourceHash`）と `correlationId`** を持ち、
+  API が返す `auditLogId` は**実在の AuditLog ノードへ解決できる**こと（2026-08-11 拡張。
+  擬似 ID を返すだけでは説明責任の連鎖が監査側で切れる）。
+  **両系（Obsidian Vault ⇔ support-db）突合の正は `AuditLog.sourceHash` とし、事実ノード側の
+  `sourceHash` は突合に使わない**——ノード側は経路で意味が異なる（語り経由の注入は raw 原本の
+  sha256／CREATE 系ラベルの自動生成は重複検出用の props 自己ハッシュ）（2026-08-11 追記）。
+  `source: SCHEMA_CONVENTION §11.1-7 v3.4.1 / docs/PRIVACY_GUIDELINES.md` `values: [Advocacy]`
 - **BRS-12 0件の解釈と表示（Review の運用）** — BRS-04 が求める「確認済みの0件」と
   「未確認」の区別を、Review（ENT-24）で実装する。
 
@@ -397,6 +406,25 @@ Oracle 層（`lib/insight_engine.py`）と各スキル定型クエリの「計�
   → 再確認キュー / `Inactive` → 非表示（管理者裁定のみが到達経路）。この2ラベルの
   status は上記3値に制限されるため、**どのリストにも出ない禁忌は構造的に生じない**。
   `source: 2026-08-08 河原氏承認` `values: [Safety, Continuity, Advocacy]`
+- **BRS-14 事実時間軸（Track A Phase 2）** — 「DB の中身は賞味期限つきの観測である」
+  （BRS-13）に、「観測と事実の時間は別物である」を加える。BRS-13 の lastConfirmedAt は
+  **こちらが知った時間**、本項の validFrom / validTo は**事実が有効だった期間**。後から入った
+  訂正で「その時に正しかったこと」と「その時に知っていたこと」が混ざらないよう、2軸を分けて持つ。
+  技術仕様は oya-inai-db/docs/valid-time-axis-technical-spec.md（SCHEMA_CONVENTION v3.5 §7.10 と対）。
+
+  **不変の登録日**: `registeredAt` は CREATE 時に自動付与し、以後どの経路でも書き換えない
+  （Guardian が更新時に破棄する）。
+
+  **validFrom は任意**: 禁忌の多くは「いつから真だったか」が誰にも分からない。分からないものを
+  埋めさせない。照会は `coalesce(validFrom, registeredAt)`。
+
+  **validTo は裁定と同時**: 非対称ルール（BRS-13）を弱めない。validTo が入る唯一の経路は
+  管理者裁定による Inactive 化で、AuditLog 必須。期限超過や矛盾から自動では入れない。
+
+  **リレーションの交代は履歴にする**: HAS_KEY_PERSON は張り替えず endDate + Inactive を
+  書いて新規追加する（USES_SERVICE と同型）。親なき後に最も変わりやすい関係だからこそ、
+  誰がいつまで担っていたかを消さない。
+  `source: 2026-09-03 河原氏決定` `values: [Continuity, Safety]`
 
 ---
 
@@ -441,6 +469,8 @@ Oracle 層（`lib/insight_engine.py`）と各スキル定型クエリの「計�
   ※ **NgAction / CarePreference の status は `Active` / `Pending` / `Inactive` の
   3値に制限**（BRS-13。2026-08-08 Track A）。Pending=承認待ち、Inactive=管理者裁定
   による解除のみ。
+  ※ **HAS_KEY_PERSON.status は `Active` / `Inactive` の2値に制限**（BRS-14。2026-09-03
+  Track A Phase 2）。Inactive には endDate が必須。
 - **ENU-06 CarePreference.priority（推奨ケアの優先度）** — `High / Medium / Low`。
   High はケアの成否を左右するもの、Low は「できれば」の配慮。
   ※ Guardian の priority 検証は 2026-07-12 に新設済み（DRIFT-05 解消時）。
@@ -555,12 +585,25 @@ MERGE_KEYS / CLIENT_SCOPED_LABELS。AST 解析）を突合する。既知の不�
     "_note": "staleAfter の既定日数（BRS-13）。Certificate は nextRenewalDate が正で対象外。ノード個別の staleAfter プロパティが優先（coalesce）。Phase 1 の適用対象は NgAction / CarePreference のみ"
   },
   "requiredProperties": {
-    "NgAction": ["source", "status", "lastConfirmedAt"],
-    "CarePreference": ["source", "status", "lastConfirmedAt"]
+    "NgAction": ["source", "status", "lastConfirmedAt", "registeredAt"],
+    "CarePreference": ["source", "status", "lastConfirmedAt", "registeredAt"]
   },
   "restrictedStatus": {
     "NgAction": ["Active", "Pending", "Inactive"],
     "CarePreference": ["Active", "Pending", "Inactive"]
+  },
+  "immutableProperties": {
+    "NgAction": ["registeredAt"],
+    "CarePreference": ["registeredAt"]
+  },
+  "conditionalRequired": {
+    "NgAction":       {"when": {"status": "Inactive"}, "require": ["validTo"], "forbidWhen": {"status": ["Active", "Pending"]}, "forbid": ["validTo"]},
+    "CarePreference": {"when": {"status": "Inactive"}, "require": ["validTo"], "forbidWhen": {"status": ["Active", "Pending"]}, "forbid": ["validTo"]}
+  },
+  "relationshipProperties": {
+    "HAS_KEY_PERSON": {"required": ["rank", "startDate", "status"], "optional": ["endDate"],
+                       "status": ["Active", "Inactive"], "requireWhenInactive": ["endDate"]},
+    "USES_SERVICE":   {"required": ["startDate", "status"], "optional": ["endDate"]}
   },
   "nestLib": {
     "mergeKeys": {
@@ -601,13 +644,44 @@ MERGE_KEYS / CLIENT_SCOPED_LABELS。AST 解析）を突合する。既知の不�
 | DRIFT-10 | ✅ 解消（2026-07-13） | Review / REVIEWED を 2026-07-12 新設したが、**agno 実行時 allowlist が未追従**だった。Guardian（schema_validator.py）は 2026-07-12 に反映済み（Review / REVIEWED / LABEL_SCOPED_ENUM_VALUES） | DRIFT-07 と一括で agno allowlist（2ファイル＋スキル JSON）へ Review / REVIEWED を追加。Review は ENT-24（追記のみ）に従い常時 CREATE。acceptedDrifts の DRIFT-07a+10a / 07b+10b を削除 |
 | DRIFT-12 | ✅ 解消（2026-07-13） | nest `lib/db_operations.py`（Python 登録経路）が正典未追従だった。(a) `MERGE_KEYS["Certificate"]` が `["type"]` のみ（正典 §10.3 は type+grade。同一人の療育手帳 A と B が1ノードに潰れる実バグ候補）、(b) Doctor / Relative / Identity が MERGE_KEYS 不在。`check_semantic_drift.py` が nest lib を検査対象にしていなかったため機械検出されなかった | (1) MERGE_KEYS を正典整合に修正（Certificate=type+grade・grade 未指定は「不明」補完、Doctor/Relative=name、Identity=name+dob）。CareRole / Review / ProviderFeedback は**意図して MERGE しない**（ENT-16 / ENT-24 / feedbackId 欠落時の登録喪失回避）——不在が正しいことをテストで固定。(2) Relative は逆向きリレーション（Relative→Client）のため既存スコープ機構の死角だった——`_build_parent_link` を双方向解決に拡張し client スコープ化（同姓同名家族の収斂防止）。(3) チェッカーに ④ nest lib の AST 照合を追加し、§6 に `nestLib` 正値ブロックを新設（死角の恒久解消） |
 | DRIFT-11 | ✅ 解消（2026-07-12） | (a) 本日追加した PII ルールの文言が、**既存の support-db 内ベクトルインデックス（Gemini Embedding 2 で生成）をも禁止してしまっていた**。(b) そもそも embedding 生成で外部APIに何を送っているのかが正典に記録されていなかった | (a) 禁止対象を「別ストア（LightRAG 等）への複製」に限定し、内部 embedding は BRS-03 の管轄として適用外と明記（CLAUDE.md §8 / neo4j-support-db ルール7）。(b) **実装を調査した結果、氏名・生年月日は意図的に送信されていないことが判明**（`build_client_summary_text` は `displayCode` を使用し、コードコメントにも明記）。この設計判断を BRS-03 に明文化し、残存リスク（禁忌本文自体は外部に出ている）も provisional で記録 |
+| DRIFT-14 | ✅ 解消（2026-08-11） | `/api/narrative/intake` の schemas docstring（`narrative_intake.py`）が「mergeKey は MERGE 対象ラベルのみ必須」と読める記述のまま、実装（`narrative_intake_service.py` の検証器）は **MERGE キーの値を `properties` 側に要求**していた。**実装が正しく docstring が古い**——mergeKey フィールドはメタ情報であり、検証・書き込みとも properties を正とする（スキル層 E-5 で `merge_key_missing` の実測により発見） | docstring を実装に合わせて修正（正典・実装の変更なし）。利用側（oya-inai-neo4j スキル）にも「キー値は properties 側に必ず入れる」を明記済み |
+| DRIFT-13 | ✅ 解消（2026-08-10） | v1.6（2026-08-08）で正典収載した `CONFIRMS` / `CONTRADICTS` に、**実装3か所すべてが未追随**だった（② `lib/schema_validator.py`、③ API 門番の `ALLOWED_REL_TYPES`、④ nest lib）。`POST /api/narrative/intake` に CONFIRMS を含めると `rel_type_not_allowed` で reject され、**証拠・鮮度モデルの中核（Review＋CONFIRMS＋lastConfirmedAt）が正規の書き込み経路から実行不能**だった。さらに `check_semantic_drift.py` が oya-inai-db では**③を外部リポジトリ（~/Dev-Work/neo4j-agno-agent）・④を存在しない配置のパスに向けており恒久 WARN**——carve-out 以降、同リポジトリの実装は一度も四者一致チェックを受けていなかった。DRIFT-07／DRIFT-10 と同型の再発を、検出器の死角が許した形 | (1) 許可リスト3か所に CONFIRMS / CONTRADICTS を追加。RED から書いたテストで `rel_type_not_allowed` の再現を確認後に修正し、追記専用（`MERGE_KEYS` 不在＋`ALLOWED_CREATE_LABELS` 収載）を DRIFT-12 様式でテスト固定。(2) **チェッカーの検査対象を当該リポジトリ内へ付け替え**、②は `importlib` のファイル直読みで `lib/__init__.py` の dotenv／streamlit 連鎖を回避（素の `python3` でも完走）。(3) 結果 FAIL 0 ＝ **carve-out 後の oya-inai-db にとって最初の本物の四者一致検証**。oya-inai-db main e5ed2a6（55a40da・46787b0 をマージ）。**発見の経緯**: oya-inai-wiki 側「単一インテーク・二系統仕分け」の検証で Guardian 検査をかけた際に露見 |
 
+
+> **DRIFT-13 から得た恒久策（2026-08-10）**
+> 1. **カーブアウト時のチェッカー移植を手順化する。** 根因は「原型のパスを引き継いだまま配置が変わった」こと。検査対象のパスは**リポジトリ相対（`REPO_ROOT` 基準）で解決する**ことを標準にする。
+> 2. **「検査対象ファイルが見つからない」を WARN から FAIL へ昇格させる。** 見つからないものは検査できておらず、**未検査を合格と区別できない**——これは BRS-12 が Review で解決した「0件の二義性」と同じ構造の問題である。検査側にも同じ原則を適用する。
+
+### 7-2. 登録済み同期点（機械配布・手コピー禁止）
+
+正典から写しへの配布は機械同期に限り、同期点は本台帳に登録する（DRIFT-13 の教訓の一般化。
+写しは AUTO-GENERATED バナー付きの生成物であり直接編集禁止）。新しい写しを作るときは、
+手コピーせず同期手段を用意してここに1行足すこと。
+
+| # | 正典 | 写し | 同期手段 |
+|---|---|---|---|
+| SP-1 | shared-schema `SCHEMA_CONVENTION.md` / `SEMANTIC_MODEL.md` | 4リポジトリの docs/ コピー（対象は script 内 TARGETS が正） | `shared-schema/sync-schema.sh` |
+| SP-2 | oya-inai-wiki `docs/dual-intake-routing.md`（単一インテークの仕分け判断規則・正本表22行） | `oya-inai-db/claude-skills/oya-inai-intake/reference/dual-intake-routing.md` | `oya-inai-db/scripts/sync_skill_refs.py`（2026-08-11 登録） |
+| SP-3 | oya-inai-wiki `CLAUDE.md` §1 の raw/ 8棚構成 | `oya-inai-db/claude-skills/oya-inai-intake/SKILL.md` Step 2 の8棚表 | 同スクリプト（コピーでなく**集合一致の検査**。乖離・0件・過不足は FAIL）（2026-08-11 登録） |
+
+**SP-1 の適用状況（2026-09-03 記録）**: v1.8 / SCHEMA_CONVENTION v3.5 を sync-schema.sh で
+4配布先すべて（oya-inai-db / neo4j-agno-agent / oyagami-local / nest-support＝`--write-prod`・河原氏承認）
+へ同期済み。同日、事実時間軸の移行 Cypher を oya-inai-db スタックと nest-support 本番 DB の両方に適用
+（記録は oya-inai-db/docs/MIGRATION_LOG_valid-time-axis.md）。
+なお v1.8 の**実装追従（Guardian・書き込み経路・検出器）は oya-inai-db のみ**。他配布先の
+Guardian 相当は未追従（技術仕様 §4-3 の後続課題）。**未登録の乖離は DRIFT-13 と同じ条件**のため
+ここに残す。全配布先の実装が揃った時点でこの注記を削除する。
 ---
 
 ## 変更履歴
 
 | 日付 | バージョン | 変更内容 |
 |---|---|---|
+| 2026-09-03 | **v1.8** | **事実時間軸（Track A Phase 2）の正本化**（河原氏決定 2026-09-03。技術仕様は oya-inai-db/docs/valid-time-axis-technical-spec.md）。**BRS-14 新設**（知得時間と事実時間の2軸・不変の registeredAt・validFrom 任意・validTo は裁定と同時・HAS_KEY_PERSON の交代は履歴にする）。ENT-08 に「現在のキーパーソン」の定義（status=Active かつ endDate IS NULL）、ENU-05 に HAS_KEY_PERSON.status の2値制限を追記。§6 machine-check に `requiredProperties` の registeredAt 追加、`immutableProperties` / `conditionalRequired` / `relationshipProperties` を新設（既存キーは不変）。SCHEMA_CONVENTION v3.5 と対 |
+| 2026-08-11 | v1.7a | **v1.7 の適用状況を §7-2 に登録**（同期済みは oya-inai-db のみ・他3配布先は v1.6 のまま。追加的変更で実害はないが、未登録の乖離は DRIFT-13 と同じ条件のため既知化）。**BRS-11 に突合の正を1行追記**: 両系突合の正は `AuditLog.sourceHash` とし、事実ノード側の `sourceHash`（語り経由の raw 原本ハッシュと CREATE 系の重複検出用自己ハッシュで意味が二重）は突合に使わない。表題の版数を v1.6 のまま更新し忘れていたのも修正 |
+| 2026-08-11 | **v1.7** | **BRS-11 を拡張**（スキル層 Phase E 発見1・河原氏裁定 (a) 案）: ナラティブ由来の監査記録は `sourceHash` と `correlationId` を持ち、API の `auditLogId` が実在ノードへ解決できること（SCHEMA_CONVENTION v3.4.1 と対）。事実ノードへの出所スカラー付与（(b) 案）は不採用——MERGE ノードのスカラーは後の語りが先の出所を上書きする（§0-6(b) と同型）。「事実ごとの出所を Review／CONFIRMS 側に持たせるか」は dual-intake ADR 未決論点9へ。**DRIFT-14 を台帳に登録（解消済み）**: intake schemas の docstring が古く実装（mergeKey 値は properties 側必須）が正 |
+| 2026-08-11 | v1.6b | **§7-2「登録済み同期点」を新設（SP-1〜3）**。スキル層実装（oya-inai-db claude-skills/）で oya-inai-wiki 正典の写し（仕分け判断規則）と派生表（8棚表）が生じたため、手コピー禁止・機械配布の同期点として登録。同期手段は `oya-inai-db/scripts/sync_skill_refs.py`（--check で乖離を FAIL 検出）。**正典の内容そのものは無変更** |
+| 2026-08-10 | v1.6a | **DRIFT-13 を台帳に登録（解消済み）**。v1.6 で収載した CONFIRMS / CONTRADICTS に実装3か所が未追随だった問題と、四者一致チェッカーが carve-out 先で誤った対象を検査していた死角を記録。恒久策2件（検査対象パスのリポジトリ相対解決／「対象ファイル不在」の WARN→FAIL 昇格）も併記。**正典の内容そのものは無変更** |
 | 2026-08-08 | **v1.6** | **証拠・鮮度モデル（Track A Phase 1）の正本化**（河原氏承認 2026-08-08。要件書・技術仕様は oya-inai-db/docs/evidence-freshness-{requirements,technical-spec}.md）。**BRS-13 新設**（証拠=source/sourceDetail・鮮度=lastConfirmedAt/staleAfter・二段階承認 Pending・矛盾の保留 CONTRADICTS・**非対称ルール**=禁忌の警告は自動で消えない・表示経路の網羅性）。ENT-24 に CONFIRMS 拡張（0件確認と個別確認の区別）、BRS-12 の陳腐化スコープ外を解消、ENU-05 に NgAction/CarePreference の status 3値制限、ENU-17 を事実側 source に再利用。§6 machine-check に `CONTRADICTS`/`CONFIRMS`・`freshnessDefaults`・`requiredProperties`・`restrictedStatus` を追加。SCHEMA_CONVENTION v3.4 と対 |
 | 2026-07-13 | **v1.5** | **DRIFT-12 解消（nest Python 登録経路の正典追従）＋検査の死角解消**。nest `lib/db_operations.py` の MERGE_KEYS を正典整合に修正（Certificate 複合キー・Doctor/Relative/Identity 追加）。Relative は逆向きリレーションのためスコープ機構を双方向対応に拡張して client スコープ化。CareRole / Review / ProviderFeedback は意図的に MERGE しない（不在をテストで固定）。§6 を「四者一致」に拡張——`nestLib` 正値ブロックを追加し、チェッカーが nest lib も AST 照合するようにした（DRIFT-12 が機械検出されなかった原因の恒久対策） |
 | 2026-07-13 | **v1.4** | **DRIFT-07 / DRIFT-10 解消（agno allowlist 追従）**。agno の実行時 allowlist 2ファイル（`lib/db_new_operations.py` / `api/app/lib/db_operations.py`）へノード6件（Doctor / Relative / CareRole / ProviderFeedback / Identity / Review。API 側は Doctor 反映済みだったため実質5件）とリレーション8件（HAS_DOCTOR / IS_PARENT_OF / FAMILY_OF / PERFORMS / CAN_BE_PERFORMED_BY / HAS_FEEDBACK / WROTE / REVIEWED。API 側は HAS_DOCTOR 反映済み）を追加。MERGE キーは正典 §3 に整合（Doctor/Relative=name・名寄せ、Identity=name+dob）。**CareRole と Review は MERGE ではなく常時 CREATE**（ENT-16 の per-client スコープ則・ENT-24 の追記のみ則）。§6 acceptedDrifts から DRIFT-07a+10a / 07b+10b を削除 |
