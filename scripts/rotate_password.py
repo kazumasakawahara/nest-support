@@ -94,8 +94,9 @@ def write_password(path: Path, new_password: str) -> None:
 def verify_connection(uri: str, user: str, password: str) -> None:
     with GraphDatabase.driver(uri, auth=(user, password)) as driver:
         driver.verify_connectivity()
+        # system DB では RETURN 1 が使えないため、認証確認には SHOW CURRENT USER を使う
         with driver.session(database="system") as session:
-            session.run("RETURN 1").consume()
+            session.run("SHOW CURRENT USER YIELD user RETURN count(user) AS n").single()
 
 
 def change_password(uri: str, user: str, old: str, new: str) -> None:
