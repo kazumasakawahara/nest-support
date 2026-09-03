@@ -9,7 +9,7 @@ services:
       - "7474:7474" # HTTP Browser UI
       - "7687:7687" # Bolt/Neo4j Protocol
     environment:
-      - NEO4J_AUTH=neo4j/password
+      - NEO4J_AUTH=${NEO4J_USERNAME:?see ~/.config/nest/neo4j.env}/${NEO4J_PASSWORD:?}
       - NEO4J_server_memory_pagecache_size=1G
       - NEO4J_server_memory_heap_initial__size=1G
       - NEO4J_server_memory_heap_max__size=1G
