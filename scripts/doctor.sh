@@ -48,7 +48,7 @@ else
   if [ -n "$alt" ]; then
     info "nest-support-neo4j は $status だが、port 7688 は '$alt' が提供中（機能上OK）"
   else
-    fail "nest-support-neo4j: $status（port 7688 を提供するコンテナがありません）"
+    fail "nest-support-neo4j: ${status}（port 7688 を提供するコンテナがありません）"
   fi
 fi
 
