@@ -309,8 +309,8 @@ setup_database() {
 
     info "データベースの起動を待っています..."
     while [ $retries -lt $max_retries ]; do
-        if curl -s http://localhost:7474 &>/dev/null; then
-            success "障害福祉データベース（port 7687）が起動しました"
+        if curl -s http://localhost:7475 &>/dev/null; then
+            success "障害福祉データベース（port 7688）が起動しました"
             break
         fi
         retries=$((retries + 1))
@@ -323,7 +323,7 @@ setup_database() {
 
     echo ""
     echo "  データベースの管理画面:"
-    echo "    障害福祉:     ${BOLD}http://localhost:7474${NC}"
+    echo "    障害福祉:     ${BOLD}http://localhost:7475${NC}"
     echo "    認証情報:     neo4j / password"
     echo ""
 }
@@ -399,7 +399,7 @@ configure_claude_desktop() {
             echo '      "command": "npx",'
             echo '      "args": ["-y", "@alanse/mcp-neo4j-server"],'
             echo '      "env": {'
-            echo '        "NEO4J_URI": "bolt://localhost:7687",'
+            echo '        "NEO4J_URI": "bolt://localhost:7688",'
             echo '        "NEO4J_USERNAME": "neo4j",'
             echo '        "NEO4J_PASSWORD": "password"'
             echo '      }'
@@ -430,10 +430,10 @@ run_connection_test() {
     local all_ok=true
 
     # Neo4j support-db テスト
-    if curl -s http://localhost:7474 &>/dev/null; then
-        success "障害福祉データベース (port 7687): 接続OK"
+    if curl -s http://localhost:7475 &>/dev/null; then
+        success "障害福祉データベース (port 7688): 接続OK"
     else
-        error "障害福祉データベース (port 7687): 接続失敗"
+        error "障害福祉データベース (port 7688): 接続失敗"
         all_ok=false
     fi
 
@@ -499,7 +499,7 @@ show_completion() {
     echo "    使い方ガイド:     ${INSTALL_DIR}/docs/ADVANCED_USAGE.md"
     echo ""
     echo "  ${BOLD}データベース管理画面:${NC}"
-    echo "    http://localhost:7474 （認証: neo4j / password）"
+    echo "    http://localhost:7475 （認証: neo4j / password）"
     echo ""
     echo "  ${BOLD}困ったときは:${NC}"
     echo "    ${INSTALL_DIR}/docs/FAQ.md を参照してください。"

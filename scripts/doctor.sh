@@ -3,9 +3,9 @@
 # 使い方: ./scripts/doctor.sh
 #
 # 確認項目:
-#   1. Docker コンテナ (nest-support-neo4j / port 7687) が起動中か
-#      （別名コンテナが 7687 を提供する現状維持構成も許容）
-#   2. Neo4j Bolt (7687) に接続できるか
+#   1. Docker コンテナ (nest-support-neo4j / port 7688・個人層) が起動中か
+#      （別名コンテナが 7688 を提供する構成も許容。7687 は共有層なので見ない）
+#   2. Neo4j Bolt (7688) に接続できるか
 #   3. ~/.claude/skills/ の 13 skills が nest-support を指しているか
 #   4. .mcp.json が存在し neo4j を定義しているか（livelihood-support-db は 2026-05 廃止・除去済み）
 #   5. Claude Desktop config に neo4j があるか
@@ -38,24 +38,24 @@ echo "=== nest-support doctor ==="
 echo "project: $PROJECT_DIR"
 echo ""
 
-# 1. Docker containers (障害福祉DB / port 7687。生活困窮DB=7688 は廃止のためチェックしない)
-echo "[1] Docker containers (障害福祉DB / port 7687)"
+# 1. Docker containers (障害福祉DB・個人層 / port 7688。2026-10-31 に 7687 から移した。7687 は共有層)
+echo "[1] Docker containers (障害福祉DB / port 7688)"
 status=$(docker inspect -f '{{.State.Status}}' nest-support-neo4j 2>/dev/null || echo "missing")
 if [ "$status" = "running" ]; then
   ok "nest-support-neo4j: running"
 else
-  alt=$(docker ps --filter publish=7687 --format '{{.Names}}' 2>/dev/null | head -1)
+  alt=$(docker ps --filter publish=7688 --format '{{.Names}}' 2>/dev/null | head -1)
   if [ -n "$alt" ]; then
-    info "nest-support-neo4j は $status だが、port 7687 は '$alt' が提供中（現状維持構成・機能上OK）"
+    info "nest-support-neo4j は $status だが、port 7688 は '$alt' が提供中（機能上OK）"
   else
-    fail "nest-support-neo4j: $status（port 7687 を提供するコンテナがありません）"
+    fail "nest-support-neo4j: $status（port 7688 を提供するコンテナがありません）"
   fi
 fi
 
-# 2. Bolt connectivity (7687 のみ。7688 は廃止)
+# 2. Bolt connectivity (7688・個人層)
 echo ""
 echo "[2] Neo4j Bolt connectivity"
-if nc -z localhost 7687 2>/dev/null; then ok "localhost:7687 reachable"; else fail "localhost:7687 unreachable"; fi
+if nc -z localhost 7688 2>/dev/null; then ok "localhost:7688 reachable"; else fail "localhost:7688 unreachable"; fi
 
 # 3. Skills symlinks
 # macOS はデフォルトで大文字小文字を区別しないファイルシステム (APFS case-insensitive)
@@ -88,14 +88,14 @@ echo "[4] Project .mcp.json"
 MCP_FILE="$PROJECT_DIR/.mcp.json"
 if [ -f "$MCP_FILE" ]; then
   if grep -q '"neo4j"' "$MCP_FILE"; then
-    ok ".mcp.json defines neo4j (port 7687)"
+    ok ".mcp.json defines neo4j (port 7688)"
   else
     fail ".mcp.json missing neo4j"
   fi
-  if grep -q "7687" "$MCP_FILE"; then
-    ok ".mcp.json uses port 7687"
+  if grep -q "7688" "$MCP_FILE"; then
+    ok ".mcp.json uses port 7688"
   else
-    fail ".mcp.json port is not 7687"
+    fail ".mcp.json port is not 7688"
   fi
   # 生活困窮DBは廃止済み: livelihood-support-db が残っていないことを確認
   if grep -q "livelihood-support-db" "$MCP_FILE"; then

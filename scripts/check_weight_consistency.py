@@ -12,7 +12,7 @@ Usage:
     uv run python scripts/check_weight_consistency.py --client "テスト太郎"
 
 前提:
-    - Neo4j 起動中 (bolt://localhost:7687)
+    - Neo4j 起動中 (bolt://localhost:7688、個人層)
     - 対象ノードに embedding プロパティ (Gemini Embedding 2, 768次元) が付与済み
       未付与の場合:
           uv run python scripts/backfill_embeddings.py --label NgAction
@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lib.embedding import cosine_similarity
 
-URI = "bolt://localhost:7687"
+URI = "bolt://localhost:7688"
 AUTH = ("neo4j", "password")
 
 # 列挙値の順序（段差計算用）

@@ -9,11 +9,14 @@ nest-support データベース操作モジュール
 import os
 import sys
 from datetime import date
+from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
 load_dotenv()
+# 個人層（port 7688）の接続情報。~/.zshrc が読み込む neo4j.env（共有層 7687）より優先する
+load_dotenv(Path.home() / ".config" / "nest" / "neo4j-personal.env", override=True)
 
 # 仮名化スキーマ設定
 # 有効/無効の判定は lib/pseudonymizer 側（環境変数駆動のシングルトン）に一本化する。

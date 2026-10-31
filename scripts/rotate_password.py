@@ -1,6 +1,7 @@
 """Neo4j パスワードのローテーション（正典ファイル連動）
 
-正典: ~/.config/nest/neo4j.env（NEO4J_URI / NEO4J_USERNAME / NEO4J_PASSWORD の3行、chmod 600）
+正典: ~/.config/nest/neo4j-personal.env（NEO4J_URI / NEO4J_USERNAME / NEO4J_PASSWORD の3行、chmod 600）
+2026-10-31 から nest-support は個人層（port 7688）。~/.config/nest/neo4j.env は共有層（7687）用で、このスクリプトは触らない。
 
 手順:
     1. 正典ファイルから接続情報を読む（.env や環境変数は見ない）
@@ -18,8 +19,7 @@
     uv run python scripts/rotate_password.py
 
 注意:
-    - 実行後、開いているシェルは古い値を保持している。`source ~/.config/nest/neo4j.env`
-      で読み直すこと（~/.zshrc が起動時に読む）。
+    - nest-support の Python コードは neo4j-personal.env を起動のたびに読むので、読み直しは要らない。
     - docker-compose.yml の NEO4J_AUTH は初回起動時にしか効かないので、既存 DB の
       パスワード変更はこのスクリプトで行う。
 """
@@ -33,7 +33,7 @@ from pathlib import Path
 
 from neo4j import GraphDatabase
 
-CANON = Path.home() / ".config" / "nest" / "neo4j.env"
+CANON = Path.home() / ".config" / "nest" / "neo4j-personal.env"
 REQUIRED = ("NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD")
 
 
@@ -168,7 +168,7 @@ def main() -> int:
         print(f"新しい認証情報での接続確認に失敗しました: {type(exc).__name__}", file=sys.stderr)
         return 2
     print("新しい認証情報で接続確認: OK")
-    print("開いているシェルでは `source ~/.config/nest/neo4j.env` で読み直してください。")
+    print("新しいパスワードは ~/.config/nest/neo4j-personal.env に書きました（nest-support のコードは次の起動から読みます）。")
     return 0
 
 

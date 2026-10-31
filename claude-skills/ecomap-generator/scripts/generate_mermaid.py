@@ -33,6 +33,9 @@ for env_path in ENV_SEARCH_PATHS:
         load_dotenv(env_path)
         break
 
+# 個人層（port 7688）の接続情報。~/.zshrc が読み込む neo4j.env（共有層 7687）より優先する
+load_dotenv(Path.home() / ".config" / "nest" / "neo4j-personal.env", override=True)
+
 # Neo4jドライバー（シングルトン）
 _driver = None
 
@@ -40,7 +43,7 @@ def get_driver():
     """Neo4jドライバーを取得"""
     global _driver
     if _driver is None:
-        uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+        uri = os.getenv("NEO4J_URI", "bolt://localhost:7688")
         user = os.getenv("NEO4J_USERNAME", "neo4j")
         password = os.getenv("NEO4J_PASSWORD", "")
         _driver = GraphDatabase.driver(uri, auth=(user, password))

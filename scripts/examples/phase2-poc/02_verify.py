@@ -1,7 +1,7 @@
 """Phase 2 verification: run the neo4j-support-db Skill's read templates."""
 from neo4j import GraphDatabase
 
-URI = "bolt://localhost:7687"
+URI = "bolt://localhost:7688"
 AUTH = ("neo4j", "password")
 
 TEMPLATE_2_PROFILE = """

@@ -30,7 +30,7 @@ from lib.auth import require_auth, set_session_cookie, verify_token
 load_dotenv()
 
 # --- 設定 ---
-NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7688")  # 個人層。値は lib.db_operations の import 時に neo4j-personal.env から入る
 NEO4J_USERNAME = os.getenv("NEO4J_USERNAME", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
