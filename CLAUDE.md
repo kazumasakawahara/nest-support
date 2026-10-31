@@ -398,7 +398,8 @@ nest-support/
     ├── FAQ.md                     # FAQ・トラブルシューティング
     ├── VIDEO_SCRIPTS.md           # 動画チュートリアルスクリプト
     ├── AUTH_MANUAL_VERIFICATION_2026-07.md  # 認証・ログイン導線の手動検証記録
-    └── MIGRATION_LOG_P2_2026-07.md          # P2マイグレーション適用記録（実DB）
+    ├── MIGRATION_LOG_P2_2026-07.md          # P2マイグレーション適用記録（実DB）
+    └── SUMMARY_2026-10-31.md                # 2026-10-30〜31 の 2 層化の総括（neo4j-agno-agent と同じ写し）
 ```
 
 ## Important Constraints
