@@ -20,7 +20,7 @@
 環境変数（~/.config/nest/neo4j-personal.env から読む）:
   NEO4J_URI=bolt://localhost:7688
   NEO4J_USERNAME=neo4j
-  NEO4J_PASSWORD=password
+  NEO4J_PASSWORD=（neo4j-personal.env の値）
 """
 
 import os
@@ -44,7 +44,7 @@ def get_driver():
 
     uri = os.getenv("NEO4J_URI", "bolt://localhost:7688")
     user = os.getenv("NEO4J_USERNAME", "neo4j")
-    pwd = os.getenv("NEO4J_PASSWORD", "password")
+    pwd = os.getenv("NEO4J_PASSWORD", "")  # 既定値は持たない（neo4j-personal.env から読む）
 
     driver = GraphDatabase.driver(uri, auth=(user, pwd))
     driver.verify_connectivity()

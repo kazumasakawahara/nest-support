@@ -16,8 +16,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEMO_FILE="${SCRIPT_DIR}/demo-data.cypher"
 SIMULATION_FILE="${SCRIPT_DIR}/simulation-emotion-data.cypher"
-NEO4J_URL="http://localhost:7474/db/neo4j/tx/commit"
-NEO4J_AUTH="neo4j:password"
+# 個人層（7688 / HTTP 7475）。接続情報は ~/.config/nest/neo4j-personal.env から読む
+ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/nest/neo4j-personal.env"
+if [ -f "${ENV_FILE}" ]; then set -a; . "${ENV_FILE}"; set +a; fi
+NEO4J_URL="http://localhost:7475/db/neo4j/tx/commit"
+NEO4J_AUTH="${NEO4J_USERNAME:-neo4j}:${NEO4J_PASSWORD:?${ENV_FILE} に NEO4J_PASSWORD がありません}"
 
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -32,7 +35,7 @@ error()   { echo -e "${RED}[エラー]${NC} $1"; }
 
 # Neo4j 接続確認
 check_neo4j() {
-    if ! curl -s http://localhost:7474 &>/dev/null; then
+    if ! curl -s http://localhost:7475 &>/dev/null; then
         error "Neo4j が起動していません。先に docker compose up -d を実行してください。"
         exit 1
     fi

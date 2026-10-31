@@ -278,7 +278,7 @@ cd $env:USERPROFILE\Documents\nest-support
 docker compose restart
 ```
 
-ブラウザで <http://localhost:7474> を開き、画面が出れば動いています（ユーザー名 `neo4j` / パスワード `password`）。
+ブラウザで <http://localhost:7475> を開き、画面が出れば動いています（ユーザー名 `neo4j`。パスワードはインストーラーが `%USERPROFILE%\.config\nest\neo4j-personal.env` に書いた値）。
 
 ### スキルが認識されない
 

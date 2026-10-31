@@ -24,14 +24,17 @@ import argparse
 import sys
 from pathlib import Path
 
+import os
+
 from neo4j import GraphDatabase
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lib.embedding import cosine_similarity
 
-URI = "bolt://localhost:7688"
-AUTH = ("neo4j", "password")
+# 接続情報は環境変数から読む（set -a; . ~/.config/nest/neo4j-personal.env; set +a）。パスワードはコードに書かない
+URI = os.environ.get("NEO4J_URI", "bolt://localhost:7688")
+AUTH = (os.environ.get("NEO4J_USERNAME", "neo4j"), os.environ["NEO4J_PASSWORD"])
 
 # 列挙値の順序（段差計算用）
 RISK_ORDER = {"LifeThreatening": 3, "Panic": 2, "Discomfort": 1}

@@ -8,6 +8,10 @@ This file provides guidance to Claude Code / Claude Desktop when working with th
 
 ## Project Overview
 
+> **2026-10-31 の整理（必読）**: Mac の Neo4j は 2 層に分けた。**このリポジトリの Docker DB（nest-support-neo4j, port 7688）は個人層**で、
+> 利用者・家族・支援記録を持つ。**事業所（ServiceProvider）・口コミは共有層 support-db-neo4j（port 7687、neo4j-agno-agent）**にあり、
+> 個人層には置かない。MCP は `neo4j`（個人層）と `neo4j-shared`（共有層）の 2 つ。台帳は neo4j-agno-agent の `docs/DB_REGISTRY.md`。
+
 **nest-support: Claude-Native 親なき後支援データベース**
 
 Neo4j グラフデータベースに蓄積された障害福祉支援情報を、**Claude Desktop / Claude Code + Skills + Neo4j MCP** を中核に運用するシステム。Streamlit UI への依存を排除し、日常運用は Claude との対話だけで完結する。
@@ -86,22 +90,22 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 > Skill は `decommissioned/` へ退避し、MCP（`livelihood-support-db`）・Docker サービス
 > （7688）・`~/.claude/skills/` の symlink をすべて撤去済み。下表の取消線は廃止分。
 
-| Skill | 対象業務 | Neo4j Port | Templates |
+| Skill | 対象業務 | Neo4j（層 / port / MCP） | Templates |
 |-------|----------|-----------|-----------|
-| `neo4j-support-db` | 障害福祉クライアント管理 | 7687 | 10 read |
-| ~~`livelihood-support`~~ | 生活困窮者自立支援 | ~~7688~~ | **非運用（2026-05 廃止）** |
-| `provider-search` | 事業所検索・口コミ管理 | 7687 | 6 read + 3 write |
+| `neo4j-support-db` | 障害福祉クライアント管理 | 個人層 / 7688 / `neo4j` | 10 read |
+| ~~`livelihood-support`~~ | 生活困窮者自立支援 | ~~7688~~ | **非運用（2026-05 廃止。7688 は 2026-10-31 から個人層が使う）** |
+| `provider-search` | 事業所検索・口コミ管理 | 共有層 / 7687 / `neo4j-shared` | 6 read + 3 write |
 | `emergency-protocol` | 緊急時対応プロトコル（insight-agent連動） | N/A | N/A |
 | `ecomap-generator` | エコマップ・インサイト生成（D3.jsハイブリッドビュー） | N/A | N/A |
 | `html-to-pdf` | HTML → PDF 変換 | N/A | N/A |
 | `inheritance-calculator` | 法定相続計算 | N/A | N/A |
-| `wamnet-provider-sync` | WAM NET 事業所データ同期 | 7687 | write |
-| `narrative-extractor` | テキスト → 構造化データ抽出 | 7687 | write |
-| `data-quality-agent` | データ品質チェック・検証 | 7687 | read |
-| `onboarding-wizard` | 新規クライアント登録ウィザード | 7687 | read + write |
-| `resilience-checker` | 親なき後レジリエンス診断 | 7687 | read |
-| `visit-prep` | 訪問準備ブリーフィング | 7687 | read |
-| `insight-agent` | 予兆検知・インサイト分析（Oracle Layer） | 7687 | read |
+| `wamnet-provider-sync` | WAM NET 事業所データ同期 | 共有層 / 7687 / `neo4j-shared`（実体は neo4j-agno-agent。ここにあるのは写し） | write |
+| `narrative-extractor` | テキスト → 構造化データ抽出 | 個人層 / 7688 / `neo4j` | write |
+| `data-quality-agent` | データ品質チェック・検証 | 個人層 / 7688 / `neo4j` | read |
+| `onboarding-wizard` | 新規クライアント登録ウィザード | 個人層 / 7688 / `neo4j` | read + write |
+| `resilience-checker` | 親なき後レジリエンス診断 | 個人層 / 7688 / `neo4j` | read |
+| `visit-prep` | 訪問準備ブリーフィング | 個人層 / 7688 / `neo4j` | read |
+| `insight-agent` | 予兆検知・インサイト分析（Oracle Layer） | 個人層 / 7688 / `neo4j` | read |
 
 ### ルーティング判断フロー
 
@@ -115,10 +119,10 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 │  └─ YES → narrative-extractor
 │
 ├─ クライアント名が含まれる？
-│  └─ YES → neo4j-support-db（port 7687）
+│  └─ YES → neo4j-support-db（個人層 port 7688、MCP `neo4j`）
 │
 ├─ 事業所検索・口コミの話題？
-│  └─ YES → provider-search
+│  └─ YES → provider-search（共有層 port 7687、MCP `neo4j-shared`）
 │
 ├─ エコマップ・ネットワーク図？
 │  └─ YES → ecomap-generator
@@ -151,12 +155,14 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 
 ### Neo4j インスタンスの使い分け
 
-| インスタンス | Bolt | HTTP | 対象スキル |
-|------------|------|------|-----------|
-| support-db | localhost:7687 | localhost:7474 | neo4j-support-db, provider-search, narrative-extractor |
-| ~~livelihood-support~~ | ~~localhost:7688~~ | ~~localhost:7475~~ | **非運用（2026-05 廃止）** |
+| インスタンス | 層 | Bolt | HTTP | MCP | 接続情報 | 対象スキル |
+|------------|---|------|------|-----|---|-----------|
+| nest-support-neo4j | 個人（利用者・家族） | localhost:7688 | localhost:7475 | `neo4j` | `~/.config/nest/neo4j-personal.env` | neo4j-support-db, narrative-extractor, onboarding-wizard, visit-prep, insight-agent ほか |
+| support-db-neo4j | 共有（事業所・口コミ） | localhost:7687 | localhost:7474 | `neo4j-shared` | `~/.config/nest/neo4j.env` | provider-search, wamnet-provider-sync |
 
-**`neo4j` MCP のデフォルト接続先は port 7687。**（`livelihood-support` / port 7688 は 2026-05 に廃止し、`livelihood-support-db` MCP サーバーは撤去済み。）
+**共有層に個人データを書かない。個人層に ServiceProvider を作らない。** `USES_SERVICE` の相手は `wamnetId` で共有層の事業所を指し、
+事業所名を出すときは `neo4j-shared` で引く（Neo4j Community は DB をまたぐ参照ができない）。
+パスワードはリポジトリに書かず、2 つの env ファイルから読む（2026-10-31 に層ごとに別の値へ変更済み）。
 
 ---
 
@@ -175,9 +181,11 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 
 > **日本語値の例外**: ユーザー向け表示に直結するプロパティ（`category`, `situation`, `episode`, `content` 等）は日本語値を許容する。列挙型（`riskLevel`, `effectiveness`, `status`）は必ず英語 PascalCase を使用すること。
 
-### 主要ノードラベル（障害福祉 port 7687）
+### 主要ノードラベル（個人層 port 7688）
 
-`Client`, `Condition`, `NgAction`, `CarePreference`, `KeyPerson`, `Guardian`, `Hospital`, `Certificate`, `PublicAssistance`, `Organization`, `Supporter`, `SupportLog`, `MeetingRecord`, `AuditLog`, `LifeHistory`, `Wish`, `Identity`, `ServiceProvider`, `ProviderFeedback`, `Relative`, `CareRole`, `Doctor`
+`Client`, `Condition`, `NgAction`, `CarePreference`, `KeyPerson`, `Guardian`, `Hospital`, `Certificate`, `PublicAssistance`, `Organization`, `Supporter`, `SupportLog`, `MeetingRecord`, `AuditLog`, `LifeHistory`, `Wish`, `Identity`, `Relative`, `CareRole`, `Doctor`
+
+共有層（port 7687）にあるラベル: `ServiceProvider`, `ProviderFeedback`。個人層には作らない。
 
 ### 主要リレーション
 
@@ -196,7 +204,7 @@ Claude が SKILL.md に含まれる Cypher テンプレートを参照し、汎�
 (:AuditLog)-[:AUDIT_FOR]->(:Client)
 (:Client)-[:HAS_HISTORY]->(:LifeHistory)
 (:Client)-[:HAS_WISH]->(:Wish)
-(:Client)-[:USES_SERVICE]->(:ServiceProvider)
+(:Client)-[:USES_SERVICE {wamnetId}]->(:ServiceProvider)   -- 相手は共有層。個人層には wamnetId だけ持つ（接続の仕方は要設計）
 (:Relative)-[:IS_PARENT_OF|FAMILY_OF]->(:Client)
 (:Relative)-[:PERFORMS]->(:CareRole)
 (:CareRole)-[:CAN_BE_PERFORMED_BY]->(:ServiceProvider|:Supporter|:KeyPerson)
@@ -284,10 +292,10 @@ See `docs/QUICK_START.md` for detailed setup instructions.
 ```
 
 チェック項目（21項目・All PASS が健全状態）:
-1. Docker コンテナ（`nest-support-neo4j`、port 7687）が running か（別名コンテナが 7687 を提供する現状維持構成も許容）
-2. Bolt ポート 7687 が疎通するか
+1. Docker コンテナ（`nest-support-neo4j`、port 7688）が running か（別名コンテナが 7688 を提供する構成も許容。7687 は共有層なので見ない）
+2. Bolt ポート 7688 が疎通するか
 3. `~/.claude/skills/` の 13 Skills が本プロジェクトの `claude-skills/` を指しているか
-4. プロジェクトの `.mcp.json` が port 7687 の neo4j を定義しているか（`livelihood-support-db` は廃止・除去済み）
+4. プロジェクトの `.mcp.json` が `neo4j`（7688）と `neo4j-shared`（7687）を定義しているか
 5. Claude Desktop 設定にも neo4j があるか（情報のみ）
 
 ---
@@ -311,7 +319,7 @@ See `docs/QUICK_START.md` for detailed setup instructions.
 ```
 nest-support/
 ├── CLAUDE.md                      # このファイル
-├── docker-compose.yml             # Neo4j (port 7687)
+├── docker-compose.yml             # Neo4j 個人層 (port 7688 / HTTP 7475)
 ├── pyproject.toml                 # 最小依存
 ├── .env.example                   # 環境変数テンプレート
 ├── .python-version                # 3.12
@@ -425,7 +433,7 @@ Skills の定型テンプレートに加え、**グラフの「繋がり（パ�
 
 Gemini Embedding 2（`gemini-embedding-2-preview`）による768次元ベクトルでセマンティック検索を実現。
 
-**ベクトルインデックス（6つ、port 7687）:**
+**ベクトルインデックス（6つ、個人層 port 7688）:**
 
 | インデックス名 | 対象ノード | プロパティ | 次元 | 類似度 |
 |---------------|-----------|-----------|------|--------|

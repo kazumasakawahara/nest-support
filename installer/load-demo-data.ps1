@@ -17,8 +17,13 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $DEMO_FILE = Join-Path $SCRIPT_DIR "demo-data.cypher"
-$NEO4J_URL = "http://localhost:7474/db/neo4j/tx/commit"
-$NEO4J_AUTH = "neo4j:password"
+# 個人層（7688 / HTTP 7475）。接続情報は %USERPROFILE%\.config\nest\neo4j-personal.env から読む
+$NEO4J_URL = "http://localhost:7475/db/neo4j/tx/commit"
+$envFile = Join-Path $env:USERPROFILE ".config\nest\neo4j-personal.env"
+if (-not (Test-Path $envFile)) { Write-Host "[エラー] $envFile がありません。install-windows.ps1 を先に実行してください。" -ForegroundColor Red; exit 1 }
+$envMap = @{}
+Get-Content $envFile | ForEach-Object { if ($_ -match '^\s*([A-Z0-9_]+)=(.*)$') { $envMap[$matches[1]] = $matches[2] } }
+$NEO4J_AUTH = "$($envMap['NEO4J_USERNAME']):$($envMap['NEO4J_PASSWORD'])"
 
 # ヘルパー関数
 function Write-Info    { param($msg) Write-Host "[情報] " -ForegroundColor Blue -NoNewline; Write-Host $msg }
@@ -29,7 +34,7 @@ function Write-Err     { param($msg) Write-Host "[エラー] " -ForegroundColor 
 # Neo4j 接続確認
 function Test-Neo4j {
     try {
-        $null = Invoke-WebRequest -Uri "http://localhost:7474" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
+        $null = Invoke-WebRequest -Uri "http://localhost:7475" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
         Write-Success "Neo4j 接続確認OK"
         return $true
     } catch {

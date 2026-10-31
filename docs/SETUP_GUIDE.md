@@ -291,11 +291,11 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 
 ブラウザで以下のアドレスを開いてみてください:
 
-http://localhost:7474
+http://localhost:7475
 
 ログイン画面が表示されたら成功です:
 - ユーザー名: `neo4j`
-- パスワード: `password`
+- パスワード: `~/.config/nest/neo4j-personal.env` の `NEO4J_PASSWORD`（インストーラーが作った値）
 
 > このログイン画面は「データベースの管理画面」です。普段使う必要はありません。
 > データの操作は Claude を通じて行います。
@@ -367,13 +367,12 @@ cd $env:USERPROFILE\Documents\nest-support
 {
   "mcpServers": {
     "neo4j": {
-      "command": "npx",
-      "args": ["-y", "@alanse/mcp-neo4j-server"],
-      "env": {
-        "NEO4J_URI": "bolt://localhost:7687",
-        "NEO4J_USERNAME": "neo4j",
-        "NEO4J_PASSWORD": "password"
-      }
+      "command": "sh",
+      "args": ["-c", "set -a; . \"$HOME/.config/nest/neo4j-personal.env\"; set +a; exec npx -y @alanse/mcp-neo4j-server"]
+    },
+    "neo4j-shared": {
+      "command": "sh",
+      "args": ["-c", "set -a; . \"$HOME/.config/nest/neo4j.env\"; set +a; exec npx -y @alanse/mcp-neo4j-server"]
     }
   }
 }
@@ -712,7 +711,7 @@ docker compose start
 | **Skills** | Claude に業務の手順を教える説明書ファイル。13種類が用意されている |
 | **ターミナル（Mac）** | パソコンに直接命令を入力するアプリ。Launchpad で「ターミナル」と検索すると見つかる |
 | **PowerShell（Windows）** | Windows 版のターミナル。スタートメニューで「PowerShell」と検索すると見つかる |
-| **ポート** | パソコン内の通信口の番号。nest-support は 7474, 7687 を使用 |
+| **ポート** | パソコン内の通信口の番号。nest-support（個人層）は 7475, 7688 を使用。共有層（事業所）は 7474, 7687 |
 | **JSON** | 設定ファイルの書き方のルール。カンマや波かっこの位置が1つでもずれると動かない |
 | **セマンティック検索** | キーワードの一致ではなく「意味」で検索する機能。「入浴拒否」で検索すると「お風呂を嫌がる」もヒットする |
 | **embedding** | 文章を数値（ベクトル）に変換したもの。セマンティック検索の裏側で使われている技術 |

@@ -128,7 +128,7 @@ setup_neo4j() {
             success "Neo4j (support-db) が起動しました"
             echo "  ブラウザUI: http://localhost:7475"
             echo "  Bolt接続: bolt://localhost:7688"
-            echo "  認証: neo4j / password"
+            echo "  認証: ~/.config/nest/neo4j-personal.env を参照"
             break
         fi
         retries=$((retries + 1))

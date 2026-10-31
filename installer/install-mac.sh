@@ -341,7 +341,7 @@ setup_database() {
     echo ""
     echo "  データベースの管理画面:"
     echo "    障害福祉:     ${BOLD}http://localhost:7475${NC}"
-    echo "    認証情報:     neo4j / password"
+    echo "    認証情報:     ~/.config/nest/neo4j-personal.env を参照"
     echo ""
 }
 

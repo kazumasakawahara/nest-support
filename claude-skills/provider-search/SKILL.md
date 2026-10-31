@@ -15,7 +15,7 @@ description: 福祉サービス事業所の検索・管理・口コミ評価を�
 福祉サービス事業所の検索・管理・口コミ評価を行うスキル。WAM NETから取得した事業所情報（ServiceProvider）と支援者による口コミ（ProviderFeedback）をNeo4jグラフデータベースで管理する。
 
 ## 対象Neo4jインスタンス
-- **support-db**: `bolt://localhost:7687`（HTTP: 7474）
+- **共有層 support-db-neo4j**: `bolt://localhost:7687`（HTTP: 7474）。MCP は **`neo4j-shared`** を使う（`neo4j` は個人層 7688 で ServiceProvider が無い）。このスキルの実体は neo4j-agno-agent にあり、ここにあるのは写し
 - neo4j MCPの `execute_query`（読み書き兼用の単一ツール。`query` に Cypher、任意で `params`）を使用
 
 ## データモデル

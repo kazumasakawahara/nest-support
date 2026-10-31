@@ -90,17 +90,18 @@ chmod +x setup.sh
 {
   "mcpServers": {
     "neo4j": {
-      "command": "npx",
-      "args": ["-y", "@alanse/mcp-neo4j-server"],
-      "env": {
-        "NEO4J_URI": "bolt://localhost:7687",
-        "NEO4J_USERNAME": "neo4j",
-        "NEO4J_PASSWORD": "password"
-      }
+      "command": "sh",
+      "args": ["-c", "set -a; . \"$HOME/.config/nest/neo4j-personal.env\"; set +a; exec npx -y @alanse/mcp-neo4j-server"]
+    },
+    "neo4j-shared": {
+      "command": "sh",
+      "args": ["-c", "set -a; . \"$HOME/.config/nest/neo4j.env\"; set +a; exec npx -y @alanse/mcp-neo4j-server"]
     }
   }
 }
 ```
+> パスワードは設定ファイルに書かず、`~/.config/nest/neo4j-personal.env`（個人層 7688）と `~/.config/nest/neo4j.env`（共有層 7687）から読む。
+> `neo4j` が利用者・家族の個人層、`neo4j-shared` が事業所（ServiceProvider）の共有層。詳しくは neo4j-agno-agent の `docs/DB_REGISTRY.md`。
 
 ### 環境整合チェック（推奨）
 
