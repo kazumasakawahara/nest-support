@@ -284,10 +284,27 @@ download_project() {
 # Step 4: Neo4j の起動
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+# 個人層の接続情報（~/.config/nest/neo4j-personal.env）が無ければ作り、読み込む。
+# docker-compose.yml の NEO4J_AUTH と、Claude Desktop の MCP 設定がこのファイルを使う。
+# パスワードは初回に乱数で作る（リポジトリには書かない）。
+ensure_personal_env() {
+    local env_dir="${HOME}/.config/nest"
+    local env_file="${env_dir}/neo4j-personal.env"
+    if [ ! -f "${env_file}" ]; then
+        mkdir -p "${env_dir}"
+        ( umask 077
+          printf 'NEO4J_URI=bolt://localhost:7688\nNEO4J_USERNAME=neo4j\nNEO4J_PASSWORD=%s\n' "$(openssl rand -hex 16)" > "${env_file}" )
+        chmod 600 "${env_file}"
+        success "接続情報を作成しました: ${env_file}"
+    fi
+    set -a; . "${env_file}"; set +a
+}
+
 setup_database() {
     step "Step 4/6: データベースの起動"
 
     cd "${INSTALL_DIR}"
+    ensure_personal_env
 
     info "Neo4j データベースを起動しています..."
     info "（初回は Docker イメージのダウンロードに数分かかります）"
@@ -396,13 +413,8 @@ configure_claude_desktop() {
             echo ""
             echo "  mcpServers に以下を追加:"
             echo '    "neo4j": {'
-            echo '      "command": "npx",'
-            echo '      "args": ["-y", "@alanse/mcp-neo4j-server"],'
-            echo '      "env": {'
-            echo '        "NEO4J_URI": "bolt://localhost:7688",'
-            echo '        "NEO4J_USERNAME": "neo4j",'
-            echo '        "NEO4J_PASSWORD": "password"'
-            echo '      }'
+            echo '      "command": "sh",'
+            echo '      "args": ["-c", "set -a; . \"$HOME/.config/nest/neo4j-personal.env\"; set +a; exec npx -y @alanse/mcp-neo4j-server"]'
             echo '    }'
             echo ""
         fi
@@ -499,7 +511,7 @@ show_completion() {
     echo "    使い方ガイド:     ${INSTALL_DIR}/docs/ADVANCED_USAGE.md"
     echo ""
     echo "  ${BOLD}データベース管理画面:${NC}"
-    echo "    http://localhost:7475 （認証: neo4j / password）"
+    echo "    http://localhost:7475 （認証情報: ~/.config/nest/neo4j-personal.env）"
     echo ""
     echo "  ${BOLD}困ったときは:${NC}"
     echo "    ${INSTALL_DIR}/docs/FAQ.md を参照してください。"

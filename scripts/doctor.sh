@@ -92,10 +92,10 @@ if [ -f "$MCP_FILE" ]; then
   else
     fail ".mcp.json missing neo4j"
   fi
-  if grep -q "7688" "$MCP_FILE"; then
-    ok ".mcp.json uses port 7688"
+  if grep -q "neo4j-personal.env" "$MCP_FILE"; then
+    ok ".mcp.json neo4j reads neo4j-personal.env (port 7688)"
   else
-    fail ".mcp.json port is not 7688"
+    fail ".mcp.json neo4j does not read neo4j-personal.env"
   fi
   # 生活困窮DBは廃止済み: livelihood-support-db が残っていないことを確認
   if grep -q "livelihood-support-db" "$MCP_FILE"; then

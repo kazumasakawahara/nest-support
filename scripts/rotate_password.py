@@ -16,7 +16,8 @@
     URI・ユーザー名・パスワードの値は一切出力しない。
 
 使い方:
-    uv run python scripts/rotate_password.py
+    uv run python scripts/rotate_password.py                                    # 個人層（neo4j-personal.env）
+    uv run python scripts/rotate_password.py --env-file ~/.config/nest/neo4j.env  # 共有層（support-db-neo4j）
 
 注意:
     - nest-support の Python コードは neo4j-personal.env を起動のたびに読むので、読み直しは要らない。
@@ -24,6 +25,7 @@
       パスワード変更はこのスクリプトで行う。
 """
 
+import argparse
 import getpass
 import os
 import stat
@@ -123,18 +125,22 @@ def prompt_new_password(current: str) -> str:
     return first
 
 
-def main() -> int:
-    if not CANON.exists():
-        print(f"正典ファイルがありません: {CANON}", file=sys.stderr)
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description="Neo4j パスワードのローテーション")
+    parser.add_argument("--env-file", type=Path, default=CANON,
+                        help="読み書きする正典ファイル（既定: 個人層の neo4j-personal.env。共有層は ~/.config/nest/neo4j.env）")
+    canon = parser.parse_args(argv).env_file.expanduser()
+    if not canon.exists():
+        print(f"正典ファイルがありません: {canon}", file=sys.stderr)
         return 1
-    mode = stat.S_IMODE(CANON.stat().st_mode)
+    mode = stat.S_IMODE(canon.stat().st_mode)
     if mode & 0o077:
-        print(f"警告: {CANON} の権限が {oct(mode)} です（600 を推奨）", file=sys.stderr)
+        print(f"警告: {canon} の権限が {oct(mode)} です（600 を推奨）", file=sys.stderr)
 
-    env = load_env_file(CANON)
+    env = load_env_file(canon)
     uri, user, old = env["NEO4J_URI"], env["NEO4J_USERNAME"], env["NEO4J_PASSWORD"]
 
-    print(f"正典ファイル: {CANON}")
+    print(f"正典ファイル: {canon}")
     try:
         verify_connection(uri, user, old)
     except Exception as exc:  # 値を含みうるメッセージは出さない
@@ -152,7 +158,7 @@ def main() -> int:
     print("DB 側のパスワード変更: OK")
 
     try:
-        write_password(CANON, new)
+        write_password(canon, new)
     except Exception as exc:
         print(
             "DB 側は変更済みですが正典ファイルの書き換えに失敗しました。"
@@ -168,7 +174,7 @@ def main() -> int:
         print(f"新しい認証情報での接続確認に失敗しました: {type(exc).__name__}", file=sys.stderr)
         return 2
     print("新しい認証情報で接続確認: OK")
-    print("新しいパスワードは ~/.config/nest/neo4j-personal.env に書きました（nest-support のコードは次の起動から読みます）。")
+    print(f"新しいパスワードは {canon} に書きました（読み込むコード・MCP は次の起動から新しい値を使います）。")
     return 0
 
 

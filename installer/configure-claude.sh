@@ -55,21 +55,14 @@ detect_claude_config() {
 }
 
 # MCP設定テンプレートの生成
-# Neo4jのパスワードをカスタマイズ可能
+# 接続情報は ~/.config/nest/neo4j-personal.env から読む（パスワードを設定ファイルに書かない）
 generate_mcp_config() {
-    local neo4j_pass="${1:-password}"
-
-    cat <<EOJSON
+    cat <<'EOJSON'
 {
   "mcpServers": {
     "neo4j": {
-      "command": "npx",
-      "args": ["-y", "@alanse/mcp-neo4j-server"],
-      "env": {
-        "NEO4J_URI": "bolt://localhost:7688",
-        "NEO4J_USERNAME": "neo4j",
-        "NEO4J_PASSWORD": "${neo4j_pass}"
-      }
+      "command": "sh",
+      "args": ["-c", "set -a; . \"$HOME/.config/nest/neo4j-personal.env\"; set +a; exec npx -y @alanse/mcp-neo4j-server"]
     }
   }
 }
