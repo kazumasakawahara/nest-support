@@ -21,16 +21,15 @@ BACKUP_DIR="${BACKUP_ROOT}/${BACKUP_NAME}"
 
 echo "Neo4j バックアップを開始します..."
 
-# --- 対象コンテナの解決（port 7687 を提供するコンテナ。doctor.sh と同じ方式）---
-# 実データは別名コンテナ（例: support-db-neo4j）が 7687 を提供している構成が
-# あるため、固定名 nest-support-neo4j を優先しない。名前優先だと、空の自前
-# コンテナが起動しているときに実データ側ではなく空 DB をバックアップしてしまう。
-# 実データを持つのは「実際に 7687 を publish しているコンテナ」なので、それを
-# 唯一の判定基準にする。
-CONTAINER=$(docker ps --filter publish=7687 --format '{{.Names}}' 2>/dev/null | head -1)
+# --- 対象コンテナの解決（port 7688 を提供するコンテナ。doctor.sh と同じ方式）---
+# 2026-10-31 に個人層を 7688 へ移した。7687 は共有層（neo4j-agno-agent の
+# support-db-neo4j）なので、ここでは対象にしない。
+# 固定名 nest-support-neo4j を優先せず、「実際に 7688 を publish しているコンテナ」を
+# 唯一の判定基準にする（名前優先だと、空の自前コンテナをバックアップしかねないため）。
+CONTAINER=$(docker ps --filter publish=7688 --format '{{.Names}}' 2>/dev/null | head -1)
 
 if [ -z "${CONTAINER}" ]; then
-    echo "エラー: port 7687 を提供する起動中の Neo4j コンテナが見つかりません" >&2
+    echo "エラー: port 7688 を提供する起動中の Neo4j コンテナ（個人層）が見つかりません" >&2
     exit 1
 fi
 echo "対象コンテナ: ${CONTAINER}"

@@ -23,7 +23,7 @@ Neo4j スキーマ改善マイグレーションスクリプト v2
 
 注意:
     - 実行前に必ず ./scripts/backup.sh でバックアップを取得してください
-    - 対象: port 7687（障害福祉DB）のみ
+    - 対象: port 7688（障害福祉DB・個人層）のみ
 """
 
 import argparse
@@ -31,6 +31,7 @@ import json
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
 # 親ディレクトリをパスに追加
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -39,6 +40,8 @@ from dotenv import load_dotenv
 from neo4j import GraphDatabase
 
 load_dotenv()
+# 個人層（port 7688）の接続情報。~/.zshrc が読み込む neo4j.env（共有層 7687）より優先する
+load_dotenv(Path.home() / ".config" / "nest" / "neo4j-personal.env", override=True)
 
 
 # =============================================================================
@@ -47,7 +50,7 @@ load_dotenv()
 
 def get_driver():
     """Neo4j ドライバーを取得"""
-    uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+    uri = os.getenv("NEO4J_URI", "bolt://localhost:7688")
     username = os.getenv("NEO4J_USERNAME", "neo4j")
     password = os.getenv("NEO4J_PASSWORD", "")
     driver = GraphDatabase.driver(uri, auth=(username, password))
@@ -776,7 +779,7 @@ def main():
     # Neo4j 接続
     try:
         driver = get_driver()
-        uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+        uri = os.getenv("NEO4J_URI", "bolt://localhost:7688")
         print(f"  Neo4j: {uri}")
     except Exception as e:
         print(f"\n  ❌ Neo4j 接続失敗: {e}")

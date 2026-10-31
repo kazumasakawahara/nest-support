@@ -41,7 +41,7 @@ cd nest-support
 2. **Skills のインストール** — `claude-skills/` から Skills ディレクトリにリンクを作成
 3. **設定ガイダンスの表示** — 次に行うべきことを案内
 
-> Neo4j のブラウザ UI は http://localhost:7474 でアクセスできます（認証: neo4j / password）
+> Neo4j のブラウザ UI は http://localhost:7475 でアクセスできます（認証情報は `~/.config/nest/neo4j-personal.env`。インストーラーが作ります）
 
 ### ワンクリックインストーラー（推奨）
 
@@ -96,13 +96,12 @@ notepad "$env:APPDATA\Claude\claude_desktop_config.json"
 {
   "mcpServers": {
     "neo4j": {
-      "command": "npx",
-      "args": ["-y", "@alanse/mcp-neo4j-server"],
-      "env": {
-        "NEO4J_URI": "bolt://localhost:7687",
-        "NEO4J_USERNAME": "neo4j",
-        "NEO4J_PASSWORD": "password"
-      }
+      "command": "sh",
+      "args": ["-c", "set -a; . \"$HOME/.config/nest/neo4j-personal.env\"; set +a; exec npx -y @alanse/mcp-neo4j-server"]
+    },
+    "neo4j-shared": {
+      "command": "sh",
+      "args": ["-c", "set -a; . \"$HOME/.config/nest/neo4j.env\"; set +a; exec npx -y @alanse/mcp-neo4j-server"]
     }
   }
 }
@@ -178,13 +177,13 @@ Claude Desktop で以下のように話しかけてみましょう:
 
 nest-support は単一の Neo4j インスタンス（障害福祉クライアント管理）で構成されています:
 
-| インスタンス | Bolt | ブラウザUI | 用途 |
-|------------|------|-----------|------|
-| support-db | localhost:7687 | http://localhost:7474 | 障害福祉クライアント管理 |
+| インスタンス | 層 | Bolt | ブラウザUI | MCP | 用途 |
+|------------|---|------|-----------|-----|------|
+| nest-support-neo4j | 個人層 | localhost:7688 | http://localhost:7475 | `neo4j` | 利用者・家族・支援記録（このリポジトリの `docker-compose.yml`） |
+| support-db-neo4j | 共有層 | localhost:7687 | http://localhost:7474 | `neo4j-shared` | 事業所（ServiceProvider）・口コミ（neo4j-agno-agent の `docker-compose.yml`） |
 
-`docker-compose.yml` で起動されます。
-
-> 生活困窮者自立支援（livelihood-support / port 7688）は 2026-05 に廃止しました。
+> 2026-10-31 に 2 層に分けました。個人層は 7688、共有層は 7687 で、同時に動かします。
+> 生活困窮者自立支援（livelihood-support）は 2026-05 に廃止し、7688 番は個人層が使っています。
 
 ---
 
@@ -192,19 +191,19 @@ nest-support は単一の Neo4j インスタンス（障害福祉クライアン
 
 | Skill | 用途 | Neo4j Port |
 |-------|------|------------|
-| `neo4j-support-db` | 障害福祉クライアント管理 | 7687 |
-| `provider-search` | 事業所検索・口コミ | 7687 |
+| `neo4j-support-db` | 障害福祉クライアント管理 | 7688（個人層） |
+| `provider-search` | 事業所検索・口コミ | 7687（共有層 `neo4j-shared`） |
 | `emergency-protocol` | 緊急時対応プロトコル | — |
 | `ecomap-generator` | エコマップ・インサイト生成 | — |
 | `html-to-pdf` | HTML → PDF 変換 | — |
 | `inheritance-calculator` | 法定相続計算 | — |
-| `wamnet-provider-sync` | WAM NET データ同期 | 7687 |
-| `narrative-extractor` | テキスト → 構造化データ抽出 | 7687 |
-| `data-quality-agent` | データ品質チェック・検証 | 7687 |
-| `onboarding-wizard` | 新規クライアント登録ウィザード | 7687 |
-| `resilience-checker` | 親なき後レジリエンス診断 | 7687 |
-| `visit-prep` | 訪問準備ブリーフィング | 7687 |
-| `insight-agent` | 予兆検知・インサイト分析 | 7687 |
+| `wamnet-provider-sync` | WAM NET データ同期 | 7687（共有層。実体は neo4j-agno-agent） |
+| `narrative-extractor` | テキスト → 構造化データ抽出 | 7688 |
+| `data-quality-agent` | データ品質チェック・検証 | 7688 |
+| `onboarding-wizard` | 新規クライアント登録ウィザード | 7688 |
+| `resilience-checker` | 親なき後レジリエンス診断 | 7688 |
+| `visit-prep` | 訪問準備ブリーフィング | 7688 |
+| `insight-agent` | 予兆検知・インサイト分析 | 7688 |
 
 ---
 
@@ -231,7 +230,7 @@ docker ps | grep neo4j
 docker compose restart
 ```
 
-ブラウザで http://localhost:7474 にアクセスして確認してください。
+ブラウザで http://localhost:7475 にアクセスして確認してください。
 
 ### Claude Desktop で MCP が表示されない
 
@@ -257,7 +256,7 @@ Get-Content "$env:APPDATA\Claude\claude_desktop_config.json"
 - [ADVANCED_USAGE.md](./ADVANCED_USAGE.md) — Skills の詳細な使い方とプロンプト例
 - [SCHEMA_CONVENTION.md](./SCHEMA_CONVENTION.md) — Neo4j 命名規則
 - [FAQ.md](./FAQ.md) — よくある質問とトラブルシューティング
-- [Neo4j Browser](http://localhost:7474) — データの直接確認・操作
+- [Neo4j Browser](http://localhost:7475) — データの直接確認・操作（個人層）
 
 ---
 

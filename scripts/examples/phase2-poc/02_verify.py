@@ -1,8 +1,11 @@
 """Phase 2 verification: run the neo4j-support-db Skill's read templates."""
+import os
+
 from neo4j import GraphDatabase
 
-URI = "bolt://localhost:7687"
-AUTH = ("neo4j", "password")
+# 接続情報は環境変数から読む（set -a; . ~/.config/nest/neo4j-personal.env; set +a）。パスワードはコードに書かない
+URI = os.environ.get("NEO4J_URI", "bolt://localhost:7688")
+AUTH = (os.environ.get("NEO4J_USERNAME", "neo4j"), os.environ["NEO4J_PASSWORD"])
 
 TEMPLATE_2_PROFILE = """
 MATCH (c:Client)

@@ -17,6 +17,21 @@
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # ヘルパー関数
+# 個人層の接続情報（%USERPROFILE%\.config\nest\neo4j-personal.env）。無ければ作る（パスワードはその場で生成）。
+# パスワードはこのスクリプトにも Claude の設定ファイル以外にも書かない。
+function Get-PersonalNeo4jEnv {
+    $envDir  = Join-Path $env:USERPROFILE ".config\nest"
+    $envFile = Join-Path $envDir "neo4j-personal.env"
+    if (-not (Test-Path $envFile)) {
+        New-Item -ItemType Directory -Force -Path $envDir | Out-Null
+        $pw = -join ((1..32) | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) })
+        @("NEO4J_URI=bolt://localhost:7688", "NEO4J_USERNAME=neo4j", "NEO4J_PASSWORD=$pw") | Set-Content $envFile -Encoding ASCII
+    }
+    $map = @{}
+    Get-Content $envFile | ForEach-Object { if ($_ -match '^\s*([A-Z0-9_]+)=(.*)$') { $map[$matches[1]] = $matches[2] } }
+    return $map
+}
+
 function Write-Info    { param($msg) Write-Host "[情報] " -ForegroundColor Blue -NoNewline; Write-Host $msg }
 function Write-Success { param($msg) Write-Host "[完了] " -ForegroundColor Green -NoNewline; Write-Host $msg }
 function Write-Warn    { param($msg) Write-Host "[注意] " -ForegroundColor Yellow -NoNewline; Write-Host $msg }
@@ -55,10 +70,10 @@ if (Test-Path $CLAUDE_CONFIG_FILE) {
             Write-Host ""
             Write-Info "接続テスト..."
             try {
-                $null = Invoke-WebRequest -Uri "http://localhost:7474" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
-                Write-Success "Neo4j (port 7687): 接続OK"
+                $null = Invoke-WebRequest -Uri "http://localhost:7475" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
+                Write-Success "Neo4j (port 7688): 接続OK"
             } catch {
-                Write-Warn "Neo4j (port 7687): 未接続（Docker が起動していない可能性があります）"
+                Write-Warn "Neo4j (port 7688): 未接続（Docker が起動していない可能性があります）"
             }
             exit 0
         }
@@ -66,15 +81,17 @@ if (Test-Path $CLAUDE_CONFIG_FILE) {
 }
 
 # 3. MCP 設定の生成
+# 接続情報は neo4j-personal.env から読む（Windows の MCP は sh が無いので env 欄に展開する）
+$personal = Get-PersonalNeo4jEnv
 $mcpConfig = @{
     mcpServers = @{
         neo4j = @{
             command = "npx"
             args    = @("-y", "@alanse/mcp-neo4j-server")
             env     = @{
-                NEO4J_URI      = "bolt://localhost:7687"
-                NEO4J_USERNAME = "neo4j"
-                NEO4J_PASSWORD = "password"
+                NEO4J_URI      = $personal['NEO4J_URI']
+                NEO4J_USERNAME = $personal['NEO4J_USERNAME']
+                NEO4J_PASSWORD = $personal['NEO4J_PASSWORD']
             }
         }
     }
@@ -111,10 +128,10 @@ Write-Host ""
 Write-Info "接続テスト..."
 
 try {
-    $null = Invoke-WebRequest -Uri "http://localhost:7474" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
-    Write-Success "Neo4j (port 7687): 接続OK"
+    $null = Invoke-WebRequest -Uri "http://localhost:7475" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
+    Write-Success "Neo4j (port 7688): 接続OK"
 } catch {
-    Write-Warn "Neo4j (port 7687): 未接続"
+    Write-Warn "Neo4j (port 7688): 未接続"
     Write-Host "  → docker compose up -d で Neo4j を起動してください"
 }
 

@@ -35,6 +35,21 @@ $SKILLS_LIST = @(
 )
 
 # ヘルパー関数
+# 個人層の接続情報（%USERPROFILE%\.config\nest\neo4j-personal.env）。無ければ作る（パスワードはその場で生成）。
+# パスワードはこのスクリプトにも Claude の設定ファイル以外にも書かない。
+function Get-PersonalNeo4jEnv {
+    $envDir  = Join-Path $env:USERPROFILE ".config\nest"
+    $envFile = Join-Path $envDir "neo4j-personal.env"
+    if (-not (Test-Path $envFile)) {
+        New-Item -ItemType Directory -Force -Path $envDir | Out-Null
+        $pw = -join ((1..32) | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) })
+        @("NEO4J_URI=bolt://localhost:7688", "NEO4J_USERNAME=neo4j", "NEO4J_PASSWORD=$pw") | Set-Content $envFile -Encoding ASCII
+    }
+    $map = @{}
+    Get-Content $envFile | ForEach-Object { if ($_ -match '^\s*([A-Z0-9_]+)=(.*)$') { $map[$matches[1]] = $matches[2] } }
+    return $map
+}
+
 function Write-Info    { param($msg) Write-Host "[INFO] " -ForegroundColor Blue -NoNewline; Write-Host $msg }
 function Write-Success { param($msg) Write-Host "[OK] " -ForegroundColor Green -NoNewline; Write-Host $msg }
 function Write-Warn    { param($msg) Write-Host "[WARN] " -ForegroundColor Yellow -NoNewline; Write-Host $msg }
@@ -87,18 +102,22 @@ function Start-Neo4j {
     Write-Info "Neo4j コンテナを起動中..."
     Push-Location $PROJECT_DIR
 
+    # docker-compose.yml は NEO4J_USERNAME / NEO4J_PASSWORD を環境変数から読む（neo4j-personal.env）
+    $personal = Get-PersonalNeo4jEnv
+    $env:NEO4J_USERNAME = $personal['NEO4J_USERNAME']
+    $env:NEO4J_PASSWORD = $personal['NEO4J_PASSWORD']
     docker compose up -d
 
-    # support-db 起動待機
+    # 個人層 起動待機
     $maxRetries = 12
     Write-Info "Neo4j (support-db) の起動を待機中（最大60秒）..."
     for ($i = 0; $i -lt $maxRetries; $i++) {
         try {
-            $null = Invoke-WebRequest -Uri "http://localhost:7474" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
-            Write-Success "Neo4j (support-db) が起動しました"
-            Write-Host "  ブラウザUI: http://localhost:7474"
-            Write-Host "  Bolt接続:  bolt://localhost:7687"
-            Write-Host "  認証:      neo4j / password"
+            $null = Invoke-WebRequest -Uri "http://localhost:7475" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
+            Write-Success "Neo4j (nest-support・個人層) が起動しました"
+            Write-Host "  ブラウザUI: http://localhost:7475"
+            Write-Host "  Bolt接続:  bolt://localhost:7688"
+            Write-Host "  認証:      %USERPROFILE%\.config\nest\neo4j-personal.env を参照"
             break
         } catch {
             Start-Sleep -Seconds 5

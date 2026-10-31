@@ -1,15 +1,17 @@
 services:
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # Neo4j データベース
+  # Neo4j データベース（個人層）
+  # 2026-10-31: 共有層（neo4j-agno-agent の support-db-neo4j、7687）と同時に動かすため 7688 に移した。
+  # 接続情報は ~/.config/nest/neo4j-personal.env（NEO4J_URI=bolt://localhost:7688）。
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   neo4j:
     image: neo4j:5.15-community
     container_name: nest-support-neo4j
     ports:
-      - "7474:7474" # HTTP Browser UI
-      - "7687:7687" # Bolt/Neo4j Protocol
+      - "7475:7474" # HTTP Browser UI
+      - "7688:7687" # Bolt/Neo4j Protocol
     environment:
-      - NEO4J_AUTH=${NEO4J_USERNAME:?see ~/.config/nest/neo4j.env}/${NEO4J_PASSWORD:?}
+      - NEO4J_AUTH=${NEO4J_USERNAME:?see ~/.config/nest/neo4j-personal.env}/${NEO4J_PASSWORD:?}
       - NEO4J_server_memory_pagecache_size=1G
       - NEO4J_server_memory_heap_initial__size=1G
       - NEO4J_server_memory_heap_max__size=1G
@@ -32,6 +34,7 @@ services:
   #   再開する場合は以下のコメントを解除し、Skill を decommissioned/ から
   #   claude-skills/ へ戻したうえで .mcp.json に livelihood-support-db を再追加する。
   #   （詳細は decommissioned/README.md を参照）
+  #   ⚠️ 7475・7688 は 2026-10-31 から上の neo4j（個人層）が使っている。再開するなら別のポートにする。
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   # neo4j-livelihood:
   #   image: neo4j:5.15-community

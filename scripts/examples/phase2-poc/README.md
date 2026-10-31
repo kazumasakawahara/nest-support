@@ -19,7 +19,7 @@
 ## 実行順
 
 ```bash
-# Neo4j (port 7687) が稼働している前提。未稼働なら：
+# Neo4j 個人層 (port 7688) が稼働している前提。接続情報は `set -a; . ~/.config/nest/neo4j-personal.env; set +a` で読む。未稼働なら：
 ./scripts/doctor.sh   # 状況確認
 
 uv run python scripts/examples/phase2-poc/01_register.py

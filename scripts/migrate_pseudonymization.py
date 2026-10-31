@@ -17,31 +17,34 @@
   # ロールバック（Identity ノード・追加プロパティを削除）
   uv run python scripts/migrate_pseudonymization.py --rollback
 
-環境変数:
-  NEO4J_URI=bolt://localhost:7687
+環境変数（~/.config/nest/neo4j-personal.env から読む）:
+  NEO4J_URI=bolt://localhost:7688
   NEO4J_USERNAME=neo4j
-  NEO4J_PASSWORD=password
+  NEO4J_PASSWORD=（neo4j-personal.env の値）
 """
 
 import os
 import sys
 import uuid
 import argparse
+from pathlib import Path
 from dotenv import load_dotenv
 
 # プロジェクトルートを sys.path に追加
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 load_dotenv()
+# 個人層（port 7688）の接続情報。~/.zshrc が読み込む neo4j.env（共有層 7687）より優先する
+load_dotenv(Path.home() / ".config" / "nest" / "neo4j-personal.env", override=True)
 
 
 def get_driver():
     """Neo4j ドライバーを取得"""
     from neo4j import GraphDatabase
 
-    uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+    uri = os.getenv("NEO4J_URI", "bolt://localhost:7688")
     user = os.getenv("NEO4J_USERNAME", "neo4j")
-    pwd = os.getenv("NEO4J_PASSWORD", "password")
+    pwd = os.getenv("NEO4J_PASSWORD", "")  # 既定値は持たない（neo4j-personal.env から読む）
 
     driver = GraphDatabase.driver(uri, auth=(user, pwd))
     driver.verify_connectivity()

@@ -55,21 +55,14 @@ detect_claude_config() {
 }
 
 # MCP設定テンプレートの生成
-# Neo4jのパスワードをカスタマイズ可能
+# 接続情報は ~/.config/nest/neo4j-personal.env から読む（パスワードを設定ファイルに書かない）
 generate_mcp_config() {
-    local neo4j_pass="${1:-password}"
-
-    cat <<EOJSON
+    cat <<'EOJSON'
 {
   "mcpServers": {
     "neo4j": {
-      "command": "npx",
-      "args": ["-y", "@alanse/mcp-neo4j-server"],
-      "env": {
-        "NEO4J_URI": "bolt://localhost:7687",
-        "NEO4J_USERNAME": "neo4j",
-        "NEO4J_PASSWORD": "${neo4j_pass}"
-      }
+      "command": "sh",
+      "args": ["-c", "set -a; . \"$HOME/.config/nest/neo4j-personal.env\"; set +a; exec npx -y @alanse/mcp-neo4j-server"]
     }
   }
 }
@@ -108,10 +101,10 @@ main() {
                 echo ""
                 info "接続テストを実行..."
                 if command -v npx &>/dev/null; then
-                    if curl -s http://localhost:7474 &>/dev/null; then
-                        success "Neo4j (port 7687): 接続OK"
+                    if curl -s http://localhost:7475 &>/dev/null; then
+                        success "Neo4j (port 7688): 接続OK"
                     else
-                        warn "Neo4j (port 7687): 未接続（Docker が起動していない可能性があります）"
+                        warn "Neo4j (port 7688): 未接続（Docker が起動していない可能性があります）"
                     fi
                 fi
                 exit 0
@@ -153,10 +146,10 @@ main() {
     # 3. 接続テスト
     echo ""
     info "接続テスト..."
-    if curl -s http://localhost:7474 &>/dev/null; then
-        success "Neo4j (port 7687): 接続OK"
+    if curl -s http://localhost:7475 &>/dev/null; then
+        success "Neo4j (port 7688): 接続OK"
     else
-        warn "Neo4j (port 7687): 未接続"
+        warn "Neo4j (port 7688): 未接続"
         echo "  → docker compose up -d で Neo4j を起動してください"
     fi
 

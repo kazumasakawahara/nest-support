@@ -267,11 +267,11 @@ ls -la ~/.claude/skills/
 ### Neo4j MCP に接続できない
 ```bash
 docker ps | grep neo4j
-curl -s http://localhost:7474
+curl -s http://localhost:7475
 npx -y @alanse/mcp-neo4j-server --help
 ```
 
 ### Cypher クエリがエラーになる
-1. Neo4j Browser (http://localhost:7474) で直接クエリを実行して確認
+1. Neo4j Browser (http://localhost:7475) で直接クエリを実行して確認
 2. SKILL.md 内のテンプレートとスキーマが一致しているか確認
 3. APOC プラグインが有効か確認: `RETURN apoc.version()`

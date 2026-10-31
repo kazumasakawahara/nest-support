@@ -120,15 +120,15 @@ setup_neo4j() {
     local retries=0
     local max_retries=12
 
-    # support-db インスタンスの起動待機（port 7687）
+    # support-db インスタンスの起動待機（port 7688）
     info "Neo4j (support-db) の起動を待機中（最大60秒）..."
     retries=0
     while [ $retries -lt $max_retries ]; do
-        if curl -s http://localhost:7474 &>/dev/null; then
+        if curl -s http://localhost:7475 &>/dev/null; then
             success "Neo4j (support-db) が起動しました"
-            echo "  ブラウザUI: http://localhost:7474"
-            echo "  Bolt接続: bolt://localhost:7687"
-            echo "  認証: neo4j / password"
+            echo "  ブラウザUI: http://localhost:7475"
+            echo "  Bolt接続: bolt://localhost:7688"
+            echo "  認証: ~/.config/nest/neo4j-personal.env を参照"
             break
         fi
         retries=$((retries + 1))

@@ -10,10 +10,13 @@ import json
 import sys
 from pathlib import Path
 
+import os
+
 from neo4j import GraphDatabase
 
-URI = "bolt://localhost:7687"
-AUTH = ("neo4j", "password")
+# 接続情報は環境変数から読む（set -a; . ~/.config/nest/neo4j-personal.env; set +a）。パスワードはコードに書かない
+URI = os.environ.get("NEO4J_URI", "bolt://localhost:7688")
+AUTH = (os.environ.get("NEO4J_USERNAME", "neo4j"), os.environ["NEO4J_PASSWORD"])
 
 DATA = {
     "client": {

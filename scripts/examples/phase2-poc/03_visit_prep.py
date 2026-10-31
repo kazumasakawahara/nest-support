@@ -1,9 +1,12 @@
 """Phase 2 finale: visit-prep Skill の Cypher を実行し、ブリーフィングシートを生成する。"""
 from datetime import date
+import os
+
 from neo4j import GraphDatabase
 
-URI = "bolt://localhost:7687"
-AUTH = ("neo4j", "password")
+# 接続情報は環境変数から読む（set -a; . ~/.config/nest/neo4j-personal.env; set +a）。パスワードはコードに書かない
+URI = os.environ.get("NEO4J_URI", "bolt://localhost:7688")
+AUTH = (os.environ.get("NEO4J_USERNAME", "neo4j"), os.environ["NEO4J_PASSWORD"])
 
 CLIENT = "テスト太郎"
 VISIT_DATE = "2026-04-18"

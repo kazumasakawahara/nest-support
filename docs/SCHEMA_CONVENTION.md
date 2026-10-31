@@ -23,7 +23,7 @@
 
 ## 0. 適用範囲と対象DB
 
-- **対象**: 障害福祉支援DB（**port 7687**, コンテナ `nest-support-neo4j`）のみ。
+- **対象**: 障害福祉支援DB（**port 7688**・個人層, コンテナ `nest-support-neo4j`）のみ。`ServiceProvider`・`ProviderFeedback` は共有層（port 7687、neo4j-agno-agent）にある（2026-10-31）。
   > 訂正（2026-07-13）: 旧記載のコンテナ名 `support-db-neo4j` は誤り。同名の旧コンテナは
   > 2026-04 に停止済みで、実データは `nest-support-neo4j`（bind mount `./neo4j_data`）に
   > 正規化されている。

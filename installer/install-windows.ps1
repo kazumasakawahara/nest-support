@@ -32,6 +32,22 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 $VERSION = "1.0.0"
 $REPO_URL = "https://github.com/kazumasakawahara/nest-support.git"
 $DEFAULT_INSTALL_DIR = Join-Path $env:USERPROFILE "Documents\nest-support"
+
+# 個人層の接続情報（%USERPROFILE%\.config\nest\neo4j-personal.env）。無ければ作る（パスワードはその場で生成）。
+# パスワードはこのスクリプトにも Claude の設定ファイル以外にも書かない。
+function Get-PersonalNeo4jEnv {
+    $envDir  = Join-Path $env:USERPROFILE ".config\nest"
+    $envFile = Join-Path $envDir "neo4j-personal.env"
+    if (-not (Test-Path $envFile)) {
+        New-Item -ItemType Directory -Force -Path $envDir | Out-Null
+        $pw = -join ((1..32) | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) })
+        @("NEO4J_URI=bolt://localhost:7688", "NEO4J_USERNAME=neo4j", "NEO4J_PASSWORD=$pw") | Set-Content $envFile -Encoding ASCII
+    }
+    $map = @{}
+    Get-Content $envFile | ForEach-Object { if ($_ -match '^\s*([A-Z0-9_]+)=(.*)$') { $map[$matches[1]] = $matches[2] } }
+    return $map
+}
+
 $CLAUDE_CONFIG_DIR = Join-Path $env:APPDATA "Claude"
 $CLAUDE_CONFIG_FILE = Join-Path $CLAUDE_CONFIG_DIR "claude_desktop_config.json"
 
@@ -306,17 +322,21 @@ function Setup-Database {
     Write-Info "（初回は Docker イメージのダウンロードに数分かかります）"
     Write-Host ""
 
+    # docker-compose.yml は NEO4J_USERNAME / NEO4J_PASSWORD を環境変数から読む（neo4j-personal.env）
+    $personal = Get-PersonalNeo4jEnv
+    $env:NEO4J_USERNAME = $personal['NEO4J_USERNAME']
+    $env:NEO4J_PASSWORD = $personal['NEO4J_PASSWORD']
     docker compose up -d
 
-    # 起動待機: support-db
+    # 起動待機: 個人層
     $maxRetries = 24
     $retries = 0
     Write-Info "データベースの起動を待っています..."
 
     while ($retries -lt $maxRetries) {
         try {
-            $null = Invoke-WebRequest -Uri "http://localhost:7474" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
-            Write-Success "障害福祉データベース（port 7687）が起動しました"
+            $null = Invoke-WebRequest -Uri "http://localhost:7475" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
+            Write-Success "障害福祉データベース（port 7688・個人層）が起動しました"
             break
         } catch {
             $retries++
@@ -333,8 +353,8 @@ function Setup-Database {
 
     Write-Host ""
     Write-Host "  データベースの管理画面:"
-    Write-Host "    障害福祉:       http://localhost:7474" -ForegroundColor Cyan
-    Write-Host "    認証情報:       neo4j / password"
+    Write-Host "    障害福祉:       http://localhost:7475" -ForegroundColor Cyan
+    Write-Host "    認証情報:       %USERPROFILE%\.config\nest\neo4j-personal.env を参照"
     Write-Host ""
 }
 
@@ -435,15 +455,18 @@ function Configure-ClaudeDesktop {
     }
 
     # MCP 設定の生成
+    # 接続情報は neo4j-personal.env から読む（Windows の MCP は sh が無いので env 欄に展開する。
+    # 書き込み先は Claude Desktop の設定ファイルだけで、リポジトリには残らない）
+    $personal = Get-PersonalNeo4jEnv
     $mcpConfig = @{
         mcpServers = @{
             neo4j = @{
                 command = "npx"
                 args    = @("-y", "@alanse/mcp-neo4j-server")
                 env     = @{
-                    NEO4J_URI      = "bolt://localhost:7687"
-                    NEO4J_USERNAME = "neo4j"
-                    NEO4J_PASSWORD = "password"
+                    NEO4J_URI      = $personal['NEO4J_URI']
+                    NEO4J_USERNAME = $personal['NEO4J_USERNAME']
+                    NEO4J_PASSWORD = $personal['NEO4J_PASSWORD']
                 }
             }
         }
@@ -495,10 +518,10 @@ function Test-Connection {
 
     # Neo4j support-db テスト
     try {
-        $null = Invoke-WebRequest -Uri "http://localhost:7474" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
-        Write-Success "障害福祉データベース (port 7687): 接続OK"
+        $null = Invoke-WebRequest -Uri "http://localhost:7475" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
+        Write-Success "障害福祉データベース (port 7688): 接続OK"
     } catch {
-        Write-Err "障害福祉データベース (port 7687): 接続失敗"
+        Write-Err "障害福祉データベース (port 7688): 接続失敗"
         $allOk = $false
     }
 
@@ -562,7 +585,7 @@ function Show-Completion {
     Write-Host "    使い方ガイド:     $($script:INSTALL_DIR)\docs\ADVANCED_USAGE.md"
     Write-Host ""
     Write-Host "  データベース管理画面:"
-    Write-Host "    http://localhost:7474 （認証: neo4j / password）" -ForegroundColor Cyan
+    Write-Host "    http://localhost:7475 （認証情報: %USERPROFILE%\.config\nest\neo4j-personal.env）" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "  困ったときは:"
     Write-Host "    $($script:INSTALL_DIR)\docs\FAQ.md を参照してください。"

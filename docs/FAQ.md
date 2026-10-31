@@ -66,7 +66,7 @@ docker info
 
 ### Neo4j に接続できない
 
-**症状**: `curl: (7) Failed to connect to localhost port 7474`
+**症状**: `curl: (7) Failed to connect to localhost port 7475`
 
 **対処法**:
 ```bash
@@ -82,7 +82,7 @@ docker logs nest-support-neo4j
 
 **よくある原因**:
 - Docker Desktop が起動していない
-- ポートが他のアプリケーションに使われている（`lsof -i :7474` で確認）
+- ポートが他のアプリケーションに使われている（`lsof -i :7475` で確認）
 - メモリ不足（Docker Desktop の Settings → Resources でメモリを4GB以上に設定）
 
 ### Claude Desktop で MCP ツールが表示されない
@@ -163,8 +163,8 @@ cd nest-support
 
 **対処法**:
 1. Docker コンテナが起動しているか確認: `docker ps`
-2. ブラウザで http://localhost:7474 にアクセスできるか確認
-3. MCP 設定のポート番号が正しいか確認（7687）
+2. ブラウザで http://localhost:7475 にアクセスできるか確認
+3. MCP 設定が `~/.config/nest/neo4j-personal.env`（URI は bolt://localhost:7688）を読んでいるか確認
 4. Docker Desktop のリソース設定でメモリを確認（4GB以上推奨）
 
 ### デモデータの投入でエラーが出る
@@ -174,10 +174,11 @@ cd nest-support
 **対処法**:
 ```bash
 # Neo4j が起動しているか確認
-curl -s http://localhost:7474
+curl -s http://localhost:7475
 
-# 認証情報の確認（デフォルト: neo4j / password）
-curl -u neo4j:password http://localhost:7474/db/neo4j/tx/commit \
+# 認証情報の確認（~/.config/nest/neo4j-personal.env から読む。値は画面に出さない）
+set -a; . ~/.config/nest/neo4j-personal.env; set +a
+curl -u "$NEO4J_USERNAME:$NEO4J_PASSWORD" http://localhost:7475/db/neo4j/tx/commit \
   -H "Content-Type: application/json" \
   -d '{"statements": [{"statement": "RETURN 1"}]}'
 ```
@@ -235,8 +236,8 @@ memory=4GB
 **対処法**:
 ```powershell
 # 使用中のポートを確認
-netstat -ano | findstr :7474
-netstat -ano | findstr :7687
+netstat -ano | findstr :7475
+netstat -ano | findstr :7688
 
 # 該当プロセスを確認（PID は上記コマンドの最後の列）
 tasklist | findstr <PID>
