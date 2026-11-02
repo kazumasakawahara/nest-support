@@ -20,6 +20,7 @@ Bashツール（またはシェル実行手段）で以下を実行するだけ�
 ```bash
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
   --headless --disable-gpu \
+  --user-data-dir="$(mktemp -d)" \
   --no-pdf-header-footer \
   --print-to-pdf="/path/to/output.pdf" \
   "file:///path/to/input.html"
@@ -27,7 +28,7 @@ Bashツール（またはシェル実行手段）で以下を実行するだけ�
 
 - 入力はフルパスの `file://` URL で指定する（スペース・日本語を含む場合はURLエンコード）
 - 出力先 `--print-to-pdf=` もフルパスで指定する
-- ユーザーのChromeが起動中でも干渉しない（ヘッドレスは別プロセスで動く）
+- `--user-data-dir` は省略しない。省略すると起動中の Chrome（CDP デバッグポートを開けたもの）に繋がり、`chrome://inspect` 画面が PDF になる（2026-07-09 にユーザーマニュアルで発生）
 - 日本語・絵文字のレンダリングは検証済み（文字化けしない）
 
 ### 実行後の確認
