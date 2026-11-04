@@ -25,7 +25,8 @@ services:
     # になり、PID ファイルが残って次回起動が再起動ループ（"Neo4j is already running"）になる疑い。
     # 効果が確認できるまでは、ループしたら docker compose up -d --force-recreate neo4j で復旧する。
     stop_grace_period: 60s
-    restart: unless-stopped
+    # 2026-11-05: Docker の再起動で勝手に立ち上がらないよう "no" にした（ADR-001・N-18a）。
+    restart: "no"
 
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   # Neo4j データベース（生活困窮者自立支援）
