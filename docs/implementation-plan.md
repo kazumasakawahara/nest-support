@@ -7,6 +7,7 @@
 - 前の DB の跡（`neo4j_data/`・`neo4j_backup/`・`neo4j_logs/`・`neo4j_livelihood_*`・コンテナ `nest-support-neo4j`）は、河原さんが確かめるまで開かない・起動しない・消さない。新しい DB は別のフォルダに作る
 - 根拠：`docs/adr/ADR-001-redesign-and-shared-contract.md`（承認 2026-11-05）、約束 v1
 - 新しく書くコードは `nest/`（新しいパッケージ）に置く。今の `lib/` は、置き換えが済んだ部分から外す
+- **google-genai は 1.66.0 に固定する**（`pyproject.toml` と `uv.lock`）。版を上げるときは、送り先を変える環境変数（1.66.0 では `GOOGLE_GENAI_USE_VERTEXAI`・`GOOGLE_GEMINI_BASE_URL`・`GOOGLE_VERTEX_BASE_URL`）が増えていないか、部品の中身（`_api_client.py`・`_base_url.py`）を読み直してから上げる。版の試験（`tests/test_gemini_gate.py`）も同じときに直す（2026-11-05 河原さん。台帳 G-28）
 
 ## 段階 A　送らない・埋め込まない（DB なしで動くもの）
 
@@ -17,8 +18,8 @@
 | N-01 | Python の骨格（`nest/`）と、フィクスチャの架空の注記の検査 | 注記の無いフィクスチャで失敗し、ある物で通る | ✅ 2026-11-05（`nest/fixtures_check.py`、`tests/test_fixtures_fictional.py` 13 件。全体 188 passed） |
 | N-02 | 送信の歯止め（`nest/egress.py`）：送り先の一覧（文書の NEXT 行のホスト）をコードに持ち、一覧外・やめた行へは送らない。Gemini・LINE は、機能ごとの明示の設定（`~/.config/nest/external-api-features.json`）と契約の確認の記録（`~/.config/nest/external-api-record.json`）の両方がそろわなければ送らない。記録の条件は external-api §5 の 6 つ（行ごと・5 項目がすべて埋まる・要配慮は明示の true だけ・次に確かめる日・無い／読めない／600 より広いは不許可・置き場所はコードに固定で環境変数で変えない）。LINE の送信（`sos/api_server.py`）をこの歯止めに通す。Gemini は N-03 | 6 条件のそれぞれで不許可になる例と、そろって許可になる例。鍵だけある状態で送らない。一覧外のホスト・やめた行で失敗する。一覧と文書の行がずれたら失敗する。HOME を変えても置き場所が変わらない | ✅ 2026-11-05（`nest/egress.py`、`tests/test_egress.py` 60 件・`tests/test_egress_line.py` 3 件。全体 251 passed） |
 | N-03 | Gemini を既定で止める：文字起こし（`transcribe_audio`・field-ui の音声）・OCR（`file_readers`・`ocr_with_gemini`）を N-02 の歯止めに通す | 鍵があっても、設定と記録が無ければ外部への呼び出しが 0 回（偽の送信先で数える） | ✅ 2026-11-05（`lib/embedding.py` の `get_genai_client(row)` が呼ぶたびに許可を確かめる。埋め込みは NEXT-06、`multi_importer` の構造化は NEXT-07 で常に不許可。送り先を固定。`tests/test_gemini_gate.py` 10 件。全体 267 passed。台帳 G-28・G-29） |
-| N-04 | 埋め込みを外す（ADR D10）：登録時の埋め込み、`backfill_embeddings.py`、ベクトル索引の作成、意味検索、似た本人の検索。関係する既存の試験を改める | コードの中に埋め込みの呼び出しとベクトル索引の作成が残っていない検査 | |
-| N-05 | `multi_importer.py` の Gemini による構造化を外す（ADR D11-1） | 構造化の経路が外部を呼ばない検査 | |
+| N-04 | 埋め込みを外す（ADR D10）：登録時の埋め込み、`backfill_embeddings.py`、ベクトル索引の作成、意味検索、似た本人の検索。関係する既存の試験を改める | コードの中に埋め込みの呼び出しとベクトル索引の作成が残っていない検査 || ✅ 2026-11-05（`lib/embedding.py`・`scripts/backfill_embeddings.py`・`scripts/check_weight_consistency.py` を外した。Gemini の入口・文字起こし・OCR は `lib/genai.py`、面談記録の登録は `lib/meeting_record.py`（埋め込みなし）へ移した。`tests/test_no_embedding.py` 3 件・`tests/test_gemini_gate.py` 13 件。google-genai を 1.66.0 に固定。全体 267 passed。台帳 G-30〜G-33） |
+| N-05 | `multi_importer.py` の Gemini による構造化を外す（ADR D11-1） | 構造化の経路が外部を呼ばない検査。`structurize_with_gemini` の記録の文言「GEMINI_API_KEY が未設定です」の消し忘れが無いことを確かめる（台帳 G-29）。外した後は `tests/test_no_embedding.py` の許す行から NEXT-07 を除く | |
 
 ## 段階 B　正典（nest-support の中に持つ）
 
@@ -81,7 +82,7 @@
 | `docs/SCHEMA_CONVENTION.md`・`docs/SEMANTIC_MODEL.md`・`docs/*.bak-*`・`docs/semantic-model-instruction.md` | shared-schema の写し（同期の対象） | N-09 |
 | `claude-skills/` の neo4j-support-db・visit-prep・emergency-protocol・data-quality-agent・insight-agent | 「正は shared-schema の SEMANTIC_MODEL」の注記、「port 7687」の記述 | N-27 |
 | `lib/schema_validator.py` | `VALID_NODE_LABELS_7687` などの名前（中身は個人層） | N-17 |
-| `lib/embedding.py` | agno 由来のベクトル索引名の分岐 | N-04 |
+| `lib/embedding.py` | agno 由来のベクトル索引名の分岐 | ✅ N-04 でファイルごと外した |
 | `lib/db_operations.py`・`scripts/migrate_*.py`・`claude-skills/ecomap-generator/scripts/generate_mermaid.py` | 「`neo4j.env`（共有層 7687）より個人層を優先する」読み込みの順 | N-29（`migrate_*` は外す候補） |
 | `sos/.env.example` | `NEO4J_URI=bolt://localhost:7687` | N-28 |
 | `scripts/rotate_password.py`・`scripts/backup.sh`・`scripts/doctor.sh` | 共有層 7687 の説明と除外 | N-30 |
