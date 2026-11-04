@@ -1,6 +1,6 @@
 # ADR-001 nest-support の DB の作り直しと、四つの約束
 
-- 状態：**承認**（2026-11-05 河原さん。D1〜D11。D2 の読み込み方（D2-2）は未決論点 1 で確かめる）
+- 状態：**承認**（2026-11-05 河原さん。D1〜D11。D2-2 は同日の 2 回目の返答で承認）
 - 日付：2026-11-05（草案）、2026-11-05（承認版）
 - 関連：tsunagu-net ADR-008 D9、約束 `~/Dev-Work/tsunagu-net/docs/contracts/nest-support-shared.md`（v1 確定。以下「約束」）
 - 前提の記録：止まる点 1 の報告と河原さんの返答（2026-11-05 の 2 回）。承認なしに決めたことは `docs/gray-decisions.md`
@@ -37,8 +37,9 @@
 **D2 資源 DB：配布の一式の書き出しを、nest-support 用の Neo4j に読み込み、読み取りだけで使う（2026-11-05 河原さん）**
 
 - D2-1 tsunagu-net の配布の一式に入っている資源 DB の書き出しを読み込む。読み込んだ版（例：v0.29）と指紋（`MANIFEST.json`）を記録し、照会の結果に添えられるようにする
-- D2-2 読み込み方（未決論点 1 で確かめる）：書き出しは `neo4j-admin` の dump（DB を丸ごと置き換える形）で、Neo4j Community が持てる通常の DB は一つだけ（Neo4j Operations Manual。Context7 で確認 2026-11-05）。dump を個人の DB にそのまま読み込むと、個人の側が消える。そこで推す案は次のとおり
+- D2-2 読み込み方（2026-11-05 河原さん承認：推す案。ポートは止まる点 3 で決める）：書き出しは `neo4j-admin` の dump（DB を丸ごと置き換える形）で、Neo4j Community が持てる通常の DB は一つだけ（Neo4j Operations Manual。Context7 で確認 2026-11-05）。dump を個人の DB にそのまま読み込むと、個人の側が消える。そこで推す案は次のとおり
   - **推す案：nest-support 用の資源の Neo4j を、個人の Neo4j とは別に立て、dump をそのまま読み込む**。読み取りだけで使う。ポートは今の 7474・7475・7687・7688 と tsunagu-net の 17474・17687・27474・27687 を避ける
+  - 読み取りだけにする方法は、tsunagu-net の `tsunagu/mcp_resource.py` と同じ形（EXPLAIN で読み取り以外を実行前に拒否）にする。個人の側の MCP も同じ形にする（D6）
   - 個人の側は D3 のとおり `orgId` だけを持つので、二つの DB を一つの照会で結ぶ必要は無い。機関の名前などは、読む道具が `orgId` で資源の側から引く
   - 別の案：一時の Neo4j に dump を読み込み、資源のノードを個人の DB に写す道具を作る。一つの照会で結べるが、写しの正しさを別に検査する必要がある
 - D2-3 資源の側は読み込みの道具のほかは書かない。機関の誤り・足りない機関は nest-support の中で直さず、tsunagu-net の手入力の表の手順に回す（約束 1）
@@ -162,12 +163,12 @@
 
 ## 未決論点
 
-1. **資源 DB の読み込み方（D2-2）**：別の Neo4j に dump を読み込む案と、写す道具の案。ポート番号と合わせて、実装計画の止まる点で決める
+1. ~~資源 DB の読み込み方（D2-2）~~：2026-11-05 河原さん承認（別の Neo4j に dump を読み込む）。残るのはポート番号だけで、止まる点 3 で決める
 2. **oya-inai-db の扱い**：shared-schema は oya-inai-db も縛っている。nest-support が同期を切った後の oya-inai-db と shared-schema の関係は、別に決める（2026-11-05 河原さん）
 3. **shared-schema の同期の道具**：`~/Dev-Work/shared-schema/sync-schema.sh` は、`--write-prod` を付けると今も nest-support の `docs/` に書き込む。nest-support からは shared-schema を変えないので、道具の側から nest-support を外すかは河原さんが決める。nest-support の側では、同期の写しを外し、書き込まれても使わない
 4. **SOS の画面を外から開けるか**（11-3）
 5. **事業所の口コミ（ProviderFeedback）**：nest-support の DB からは使わない。口コミを残すなら、どこに置くか
-6. **残っている前の DB の跡**：`neo4j_data/`・`neo4j_backup/`・`neo4j_logs/`・コンテナ `nest-support-neo4j`（河原さんが確かめる）。ほかに `neo4j_livelihood_data/`（生活困窮者支援。2026-05 廃止）・`neo4j_livelihood_logs/`・`.quarantine/` がある。中は開いていない
+6. **残っている前の DB の跡**：`neo4j_data/`・`neo4j_backup/`・`neo4j_logs/`・コンテナ `nest-support-neo4j`、`neo4j_livelihood_data/`（生活困窮者支援。2026-05 廃止）・`neo4j_livelihood_logs/`・`neo4j_livelihood_plugins/`・`.quarantine/`（河原さんが確かめる）。2026-11-05 にすべて権限 700・Time Machine 対象外にし、コンテナは自動で立ち上がらない設定にした。中は開いていない
 7. **感情（emotion）・きっかけ（triggerTag）**：原文に書いていない AI の読み取りなら、確度は推測になる。insight-agent の予兆検知はこれに頼っている。残すか、原文にあるときだけにするか
 8. **語りを仮名に置き換えてから Claude に渡すか**：道具の重さを見て決める
 9. **全文索引**：手元で動くので外には送らないが、本文を索引に載せるか。tsunagu-net は作らない側に倒した（G-9）

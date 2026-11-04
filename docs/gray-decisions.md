@@ -12,8 +12,10 @@
 | G-6 | 2026-11-05 | ADR の置き場所を `docs/adr/`、この台帳を `docs/gray-decisions.md`、計画を `docs/implementation-plan.md` にした | tsunagu-net と同じ置き方にした | |
 | G-7 | 2026-11-05 | ADR-001 で、機関 ID の項目の名前（`orgId`）と、個人の側から資源のノードへ関係を張らないこと、を決めた | 約束が決めるのは値と ID の形だけで、項目の名前と結び方は nest-support が決めるため | |
 | G-8 | 2026-11-05 | 11-2（草案では 9-2）で、二つの案のどちらか一つではなく、「契約の確認を必ず行い、照会の結果には実名を返さない」を推した | 語りを Claude に渡す以上、仮名だけでは送らないことにならないため | 2026-11-05（推しの形で承認） |
-| G-9 | 2026-11-05 | ADR-001 の承認版で、D2-2（資源 DB の読み込み方）を「別の Neo4j に dump を読み込む」を推す案として書き足した。決定は止まる点 3 | tsunagu-net の書き出しは `neo4j-admin` の dump で、Community が持てる通常の DB は一つだけ（Neo4j Operations Manual、Context7 で確認）。個人の DB にそのまま読み込むと個人の側が消える | |
+| G-9 | 2026-11-05 | ADR-001 の承認版で、D2-2（資源 DB の読み込み方）を「別の Neo4j に dump を読み込む」を推す案として書き足した。決定は止まる点 3 | tsunagu-net の書き出しは `neo4j-admin` の dump で、Community が持てる通常の DB は一つだけ（Neo4j Operations Manual、Context7 で確認）。個人の DB にそのまま読み込むと個人の側が消える | 2026-11-05（推す案で承認。読み取りだけにする形は tsunagu-net の mcp_resource.py と同じ） |
 | G-10 | 2026-11-05 | 承認版で決定の番号を振り直した（禁忌の D5 と承認の D9 を足したため、草案の D5〜D9 は D6〜D11 になった） | 河原さんの決定（未決 2・3）を決定の節に入れるため | |
 | G-11 | 2026-11-05 | 新しいコードは新しいパッケージ `nest/` に置き、今の `lib/` は置き換えの済んだ部分から外すことにした | 作り直しの範囲がはっきり分かるようにするため | |
-| G-12 | 2026-11-05 | `docker update --restart=no` は済んだが、`docker-compose.yml` には `restart: unless-stopped` が残っている。直すのは N-18 にした | compose を使うと設定が戻るおそれがある。前のコンテナは起動しないので、今は compose を使わない | |
-| G-13 | 2026-11-05 | `neo4j_livelihood_data/`（516MB、2026-03）・`neo4j_livelihood_logs/`・`neo4j_livelihood_plugins/` と `.quarantine/` を見つけたが、権限の変更も Time Machine からの除外もしていない | 指示は 3 つのフォルダだけだったため。中は開いていない | |
+| G-12 | 2026-11-05 | `docker update --restart=no` は済んだが、`docker-compose.yml` には `restart: unless-stopped` が残っている。直すのは N-18 にした | compose を使うと設定が戻るおそれがある。前のコンテナは起動しないので、今は compose を使わない | 2026-11-05 河原さんの指示で N-18a として繰り上げ、`restart: "no"` に直した |
+| G-13 | 2026-11-05 | `neo4j_livelihood_data/`（516MB、2026-03）・`neo4j_livelihood_logs/`・`neo4j_livelihood_plugins/` と `.quarantine/` を見つけたが、権限の変更も Time Machine からの除外もしていない | 指示は 3 つのフォルダだけだったため。中は開いていない | 2026-11-05 河原さんの指示で権限 700・Time Machine 対象外にした。対応するコンテナは無かった |
+| G-14 | 2026-11-05 | 繰り上げた N-18 は、`restart:` の部分だけを N-18a として切り出した。127.0.0.1・新しいデータのフォルダ・資源の Neo4j は N-18 に残した | 繰り上げの指示は restart の修正についてで、残りはポートの決定（止まる点 3）と一緒に行うほうがよいため | |
+| G-15 | 2026-11-05 | N-18a の試験は、YAML の部品を足さず、`docker-compose.yml` の本文の `restart:` の行を正規表現で読む形にした | 依存を増やさないため。`docker compose config` は環境変数が要り、実行環境に依存するため | |
