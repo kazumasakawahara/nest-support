@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from lib.db_operations import resolve_client_raw, get_display_name, run_query
 from lib.auth import require_auth, set_session_cookie, verify_token
+from nest import egress
 
 # 環境変数読み込み
 load_dotenv()
@@ -108,6 +109,13 @@ async def send_line_message(message: str) -> bool:
 
     _mock_mode = False
     url = "https://api.line.me/v2/bot/message/push"
+    # 送信の歯止め（N-02・external-api NEXT-05）。鍵があっても、機能の設定と契約の確認の記録が
+    # そろわなければ送らない。
+    try:
+        egress.ensure("NEXT-05", url)
+    except egress.EgressDenied as e:
+        print(f"LINE送信を止めました（NEXT-05 不許可）: {e}")
+        return False
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {token}"
