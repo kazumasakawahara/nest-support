@@ -1,96 +1,100 @@
-# HANDOVER — 2026-07-13 main（grade=不明 検出の追加 / セッション5・完）
+# HANDOVER — 2026-08-03 main（WAM NET スキル整合 / serena_config 混入の切り出し）
 
-> NEXT_SESSION.md（grade=不明 検出・2026-07-13 発行）に基づく小規模セッション。
-> タスク A（正典 §10.3 の明文化）・B（data-quality-agent への検出追加＋実DB読み取り検証）・
-> C（claude.ai への skill-sync）すべて完了。DB への書き込みなし（読み取りのみ）。
-> 指示書は役目を終えたため削除済み。
-> 前セッション（DRIFT-12 解消・チェッカー四者化）は git 履歴の HANDOVER を参照。
+> claude.ai 側のチャットから、`~/.claude/CLAUDE.md` の棚卸しを起点に横展開したセッション。
+> nest-support 本体のコード・テスト・DBへの書き込みは**一切なし**（読み取りのみ）。
+> 変更したのは `claude-skills/wamnet-provider-sync/SKILL.md` の1ファイルのみ。
+> 前セッション（2026-07-13 / grade=不明 検出の追加）の HANDOVER は
+> `~/.claude/backups/2026-08-03-claude-md-refactor/nest-support-HANDOVER-2026-07-13.md` と git 履歴を参照。
 
-## 再開コマンド（コピペで動く・本セッション末に検証済み）
+## 再開コマンド（前回検証済み・今回は未再検証）
 
 ```bash
 cd ~/Dev-Work/project/nest-support
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
-
-./scripts/doctor.sh                              # 環境整合（検証済み: 20 passed / 0 failed）
-uv run python scripts/check_semantic_drift.py    # 四者一致（検証済み: OK=29 KNOWN=0 FAIL=0 WARN=1）
-uv run pytest tests/ -q                          # 全テスト（検証済み: 173 passed）
+./scripts/doctor.sh                              # 環境整合
+uv run python scripts/check_semantic_drift.py    # 四者一致
+uv run pytest tests/ -q                          # 全テスト
 ```
 
-Neo4j（support-db, port 7687）は稼働中。コンテナ名は `nest-support-neo4j`。
+Neo4j（support-db, port 7687）コンテナ名は `nest-support-neo4j`。本セッション末に**停止済み**（Docker Desktop も終了）。再開時は起動が要る。
 
 ---
 
 ## 現在地
 
-- 目標: DRIFT-12 で入った「grade 未指定→"不明" 補完」の構造的副作用
-  （実等級判明後に "不明" ノードが残骸として残る）を data-quality-agent が検出できるようにする。
+### 完了：`wamnet-provider-sync/SKILL.md` の内部矛盾を解消
 
-### 進捗
+SKILL.md 内で MERGE キーの記述が食い違っていた。**shared-schema との矛盾ではなく、SKILL.md 内部の矛盾**だった。
 
-- [x] **A: 正典 §10.3 の記載検証と明文化** — 検証結果:「grade 未指定は "不明"」の一言は
-  **実在した**が、補完の意図・意味・検出の記載は無かったため追記。
-  SCHEMA_CONVENTION **v3.3.2**: (1) 補完の意図＝複合 MERGE キーの欠落防止、
-  (2) "不明"＝「等級を把握していない」であって「等級が無い」ではない（BRS-04）、
-  (3) data-quality-agent が欠損として検出する旨。→ sync-schema.sh 済み・drift green 維持
-- [x] **B: data-quality-agent に Check 1b を追加**（期限アラート Check 1 の直後に配置）
-  - (a) 等級未把握（Warning）: grade="不明" の Certificate 列挙。
-    表示原則「**等級なし」と書かない**——「等級未把握——本人・家族・手帳現物で確認を」
-  - (b) 残骸候補（Warning）: 同一クライアント・同一 type で "不明" と具体的等級の併存を検出。
-    **検出と提案まで**（削除は河原氏の承認と AuditLog を伴う手動作業へ誘導。自動削除なし）
-  - 診断項目一覧の表にもカテゴリ行を追加
-- [x] **B: 実DB読み取り検証（2026-07-13・nest-support-neo4j）**
-  - 構文: 両クエリとも EXPLAIN 通過（読み取りのみ・書き込みなし）
-  - 該当件数: **(a) 0件・(b) 0件（機構は今後の発生を監視）**。
-    参考: Certificate は全8ノード・すべて等級設定済み・grade IS NULL も0件
-    ——既存データに移行負債は無く、検出は「今後 "不明" 補完が使われた時」に効く
-- [x] **C: claude.ai へ skill-sync 完了** — 置き換えアップロード成功。
-  一覧の最終更新日が 2026/07/13 になったことに加え、**中身**（詳細画面の DOM に
-  「Check 1b」「等級未把握」「残骸候補」が存在）で新版を確認済み
+| プロパティ | 中身 | 役割 |
+|---|---|---|
+| `providerId` | `{事業所番号}_{サービス種類コード}` | **MERGE キー**（一意） |
+| `wamnetId` | 事業所番号そのもの | 名前揺れ対策・横断検索（**一意ではない**） |
+
+旧マッピング表は「事業所番号 → `providerId`（MERGE用キー）」「`wamnetId` は事業所番号と同じ」と書いており、Q2 の複合キーの説明と矛盾していた。
+
+修正5点：
+
+1. マッピング表：事業所番号 → `wamnetId`、`name` に `normalize_name()` 適用を明記
+2. マッピング表：`providerId` を複合キーとして正しく記載
+3. **スキーマ規約の正典は `~/Dev-Work/shared-schema/SCHEMA_CONVENTION.md`** であることを明示（食い違ったら向こうを優先／camelCase のみ／正規化関数）
+4. **Cypher 例に `SET sp.wamnetId` を追加**（元は欠落していた）
+5. Q2 を書き下し（一意制約は `providerId` 側にかけ、`wamnetId` にはかけない）
+
+`claude-skills/wamnet-provider-sync/` が実体で、`~/.claude/skills/wamnet-provider-sync` はそこへの symlink。片方を直せば両方に反映される（複製ではない、正しい構成）。
+
+### 完了：`~/.serena/serena_config.yml` に紛れ込んでいた93行の切り出し
+
+Serena のグローバル設定ファイルの先頭に、`domain_skills:` という **Serena が解釈しないキー**で WAM NET のオープンデータ取得手順が書かれていた。本来 `wamnet-provider-sync` のスキル本文に書くつもりだったもの（河原氏の記憶による）。
+
+- 切り出し先：`~/.claude/backups/2026-08-03-claude-md-refactor/wamnet-domain-skills.yml`（93行）
+- 元ファイル全体：同ディレクトリの `serena_config.yml.orig`
+- `serena_config.yml` は 348 → 222行。YAML パース検証済み、トップレベルキーはすべて Serena 正規のもの
+- 副産物：`# the list of registered project paths...` が18回重複していたので1つに畳んだ（Serena が `projects:` 自動更新のたびに重ねる挙動。**また増える可能性がある**）
+
+---
 
 ## グレーな判断（次セッション冒頭で承認確認を）
 
-1. **新チェックの番号を「Check 1b」とした**（指示書は配置裁量あり）。既存 Check 2〜7 の
-   番号を動かさず、期限アラート（Check 1）の直後という文脈も保てるため。
-2. **実DB検証は「EXPLAIN（構文）＋集計クエリ（件数）」の形式で行い、テンプレート
-   そのままの実行（実名が返る形）はしなかった**。指示書の「読み取り実行して構文と挙動を
-   確認」は満たしつつ、実在の方の氏名をチャット文脈に載せないため（pii-safe の出力規律）。
-3. browser-harness が **0.1.4 → 0.1.5 の更新可能**を表示している。更新は skill-sync
-   SKILL.md 記載の正規手順（stash→rebase→pop→再インストール→MCP側sync）が必要なため
-   本セッションでは実施せず（同期作業自体は 0.1.4 で問題なく完了）。
+**「ServiceProvider は0件だからデータ移行不要」と結論したが、確認範囲が不十分だった。**
 
-## 未決論点（河原氏の判断が要る）
+- 照会したのは稼働中の `nest-support-neo4j` のみ → ServiceProvider **0件**、制約・インデックスなし。ラベルは Client/Supporter/Hospital 等16種で ServiceProvider を含まない
+- しかし別記録に「**ServiceProvider ノード2,621件（うち約1,500件が名称未登録）**」がある
+- 停止中の `neo4j-support-db`（4ヶ月前に停止、同じ 7687 を使う構成）側と推定されるが**未確認**
 
-- 残骸候補 (b) が実際に検出された場合の**標準対応手順**（プロパティ引き継ぎ→不明ノード
-  削除→AuditLog）を neo4j-support-db 側にテンプレート化するか。現状は data-quality-agent の
-  誘導文のみ。発生実績が出てから設計でよい（0件のうちは急がない）。
+SKILL.md の修正内容自体はどちらのDBでも正しい（内部矛盾の解消と欠落補完のため）。ただし**既存2,621件が `providerId` / `wamnetId` をどう持っているかは未確認**で、同期を実行する前に確かめる必要がある。
+
+---
 
 ## 既知の罠・注意
 
-- **NEXT_SESSION.md 方式の罠**: 古い指示書が残ると処理済みタスクが再実行されかける。
-  処理完了時に削除する運用（本セッションも削除済み）
-- **auto mode classifier が Neo4j への CREATE を拒否する**。読み取り（EXPLAIN 含む）は通る
-- **skill-sync の座標クリック**: claude.ai のスキル一覧で「追加」ボタンは DOM テキスト
-  一致で拾えないことがある（テキストにアイコンが混じる）。スクリーンショット→座標クリック
-  （viewport 座標 = スクリーンショット原寸の 1/2）が確実
-- drift チェックの WARN=1 は既知（Review.domain/source はラベル限定検証のため対象外）
-- rtk が git 出力を圧縮する。検証は `rtk proxy git log --format="%h parents:%p"`
-- 本セッションと**無関係な未コミット変更**が作業ツリーに残っている:
-  `docs/FAQ.md`（M）、`docs/COMPLETE_MANUAL.md/.html`・`docs/review-report-2026-05.html`・
-  `docs/semantic-model-instruction.md`・`docs/家族聴き取りマニュアル.docx`（未追跡）。
-  由来確認が済むまでコミットに巻き込まないこと
+- **Serena は MCP クライアントごとにプロセスが立つ。** ダッシュボードのポートは 24282 から順に上がる（24283, 24284...）。「TOOL USAGE が空」のときは別インスタンスを見ている可能性を疑う。確実なのは、そのセッションで `open_dashboard` を呼ばせること
+- **Serena の CONTEXT が `desktop-app` のまま。** プラグイン（`plugin:serena:serena`）の `.mcp.json` に `--context` がなく、既定値にフォールバックしている。Claude Code から使う場合は `claude-code` context のほうが適切（重複ツールが減る）。ただし実使用実績がまだ乏しいため、TOOL USAGE に数字が溜まってから判断する方針とした
+- `~/.serena/contexts/ide-assistant-enhanced.yml` は2025年11月に自作されたが、`--context` で名指しされていないため**読み込まれていない**。移行時の参照資料として残置
+- `download_wamnet.py` は**自動ダウンロードをしない**。ポータルURLを案内して手動DLを促すだけ（21行目に「手動ダウンロード用」と明記）。ファイル名例は都道府県別（`shogai_fukuoka_YYYYMM.csv`）を想定
+
+---
 
 ## 次タスク（優先度順）
 
 ### A: 必須
-1. **前セッションのグレーな判断の承認確認**（Relative 逆向きスコープ実装・grade 補完・
-   `nestLib` ブロック——セッション4）＋本セッションの判断1〜3
+
+1. **`neo4j-support-db` の ServiceProvider を確認する。** 2,621件が実在するか、`providerId` / `wamnetId` をどう持っているか、制約はどこにかかっているか。同期を実行する前に必須。`nest-support-neo4j` と同じ 7687 を使うので、起動時のポート衝突に注意
+
 ### B: 推奨
-2. **C-6 の設計案レビュー**（narrative-extractor の「確認した」検出。セッション4 の
-   HANDOVER に設計案あり——git 履歴 `ff52cc8` 時点を参照）。承認されれば合成データで試行
+
+2. **切り出した93行を SKILL.md に統合する。** 内容は CSV 直接DL の URL 形式とサービス種別コード一覧。統合先は `## WAM NETオープンデータについて` の `### データソース` 節が有力（現状は人間向けポータルURLのみで、機械可読な入口がない）
+
+   ```
+   https://www.wam.go.jp/content/files/pcpub/top/sfkopendata/{YYYYMM}/sfkopendata_{YYYYMM}_{SERVICE_CODE}.zip
+   ```
+
+3. **上記 URL が現在も有効か確認する。** WAM NET は年2回更新（4月・10月頃）なので、最新の `{YYYYMM}` も要確認。生きていれば `download_wamnet.py` を手動案内から自動取得へ書き換えられる。**スキルの実用性が大きく変わる**
+
 ### C: 余裕があれば
-3. DRIFT-09（呼称揺れ・旧関数名残存）の文書整理
-4. browser-harness 0.1.5 への更新（正規手順で。CLI と MCP の2か所）
+
+4. `shared-schema/SCHEMA_CONVENTION.md` §6.4 の「WAM NET インポート時期によりレガシーの snake_case が残存」が現状と合っているか確認。稼働中DBには ServiceProvider が0件なので残存していない。ただし停止中DB側の記録の可能性があるため、A の確認とセットで判断すること（**削除は慎重に**）
+5. Serena の context 変更（プラグイン無効化 ＋ `claude mcp add serena -- ... --context claude-code`）。使用実績が溜まってから
 
 ## Neo4j 認証の置き場（2026-09-04）
 
