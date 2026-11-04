@@ -134,28 +134,6 @@ CLIENT_SCOPED_LABELS = frozenset({
     "KeyPerson", "Guardian", "Relative",
 })
 
-# Embedding生成用のテキスト構築ルール（感情・タグ・文脈を包含）
-_EMBEDDING_TEXT_BUILDERS = {
-    "SupportLog": lambda p: "。".join(filter(None, [
-        f"感情: {p.get('emotion')}" if p.get("emotion") else None,
-        f"きっかけ: {p.get('triggerTag')}" if p.get("triggerTag") else None,
-        f"状況: {p.get('situation')}" if p.get("situation") else None,
-        f"対応: {p.get('action')}" if p.get("action") else None,
-        f"文脈: {p.get('context')}" if p.get("context") else None,
-        f"メモ: {p.get('note')}" if p.get("note") else None,
-        f"効果: {p.get('effectiveness')}" if p.get("effectiveness") else None,
-    ])),
-    "NgAction": lambda p: "。".join(filter(None, [
-        f"禁忌: {p.get('action')}" if p.get('action') else None,
-        f"理由: {p.get('reason')}" if p.get('reason') else None,
-        f"リスク: {p.get('riskLevel')}" if p.get('riskLevel') else None,
-    ])),
-    "CarePreference": lambda p: "。".join(filter(None, [
-        f"カテゴリ: {p.get('category')}" if p.get('category') else None,
-        f"指示: {p.get('instruction')}" if p.get('instruction') else None,
-    ])),
-}
-
 # =============================================================================
 # 汎用グラフ登録メイン関数
 # =============================================================================
@@ -177,7 +155,7 @@ def _reltype_allowed(rel_type, valid_types) -> bool:
 
 def register_to_database(extracted_graph: dict, user_name: str = "system") -> dict:
     """
-    LLMが抽出したグラフ構造を検証・登録し、監査ログとEmbeddingを付与する。
+    LLMが抽出したグラフ構造を検証・登録し、監査ログを付与する。
     Guardian Layer: スキーマバリデーション（camelCase変換・ラベル検証・廃止リレーション修正）を自動適用。
 
     ノード＋リレーションの書き込みは単一の managed transaction で行い、途中失敗時は
@@ -245,11 +223,9 @@ def register_to_database(extracted_graph: dict, user_name: str = "system") -> di
             warnings.append(f"監査ログ書き込み失敗（{label}）: {e}")
             log(f"監査ログ書き込み失敗（{label}）: {e}", "WARN")
 
-    # チェーン構築・Embedding（ベストエフォート）
+    # チェーン構築（ベストエフォート）
     if "SupportLog" in registered_labels:
         _rebuild_support_log_chain(client_name_context)
-    _attach_embeddings_batch(temp_id_map, nodes)
-    _try_attach_client_summary(client_name_context, registered_labels)
 
     return {
         "status": "success",
@@ -436,31 +412,6 @@ def _rebuild_support_log_chain(client_name):
         WHERE imm_prev IS NOT NULL
         MERGE (current)-[:FOLLOWS]->(imm_prev)
     """, {"name": client_name})
-
-def _attach_embeddings_batch(temp_id_map, nodes):
-    targets = []
-    for node in nodes:
-        label = node.get("label")
-        if label in _EMBEDDING_TEXT_BUILDERS:
-            eid = temp_id_map.get(node.get("temp_id"))
-            text = _EMBEDDING_TEXT_BUILDERS[label](node.get("properties", {}))
-            if eid and text: targets.append({"id": eid, "text": text})
-    
-    if not targets: return
-    try:
-        from lib.embedding import embed_texts_batch
-        embeddings = embed_texts_batch([t["text"] for t in targets])
-        for t, emb in zip(targets, embeddings):
-            if emb: run_query("MATCH (n) WHERE elementId(n) = $id CALL db.create.setNodeVectorProperty(n, 'embedding', $emb)",
-                             {"id": t["id"], "emb": emb})
-    except Exception as e: log(f"Embedding付与失敗: {e}", "WARN")
-
-def _try_attach_client_summary(name, labels):
-    if name == "Unknown" or not any(l in {"Client", "NgAction", "CarePreference"} for l in labels): return
-    try:
-        from lib.embedding import embed_client_summary
-        embed_client_summary(name)
-    except: pass
 
 # =============================================================================
 # 取得系（互換性維持）

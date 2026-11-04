@@ -229,12 +229,12 @@ def read_image(file: BinaryIO, suffix: str = ".png") -> str:
 def _ocr_fallback(file_bytes: bytes, suffix: str) -> str | None:
     """
     Gemini OCR による テキスト抽出フォールバック。
-    GEMINI_API_KEY 未設定や lib.embedding が利用できない場合は None を返す。
+    GEMINI_API_KEY 未設定や lib.genai が利用できない場合は None を返す。
     """
     try:
-        from lib.embedding import ocr_with_gemini
+        from lib.genai import ocr_with_gemini
     except ImportError:
-        _log("lib.embedding が利用できないため OCR スキップ", "WARN")
+        _log("lib.genai が利用できないため OCR スキップ", "WARN")
         return None
 
     try:

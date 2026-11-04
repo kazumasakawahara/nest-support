@@ -110,9 +110,7 @@ class _FakeDriver:
 @pytest.fixture
 def store():
     rec = _FakeMergeStore()
-    with patch("lib.db_operations.get_driver", return_value=_FakeDriver(rec)), \
-         patch("lib.embedding.embed_texts_batch", return_value=[]), \
-         patch("lib.embedding.embed_client_summary", return_value=None):
+    with patch("lib.db_operations.get_driver", return_value=_FakeDriver(rec)):
         yield rec
 
 

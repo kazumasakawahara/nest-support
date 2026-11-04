@@ -14,7 +14,6 @@ db_new_operations.py を削除する。
 実DB・実APIには接続しない。
 """
 
-import ast
 import importlib
 import re
 from pathlib import Path
@@ -68,6 +67,5 @@ def test_canonical_db_operations_exposes_run_query():
 
 def test_consumer_modules_parse_and_import_cleanly():
     """run_query 差し替え後、消費者が構文・import 健全であること。"""
-    importlib.import_module("lib.embedding")
-    backfill = REPO_ROOT / "scripts" / "backfill_embeddings.py"
-    ast.parse(backfill.read_text(encoding="utf-8"))
+    importlib.import_module("lib.meeting_record")
+    importlib.import_module("lib.genai")

@@ -290,7 +290,7 @@ async def api_voice_upload(
 
     try:
         # Step 1: 文字起こし
-        from lib.embedding import transcribe_audio
+        from lib.genai import transcribe_audio
         transcript = transcribe_audio(tmp_path)
         if not transcript:
             raise HTTPException(status_code=422, detail="音声の文字起こしに失敗しました")

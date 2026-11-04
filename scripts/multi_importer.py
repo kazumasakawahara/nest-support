@@ -66,7 +66,7 @@ def extract_text(file_path: Path) -> str | None:
     # 音声ファイル → Gemini で文字起こし
     if suffix in AUDIO_EXTENSIONS:
         try:
-            from lib.embedding import transcribe_audio
+            from lib.genai import transcribe_audio
             text = transcribe_audio(str(file_path))
             if text:
                 _log(f"音声文字起こし完了: {file_path.name} ({len(text)}文字)")
@@ -78,7 +78,7 @@ def extract_text(file_path: Path) -> str | None:
     # 画像ファイル → Gemini OCR
     if suffix in _IMAGE_EXTENSIONS:
         try:
-            from lib.embedding import ocr_with_gemini
+            from lib.genai import ocr_with_gemini
             text = ocr_with_gemini(
                 str(file_path),
                 instruction=(
@@ -126,9 +126,9 @@ def structurize_with_gemini(
     グラフデータを生成する。
     """
     try:
-        from lib.embedding import get_genai_client, GENERATION_MODEL
+        from lib.genai import get_genai_client, GENERATION_MODEL
     except ImportError:
-        _log("lib.embedding が利用できません", "ERROR")
+        _log("lib.genai が利用できません", "ERROR")
         return None
 
     client = get_genai_client("NEXT-07")

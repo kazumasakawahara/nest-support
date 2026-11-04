@@ -80,9 +80,7 @@ class FakeDriver:
 def recorder():
     """get_driver と embedding 系をモックした状態で register_to_database を動かす。"""
     rec = _QueryRecorder()
-    with patch("lib.db_operations.get_driver", return_value=FakeDriver(rec)), \
-         patch("lib.embedding.embed_texts_batch", return_value=[]), \
-         patch("lib.embedding.embed_client_summary", return_value=None):
+    with patch("lib.db_operations.get_driver", return_value=FakeDriver(rec)):
         yield rec
 
 
@@ -242,9 +240,7 @@ class TestTransactionAtomicity:
             return rec(query, params)
 
         driver = FakeDriver(_boom)
-        with patch("lib.db_operations.get_driver", return_value=driver), \
-             patch("lib.embedding.embed_texts_batch", return_value=[]), \
-             patch("lib.embedding.embed_client_summary", return_value=None):
+        with patch("lib.db_operations.get_driver", return_value=driver):
             graph = {
                 "nodes": [
                     {"temp_id": "c1", "label": "Client", "properties": {"name": "太郎"}},
@@ -270,9 +266,7 @@ class TestAuditFailureSurfaced:
             return rec(query, params)
 
         driver = FakeDriver(_fail_audit)
-        with patch("lib.db_operations.get_driver", return_value=driver), \
-             patch("lib.embedding.embed_texts_batch", return_value=[]), \
-             patch("lib.embedding.embed_client_summary", return_value=None):
+        with patch("lib.db_operations.get_driver", return_value=driver):
             graph = {
                 "nodes": [
                     {"temp_id": "c1", "label": "Client", "properties": {"name": "太郎"}},

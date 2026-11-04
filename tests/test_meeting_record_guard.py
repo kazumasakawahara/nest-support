@@ -2,7 +2,7 @@
 R2-2: register_meeting_record が未存在クライアントで幽霊 Client を作らない。
 """
 
-import lib.embedding as emb
+import lib.meeting_record as emb
 
 
 def test_rejects_unknown_client_no_ghost(tmp_path, monkeypatch):
@@ -43,9 +43,7 @@ def test_existing_client_uses_match_not_merge(tmp_path, monkeypatch):
     monkeypatch.setattr(emb, "_run_query", fake_rq)
     # 高コストな音声処理はスタブ化
     monkeypatch.setattr(emb, "_get_audio_duration", lambda p: 5.0)
-    monkeypatch.setattr(emb, "embed_audio", lambda p: None)
     monkeypatch.setattr(emb, "transcribe_audio", lambda p: "文字起こし")
-    monkeypatch.setattr(emb, "embed_text", lambda *a, **k: None)
 
     result = emb.register_meeting_record(
         str(audio), "山田太郎", "職員A", "2026-07-01"
