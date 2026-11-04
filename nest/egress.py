@@ -136,7 +136,15 @@ def check_record(path: Path, row: str, on: date) -> None:
 def check_feature(path: Path, row: str) -> None:
     """機能ごとの明示の設定を確かめる。明示の true だけが許可。"""
     data = _read_private_json(path, "機能の設定")
-    if not isinstance(data, dict) or data.get(row) is not True:
+    if not isinstance(data, dict):
+        raise EgressDenied("機能の設定が {行: true/false} の形でない")
+    unknown = sorted(k for k in data if k not in DESTINATIONS)
+    if unknown:
+        raise EgressDenied("機能の設定に一覧に無い行がある：%s" % "・".join(unknown))
+    not_bool = sorted(k for k, v in data.items() if not isinstance(v, bool))
+    if not_bool:
+        raise EgressDenied("機能の設定の値が true/false でない：%s" % "・".join(not_bool))
+    if data.get(row) is not True:
         raise EgressDenied("%s が機能の設定で明示に有効になっていない" % row)
 
 
@@ -186,6 +194,23 @@ def _kind(cell: str) -> str:
     if label == "使う":
         return "open"
     return "gated"
+
+
+def record_fields_from_document(path: Path) -> frozenset:
+    """文書 §0 の対応表（見出しが「| §0 の項目」の表）から、JSON の項目の名前を集める。"""
+    names = set()
+    in_table = False
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        if line.startswith("| §0 の項目"):
+            in_table = True
+            continue
+        if in_table:
+            if not line.startswith("|"):
+                break
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if len(cells) > 1:
+                names.update(re.findall(r"`([A-Za-z]+)`", cells[1]))
+    return frozenset(names)
 
 
 def rows_from_document(path: Path) -> dict:

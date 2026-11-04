@@ -179,6 +179,34 @@ def test_feature_for_other_row_does_not_open(tmp_path):
         egress.check_feature(p, "NEXT-05")
 
 
+def test_feature_unknown_row_key_denies(tmp_path):
+    p = write(tmp_path / "f.json", {"NEXT-05": True, "NEXT-99": True})
+    with pytest.raises(egress.EgressDenied):
+        egress.check_feature(p, "NEXT-05")
+
+
+def test_feature_non_bool_value_for_other_row_denies(tmp_path):
+    p = write(tmp_path / "f.json", {"NEXT-05": True, "NEXT-03": "true"})
+    with pytest.raises(egress.EgressDenied):
+        egress.check_feature(p, "NEXT-05")
+
+
+def test_feature_explicit_false_for_other_row_allows(tmp_path):
+    p = write(tmp_path / "f.json", {"NEXT-05": True, "NEXT-03": False})
+    egress.check_feature(p, "NEXT-05")
+
+
+def test_feature_symlink_and_not_object_deny(tmp_path):
+    real = write(tmp_path / "f.json", {"NEXT-05": True})
+    link = tmp_path / "link.json"
+    link.symlink_to(real)
+    with pytest.raises(egress.EgressDenied):
+        egress.check_feature(link, "NEXT-05")
+    arr = write(tmp_path / "a.json", ["NEXT-05"])
+    with pytest.raises(egress.EgressDenied):
+        egress.check_feature(arr, "NEXT-05")
+
+
 def test_feature_file_missing_or_wide_denies(tmp_path):
     with pytest.raises(egress.EgressDenied):
         egress.check_feature(tmp_path / "none.json", "NEXT-05")
@@ -261,6 +289,17 @@ def test_open_row_needs_no_record(fixed_paths):
 def test_code_table_matches_document():
     doc = egress.rows_from_document(egress.DOCUMENT)
     assert doc == {k: (d.host, d.kind) for k, d in egress.DESTINATIONS.items()}
+
+
+def test_record_field_table_matches_code():
+    assert egress.record_fields_from_document(egress.DOCUMENT) == egress.RECORD_FIELDS
+
+
+def test_record_field_table_drift_is_detected(tmp_path):
+    text = egress.DOCUMENT.read_text(encoding="utf-8").replace("`retention`", "`keepDays`")
+    p = tmp_path / "external-api.md"
+    p.write_text(text, encoding="utf-8")
+    assert egress.record_fields_from_document(p) != egress.RECORD_FIELDS
 
 
 def test_document_drift_is_detected(tmp_path):
