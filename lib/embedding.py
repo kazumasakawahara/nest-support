@@ -99,17 +99,36 @@ def log(message: str, level: str = "INFO"):
 
 _genai_client = None
 
+# 送り先の固定（N-03）。Vertex AI への切り替えと、環境変数（GOOGLE_GEMINI_BASE_URL）での差し替えを効かせない
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/"
 
-def get_genai_client():
-    """google-genai クライアントを取得（シングルトン）"""
+
+def get_genai_client(row: str):
+    """google-genai クライアントを取得（シングルトン）。
+
+    row は docs/external-api.md の行（NEXT-03 文字起こし・NEXT-04 OCR など）。
+    呼ぶたびに送信の歯止め（nest.egress）で許可を確かめ、不許可なら None を返す。鍵の有無は許可の印にしない。
+    """
+    from nest import egress
+    try:
+        egress.authorize(row)
+        egress.check_url(row, GEMINI_BASE_URL)
+    except egress.EgressDenied as e:
+        log("Gemini に送らない（%s）" % e, "WARN")
+        return None
     global _genai_client
     if _genai_client is None:
         from google import genai
+        from google.genai import types
         api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if not api_key:
             log("GEMINI_API_KEY が未設定です", "ERROR")
             return None
-        _genai_client = genai.Client(api_key=api_key)
+        _genai_client = genai.Client(
+            api_key=api_key,
+            vertexai=False,
+            http_options=types.HttpOptions(base_url=GEMINI_BASE_URL),
+        )
         log("Gemini クライアント初期化完了")
     return _genai_client
 
@@ -138,7 +157,7 @@ def embed_text(
     Returns:
         float のリスト（embeddingベクトル）、失敗時は None
     """
-    client = get_genai_client()
+    client = get_genai_client("NEXT-06")
     if client is None:
         return None
 
@@ -175,7 +194,7 @@ def embed_image(
     Returns:
         float のリスト（embeddingベクトル）、失敗時は None
     """
-    client = get_genai_client()
+    client = get_genai_client("NEXT-06")
     if client is None:
         return None
 
@@ -224,7 +243,7 @@ def embed_multimodal(
     Returns:
         float のリスト（統合embeddingベクトル）、失敗時は None
     """
-    client = get_genai_client()
+    client = get_genai_client("NEXT-06")
     if client is None:
         return None
 
@@ -271,7 +290,7 @@ def embed_audio(
     Returns:
         float のリスト（embeddingベクトル）、失敗時は None
     """
-    client = get_genai_client()
+    client = get_genai_client("NEXT-06")
     if client is None:
         return None
 
@@ -321,7 +340,7 @@ def transcribe_audio(
     Returns:
         文字起こしテキスト、失敗時は None
     """
-    client = get_genai_client()
+    client = get_genai_client("NEXT-03")
     if client is None:
         return None
 
@@ -382,7 +401,7 @@ def embed_texts_batch(
     Returns:
         embeddingベクトルのリスト（各要素は float リストまたは None）
     """
-    client = get_genai_client()
+    client = get_genai_client("NEXT-06")
     if client is None:
         return [None] * len(texts)
 
@@ -423,7 +442,7 @@ def ocr_with_gemini(
     Returns:
         抽出されたテキスト、失敗時は None
     """
-    client = get_genai_client()
+    client = get_genai_client("NEXT-04")
     if client is None:
         return None
 

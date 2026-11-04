@@ -131,7 +131,7 @@ def structurize_with_gemini(
         _log("lib.embedding が利用できません", "ERROR")
         return None
 
-    client = get_genai_client()
+    client = get_genai_client("NEXT-07")
     if client is None:
         _log("GEMINI_API_KEY が未設定です", "ERROR")
         return None
