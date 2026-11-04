@@ -16,7 +16,7 @@
 | N-00 | `docs/external-api.md` を書く（送り先ごとに何を送るか。既定は「送らない」。使う人が契約を確かめた記録の欄。ADR D11） | — | ✅ 2026-11-05（v0.2 で河原さん承認） |
 | N-01 | Python の骨格（`nest/`）と、フィクスチャの架空の注記の検査 | 注記の無いフィクスチャで失敗し、ある物で通る | ✅ 2026-11-05（`nest/fixtures_check.py`、`tests/test_fixtures_fictional.py` 13 件。全体 188 passed） |
 | N-02 | 送信の歯止め（`nest/egress.py`）：送り先の一覧（文書の NEXT 行のホスト）をコードに持ち、一覧外・やめた行へは送らない。Gemini・LINE は、機能ごとの明示の設定（`~/.config/nest/external-api-features.json`）と契約の確認の記録（`~/.config/nest/external-api-record.json`）の両方がそろわなければ送らない。記録の条件は external-api §5 の 6 つ（行ごと・5 項目がすべて埋まる・要配慮は明示の true だけ・次に確かめる日・無い／読めない／600 より広いは不許可・置き場所はコードに固定で環境変数で変えない）。LINE の送信（`sos/api_server.py`）をこの歯止めに通す。Gemini は N-03 | 6 条件のそれぞれで不許可になる例と、そろって許可になる例。鍵だけある状態で送らない。一覧外のホスト・やめた行で失敗する。一覧と文書の行がずれたら失敗する。HOME を変えても置き場所が変わらない | ✅ 2026-11-05（`nest/egress.py`、`tests/test_egress.py` 60 件・`tests/test_egress_line.py` 3 件。全体 251 passed） |
-| N-03 | Gemini を既定で止める：文字起こし（`transcribe_audio`・field-ui の音声）・OCR（`file_readers`・`ocr_with_gemini`）を N-02 の歯止めに通す | 鍵があっても、設定と記録が無ければ外部への呼び出しが 0 回（偽の送信先で数える） | |
+| N-03 | Gemini を既定で止める：文字起こし（`transcribe_audio`・field-ui の音声）・OCR（`file_readers`・`ocr_with_gemini`）を N-02 の歯止めに通す | 鍵があっても、設定と記録が無ければ外部への呼び出しが 0 回（偽の送信先で数える） | ✅ 2026-11-05（`lib/embedding.py` の `get_genai_client(row)` が呼ぶたびに許可を確かめる。埋め込みは NEXT-06、`multi_importer` の構造化は NEXT-07 で常に不許可。送り先を固定。`tests/test_gemini_gate.py` 10 件。全体 267 passed。台帳 G-28・G-29） |
 | N-04 | 埋め込みを外す（ADR D10）：登録時の埋め込み、`backfill_embeddings.py`、ベクトル索引の作成、意味検索、似た本人の検索。関係する既存の試験を改める | コードの中に埋め込みの呼び出しとベクトル索引の作成が残っていない検査 | |
 | N-05 | `multi_importer.py` の Gemini による構造化を外す（ADR D11-1） | 構造化の経路が外部を呼ばない検査 | |
 
