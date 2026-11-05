@@ -108,3 +108,17 @@ def test_one_sides_password_does_not_open_the_other(side, other):
     with _driver(side, password_of=other) as d:
         with pytest.raises(AuthError):
             d.verify_connectivity()
+
+
+def test_schema_applied_to_personal_matches_canon():
+    """N-19：個人の側に正典の制約とインデックスを当てる。2 回当てても失敗しない。制約の一覧が JSON と一致し、ベクトル・全文が 0 件。"""
+    from nest import canon, connections, schema_apply
+    c = canon.load(Path(__file__).resolve().parents[1] / "docs" / "SCHEMA.md")
+    with connections.driver("personal") as d:
+        schema_apply.apply(d, c)
+        schema_apply.apply(d, c)
+        cons = _read(d, "SHOW CONSTRAINTS YIELD name RETURN collect(name) AS names")[0]["names"]
+        assert sorted(cons) == sorted(schema_apply.expected_constraint_names(c))
+        idx = _read(d, "SHOW INDEXES YIELD name, type RETURN name, type")
+        assert not [r for r in idx if r["type"] in ("VECTOR", "FULLTEXT", "TEXT")]
+        assert set(schema_apply.expected_index_names(c)) <= {r["name"] for r in idx}
