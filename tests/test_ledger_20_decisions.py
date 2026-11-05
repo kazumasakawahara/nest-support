@@ -26,7 +26,11 @@ def _tracked():
 
 # ---- G-49 ----
 OLD_DB_WRITERS = ["scripts/migrate_carerole_per_client.py", "scripts/migrate_condition_status_case.py",
-                  "scripts/migrate_hospital_doctor_to_node.py", "scripts/examples/phase2-poc/01_register.py"]
+                  "scripts/migrate_hospital_doctor_to_node.py", "scripts/examples/phase2-poc/01_register.py",
+                  # 2026-11-06 の追加（読み取りだけのものも含む。前の DB を指すコードを残さない）
+                  "scripts/migrate_pseudonymization.py", "scripts/migrate_schema_v2.py",
+                  "scripts/examples/phase2-poc/02_verify.py", "scripts/examples/phase2-poc/03_visit_prep.py",
+                  "scripts/examples/phase2-poc/README.md"]
 
 
 @pytest.mark.parametrize("path", OLD_DB_WRITERS)
