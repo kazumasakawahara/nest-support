@@ -70,7 +70,7 @@
 | N-26 | EXTRACTION_PROMPT の書き直し：原文に無い値で埋める指示を消す | — | ✅ 2026-11-06 埋める指示と前の正典の形を消し、案の形は narrative-extractor の SKILL.md に一本化した。試験 `tests/test_extraction_prompt_doc.py`（計画では試験なしだったが足した） |
 | N-27 | 読み取りのスキル（neo4j-support-db・visit-prep・emergency-protocol・data-quality-agent・resilience-checker・onboarding-wizard・ecomap-generator・insight-agent）の照会を新しい正典に合わせる。スキルごとに 1 行に分ける。列挙値の日本語の表示名は `docs/SEMANTICS.md`（N-24a で担当機関の推定の節だけを持って作った。列挙値の節をここで足す。正典 v0.2 §1）から引く。**`SEMANTICS.md` を作ったら、コードの中の日本語名（`nest/gate/validate.py` の `CERTAINTY_JA` など）もそこから読む形に変える**（台帳 G-47。2026-11-05 河原さん） | 照会のテンプレートを正典の JSON と突き合わせる検査 | ✅ 2026-11-06（列挙値の表示名とコードの読み方の部分）`docs/SEMANTICS.md` SEM-ENUM-01・02、`nest/semantics.py`。validate の `CERTAINTY_JA`・intake の `WEAKEST_FIRST` をそこから読む。試験 `tests/test_semantics_enums.py`。スキルは下の 8 行 |
 | N-27a | `neo4j-support-db` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） || ✅ 2026-11-06 読むだけ・仮名で照会・照会 15 本。`reference/use-cases.md` は外した |
-| N-27b | `visit-prep` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） | |
+| N-27b | `visit-prep` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） || ✅ 2026-11-06 照会 4 本＋資源の側 1 本。電話番号は出せないので連絡網で確かめると書いた |
 | N-27c | `emergency-protocol` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） | |
 | N-27d | `data-quality-agent` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） | |
 | N-27e | `resilience-checker` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） | |
