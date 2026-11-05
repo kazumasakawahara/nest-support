@@ -1,7 +1,7 @@
 # nest-support スキーマ正典 — v0.5
 
 - 状態：v0.5（2026-11-05。止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43・G-44 の判断（§9 の 10〜13）を反映した）
-- 根拠：ADR-001（承認 2026-11-05。D1〜D11。D3 は 2026-11-05 に 2 回改めた）、約束 v1（`~/Dev-Work/tsunagu-net/docs/contracts/nest-support-shared.md`。2026-11-04 確定）
+- 根拠：ADR-001（承認 2026-11-05。D1〜D11。D3 は 2026-11-05 に 2 回改めた）、約束 v1.1（`~/Dev-Work/tsunagu-net/docs/contracts/nest-support-shared.md`。2026-11-05 改め。v1 は 2026-11-04 確定）
 - 扱う範囲：個人の側の DB の、ラベル・リレーション・プロパティ・列挙値の**名前と構造**、ID の形、制約。資源の側は tsunagu-net の正典を参照するだけ
 - 扱わない範囲：業務上の意味・運用の規則・列挙値の日本語の表示名（nest-support の意味の文書 `docs/SEMANTICS.md` に置く。まだ無い。ADR D1）。機械が読む JSON は N-07 で §11 に置き、この表と一致させる（N-08 の乖離の検査）
 - 手本：tsunagu-net の正典 v0.29（`docs/SCHEMA.md` §1〜§4。読むだけ）。そろえた名前とそろえなかった名前は §10
@@ -417,6 +417,7 @@
 
 ## 変更履歴
 
+- v0.5（2026-11-05 追記）：参照する約束を v1.1 に改めた（2026-11-05 河原さん承認。この正典の項目は変わらない。`docs/journal/2026-11-05-contract-v1.1.md`）
 - v0.5（2026-11-05）：G-44 の河原さんの判断。`Residence.from` を `since` に改めた（tsunagu-net の `MEMBER_OF` と同じ `since`・`until`）。`since` は任意のまま
 - v0.4（2026-11-05）：G-43 の河原さんの判断（§9 の 13）。`Residence`（`address`・`areaCode`・`from`・`until`・`certainty`）と `RESIDES_AT`、接頭辞 `RES`。`EVIDENCED_BY` の始点と `CONTRADICTS` の終点に Residence
 - v0.3（2026-11-05）：G-38〜G-41 の河原さんの判断（§9 の 10〜12）。ID だけの `Organization {orgId, linkedAt}`、`HAS_INVOLVEMENT` の始点に Organization、`PROVIDED_BY`（Record → Organization）。`Involvement.orgId` を外した。`involvementKind` を tsunagu-net の 8 つ ＋ 2 つに。JSON に `externalIds`。§10 に `OWNED_BY`・`WORKS_AT` を持たない理由

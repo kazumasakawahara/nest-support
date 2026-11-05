@@ -5,7 +5,7 @@
 - 試験はすべて架空の事例で行う。実案件のデータは使わない。tsunagu-net から写すのも架空の例だけ
 - Neo4j を起動するのは結合試験のタスクだけ。作業の終わりに止める。tsunagu-net のポート（17474・17687・27474・27687）は使わない
 - 前の DB の跡（`neo4j_data/`・`neo4j_backup/`・`neo4j_logs/`・`neo4j_livelihood_*`・コンテナ `nest-support-neo4j`）は、河原さんが確かめるまで開かない・起動しない・消さない。新しい DB は別のフォルダに作る
-- 根拠：`docs/adr/ADR-001-redesign-and-shared-contract.md`（承認 2026-11-05）、約束 v1
+- 根拠：`docs/adr/ADR-001-redesign-and-shared-contract.md`（承認 2026-11-05）、約束 v1.1（2026-11-05 改め）
 - 新しく書くコードは `nest/`（新しいパッケージ）に置く。今の `lib/` は、置き換えが済んだ部分から外す。**`lib/genai.py`（Gemini の入口・文字起こし・OCR）も、`lib/` を `nest/` へ移すときに一緒に移す**（`nest/egress.py` には入れない。送ってよいかを決める側と送る側を分ける。台帳 G-30）
 - **google-genai は 1.66.0 に固定する**（`pyproject.toml` と `uv.lock`）。版を上げるときは、送り先を変える環境変数（1.66.0 では `GOOGLE_GENAI_USE_VERTEXAI`・`GOOGLE_GEMINI_BASE_URL`・`GOOGLE_VERTEX_BASE_URL`）が増えていないか、部品の中身（`_api_client.py`・`_base_url.py`）を読み直してから上げる。版の試験（`tests/test_gemini_gate.py`）も同じときに直す（2026-11-05 河原さん。台帳 G-28）
 

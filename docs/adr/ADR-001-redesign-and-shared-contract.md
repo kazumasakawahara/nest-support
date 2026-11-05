@@ -2,7 +2,7 @@
 
 - 状態：**承認**（2026-11-05 河原さん。D1〜D11。D2-2 は同日の 2 回目の返答で承認。D3 は同日の止まる点 2 とその後の判断で 2 回改めた）
 - 日付：2026-11-05（草案）、2026-11-05（承認版）
-- 関連：tsunagu-net ADR-008 D9、約束 `~/Dev-Work/tsunagu-net/docs/contracts/nest-support-shared.md`（v1 確定。以下「約束」）
+- 関連：tsunagu-net ADR-008 D9、約束 `~/Dev-Work/tsunagu-net/docs/contracts/nest-support-shared.md`（v1.1。2026-11-05 改め。v1 は 2026-11-04 確定。以下「約束」）
 - 前提の記録：止まる点 1 の報告と河原さんの返答（2026-11-05 の 2 回）。承認なしに決めたことは `docs/gray-decisions.md`
 
 まず「未決論点」を読む。
