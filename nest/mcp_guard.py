@@ -9,7 +9,7 @@ Community 版には DB の側の権限が無いので、ここで止める。手
 - 計画が読めないときは実行しない（閉じる側に倒す）。EXPLAIN・PROFILE つきと空も拒否する
 - 返す行は流しながら MAX_ROWS で止める。全部を受け取ってから切らない。Cypher に行数の制限を差し込まない
 個人の側だけ（personal=True）：
-- 実名・かな・電話・住所・生年月日（SENSITIVE）の項目の名前を含む問い合わせ、properties()・keys()・{.*}、
+- 注釈（// と /* */）、実名・かな・電話・住所・生年月日（SENSITIVE）の項目の名前を含む問い合わせ、properties()・keys()・{.*}、
   動的な項目の読み（n[k]・n['…']）を、実行の前に拒否する
 - 返すノード・マップから SENSITIVE の項目を外す。返す値のうち、DB にある SENSITIVE の値とそっくり同じ文字列は伏せる
 - 記録の本文・引用（text・quote）の中の名前は伏せない。どうするかは台帳 G-42 で決める（今は決めていない）
@@ -28,6 +28,8 @@ WHOLE_PROPERTIES = re.compile(r"\b(properties|keys)\s*\(|\{\s*\.\s*\*", re.I)
 # 角かっこの前がこれらの語なら、一覧の書き方（[1, 2]）であって、項目の読みではない
 LIST_KEYWORDS = frozenset({"RETURN", "WITH", "IN", "WHERE", "AND", "OR", "NOT", "XOR", "UNWIND", "CASE", "WHEN", "THEN",
                            "ELSE", "YIELD", "DISTINCT", "BY", "CONTAINS", "IS", "SKIP"})
+# この字の後の角かっこは一覧の書き方（[1, 2]）。区切り・演算子・開きかっこ
+LIST_OPENERS = frozenset("(,[{=|:+-*<>%^")
 INDEX_ONLY = re.compile(r"\s*(-?\d+\s*(\.\.\s*-?\d*\s*)?|\.\.\s*-?\d+\s*)\]")
 
 
@@ -66,19 +68,15 @@ def check_plan(plan):
 
 
 def _dynamic_access(text):
-    """n[k]・n['x']・(n)[…] のような、名前を文字で組み立てられる項目の読みを見つける。数の添字（xs[0]・xs[1..2]）は通す。"""
+    """n[k]・n['x']・(n)[…] のような、名前を文字で組み立てられる項目の読みを見つける。
+    角かっこは、一覧の書き方と分かる位置（文の始め・演算子や区切りの後・LIST_KEYWORDS の語の後）だけ通し、
+    ほかの位置では数の添字（xs[0]・xs[1..2]）のときだけ通す（閉じる側に倒す）。"""
     for m in re.finditer(r"\[", text):
         before = text[:m.start()].rstrip()
-        if not before:
+        if not before or before[-1] in LIST_OPENERS:
             continue
-        last = before[-1]
-        if last in ")]`":
-            pass
-        elif last.isalnum() or last in "_$":
-            word = re.search(r"[\w$]+$", before).group(0)
-            if word.upper() in LIST_KEYWORDS:
-                continue
-        else:
+        word = re.search(r"[A-Za-z_]\w*$", before)
+        if word and word.group(0).upper() in LIST_KEYWORDS:
             continue
         if not INDEX_ONLY.match(text, m.end()):
             return True
@@ -86,6 +84,8 @@ def _dynamic_access(text):
 
 
 def check_personal_text(text):
+    if "//" in text or "/*" in text:
+        raise NotReadOnly("個人の側では注釈（// と /* */）を使わない（点検をすり抜ける形になるため）")
     low = text.lower()
     for name in SENSITIVE:
         if name.lower() in low:

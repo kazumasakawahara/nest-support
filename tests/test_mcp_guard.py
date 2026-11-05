@@ -163,6 +163,12 @@ def test_sensitive_names_exist_in_the_canon():
     "MATCH (c:Client) RETURN c [$k]",
     "MATCH (c:Client) WITH c, 'x' AS k RETURN c[k]",
     "MATCH (c:Client) RETURN (c)['x']",
+    # 注釈をはさんで角かっこの前を隠す（2026-11-05 自動のセキュリティ点検の指摘）
+    "MATCH (c:Client) RETURN c/**/['family' + 'Name']",
+    "MATCH (c:Client) RETURN c //\n['family' + 'Name']",
+    "MATCH (c:Client) RETURN c.clientId // 注釈",
+    "MATCH (c:Client) RETURN {a: c}['a']['family' + 'Name']",
+    "MATCH (c:Client) RETURN c\t['x']",
 ])
 def test_personal_side_refuses_sensitive_or_dynamic_access(query):
     d = FakeDriver("r")
