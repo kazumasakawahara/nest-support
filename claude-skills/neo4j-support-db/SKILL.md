@@ -204,7 +204,11 @@ ORDER BY raisedAt
 ### 15. 本人についての操作の記録
 
 ```cypher
-MATCH (a:AuditLog)-[:AUDIT_FOR]->(c:Client {displayCode: $code})
+MATCH (c:Client {displayCode: $code})
+OPTIONAL MATCH (c)--(t) WHERE NOT t:AuditLog
+WITH c, collect(DISTINCT t) + c AS targets
+UNWIND targets AS t
+MATCH (a:AuditLog)-[:AUDIT_FOR]->(t)
 OPTIONAL MATCH (a)-[:ACTED_BY]->(s:Staff)
 RETURN a.at AS at, a.action AS action, a.targetLabel AS targetLabel, a.targetId AS targetId, s.staffId AS staffId
 ORDER BY at DESC
