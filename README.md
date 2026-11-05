@@ -50,6 +50,7 @@ cd nest-support
 uv sync
 uv run pytest -q                       # DB を使わない試験
 uv run python scripts/check_drift.py   # 正典の表と JSON のずれ
+./scripts/doctor.sh                    # 環境の点検（前の DB が動いていない・待ち受け・設定・リンク）
 ```
 
 ## スキル
@@ -76,7 +77,7 @@ uv run python scripts/check_drift.py   # 正典の表と JSON のずれ
 次は前の DB を読む作りのままで、新しい構成では使えません（計画の段階 E・F で置き換えるか外します）。どれも新しい DB を指さないことを試験で固定しています（`tests/test_old_db_code_isolated.py`）。
 
 - 現場の画面 `field-ui/`、SOS の通知 `sos/`（SOS の送る文は N-28 で直した。LINE は既定で使わない）
-- `lib/`（前の登録の部品）、`setup.sh`・`setup.ps1`・`installer/`、`scripts/doctor.sh`・`scripts/backup.sh`・`scripts/rotate_password.py`
+- `lib/`（前の登録の部品）、`setup.sh`・`setup.ps1`・`installer/`、`scripts/backup.sh`・`scripts/rotate_password.py`
 
 ## 文書
 

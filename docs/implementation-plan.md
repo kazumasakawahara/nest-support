@@ -83,7 +83,7 @@
 | N-28 | SOS の中身（D11-3）：LINE には SOS・誰のことか・位置・確かめる先だけ | 送る文に電話と禁忌が無い | ✅ 2026-11-06 LINE の文は SOS・仮名・時刻・位置・確かめる先だけ。DB を読まない。試験 tests/test_sos_message.py（5 件）。external-api v0.7。台帳 G-66 |
 | **止まる点 E-2** | N-28 の後。LINE の SOS で送る文の形（架空の例）と external-api の NEXT-05 の直しを見ていただく | | |
 | N-29 | 文書を直す：PRIVACY_GUIDELINES（条番号は e-Gov で照合）・CLAUDE.md・README・QUICK_START・SETUP_GUIDE・manifesto の共有層と 7687 の記述（付録の表）。**面談の音声ファイルの置き場所と保存の期間**を運用の文書に書く（DB には持たない。正典 v0.2 §4.2） | — |  ✅ 2026-11-06 行に名前のある文書を今の構成に合わせて書き直した。SETUP_GUIDE.html を外した。音声ファイルの節（保存の期間は【未決】）。条は e-Gov で照合。試験 tests/test_docs_new_setup.py。台帳 G-68 |
-| N-30 | `doctor.sh` を新しい構成に合わせる | doctor.sh が新しい構成で全項目を通る | |
+| N-30 | `doctor.sh` を新しい構成に合わせる | doctor.sh が新しい構成で全項目を通る |  ✅ 2026-11-06 doctor.sh を新しい構成の点検に（前の DB・待ち受け・設定の権限・.mcp.json・スキルのリンク・正典のずれ）。試験 tests/test_doctor.py（偽の HOME と docker）。台帳 G-69 |
 | **止まる点 E-3** | 段階 E の終わり | | |
 | N-31（任意） | エコマップの動く図：DB につながず、Claude が出した Mermaid か JSON を読むだけの描画の部品（2026-11-06 河原さん。要るときだけ） | 描画の部品が DB・ネットワークにつながらない | |
 

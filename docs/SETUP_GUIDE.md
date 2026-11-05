@@ -119,11 +119,14 @@ for s in claude-skills/*/; do ln -sfn "$PWD/$s" ~/.claude/skills/"$(basename "$s
 
 ## 9. まだ置き換えていないもの
 
-`field-ui/`・`sos/`・`lib/`・`setup.sh`・`setup.ps1`・`installer/`・`scripts/doctor.sh`・`scripts/backup.sh`・`scripts/rotate_password.py` は前の構成のままで、新しい構成では使えません（計画の段階 E・F）。
+`field-ui/`・`sos/`・`lib/`・`setup.sh`・`setup.ps1`・`installer/`・`scripts/backup.sh`・`scripts/rotate_password.py` は前の構成のままで、新しい構成では使えません（計画の段階 E・F）。
 
 ---
 
 ## 10. うまくいかないとき
+
+まず `./scripts/doctor.sh` を流す。前の DB が動いていないこと、新しい DB の待ち受け、設定のファイルの権限、`.mcp.json`、スキルのリンク、正典のずれを確かめ、FAIL の行に直し方を出す。
+
 
 | こと | 確かめること |
 |---|---|

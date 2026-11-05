@@ -1,125 +1,137 @@
 #!/usr/bin/env bash
-# nest-support 環境整合性チェック
+# nest-support 環境の点検（計画 N-30。ADR-001 の作り直しの構成）
 # 使い方: ./scripts/doctor.sh
 #
-# 確認項目:
-#   1. Docker コンテナ (nest-support-neo4j / port 7688・個人層) が起動中か
-#      （別名コンテナが 7688 を提供する構成も許容。7687 は共有層なので見ない）
-#   2. Neo4j Bolt (7688) に接続できるか
-#   3. ~/.claude/skills/ の 13 skills が nest-support を指しているか
-#   4. .mcp.json が存在し neo4j を定義しているか（livelihood-support-db は 2026-05 廃止・除去済み）
-#   5. Claude Desktop config に neo4j があるか
+# 確かめること:
+#   1. 前の DB のコンテナが動いていない（前の DB は起動しない）
+#   2. 新しい二つのコンテナは、動いていれば 127.0.0.1 だけで待ち受けている（止まっているのは正しい状態）
+#   3. 接続の設定のファイルがあり、権限が 600（中身は読まない）
+#   4. .mcp.json が nest-personal・nest-resource を持ち、前の MCP（neo4j・neo4j-shared）を持たない
+#   5. ~/.claude/skills/ のリンクが、このリポジトリの claude-skills を指している。外したスキルのリンクが残っていない
+#   6. 正典のずれが 0 件（scripts/check_drift.py）
+#   7. Claude Desktop の設定（知らせるだけ）
 #
-# 注: 生活困窮者自立支援（livelihood-support / port 7688）は 2026-05 に廃止したため
-#     チェック対象外。詳細は decommissioned/README.md を参照。
-#
-# 結果は OK / FAIL / INFO で表示。最後に総合判定。
+# 結果は OK / FAIL / INFO で表示する。FAIL が一つでもあれば 1 を返す。
 
 set -u
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SKILLS_DIR="$HOME/.claude/skills"
-DESKTOP_CONFIG="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
-
-EXPECTED_SKILLS=(
-  data-quality-agent ecomap-generator emergency-protocol html-to-pdf
-  inheritance-calculator insight-agent narrative-extractor
-  neo4j-support-db onboarding-wizard provider-search resilience-checker
-  visit-prep wamnet-provider-sync
-)
+SKILLS_DIR="${HOME}/.claude/skills"
+ENV_FILE="${HOME}/.config/nest/neo4j-redesign.env"
+DESKTOP_CONFIG="${HOME}/Library/Application Support/Claude/claude_desktop_config.json"
+OLD_CONTAINERS=(nest-support-neo4j support-db-neo4j)
+NEW_CONTAINERS=(nest-redesign-personal nest-redesign-resource)
+REMOVED_SKILLS=(wamnet-provider-sync livelihood-support)
 
 PASS=0
 FAIL=0
 ok()   { printf "  \033[32mOK\033[0m   %s\n" "$1"; PASS=$((PASS+1)); }
 fail() { printf "  \033[31mFAIL\033[0m %s\n" "$1"; FAIL=$((FAIL+1)); }
 info() { printf "  \033[33mINFO\033[0m %s\n" "$1"; PASS=$((PASS+1)); }
+to_lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
 echo "=== nest-support doctor ==="
-echo "project: $PROJECT_DIR"
-echo ""
+echo "project: ${PROJECT_DIR}"
 
-# 1. Docker containers (障害福祉DB・個人層 / port 7688。2026-10-31 に 7687 から移した。7687 は共有層)
-echo "[1] Docker containers (障害福祉DB / port 7688)"
-status=$(docker inspect -f '{{.State.Status}}' nest-support-neo4j 2>/dev/null || echo "missing")
-if [ "$status" = "running" ]; then
-  ok "nest-support-neo4j: running"
+RUNNING=""
+if command -v docker >/dev/null 2>&1; then
+  RUNNING="$(docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null)"
 else
-  alt=$(docker ps --filter publish=7688 --format '{{.Names}}' 2>/dev/null | head -1)
-  if [ -n "$alt" ]; then
-    info "nest-support-neo4j は $status だが、port 7688 は '$alt' が提供中（機能上OK）"
-  else
-    fail "nest-support-neo4j: ${status}（port 7688 を提供するコンテナがありません）"
-  fi
+  echo ""
+  fail "docker が見つからない"
 fi
+running_line() { printf '%s\n' "${RUNNING}" | awk -v n="$1" '$1 == n'; }
 
-# 2. Bolt connectivity (7688・個人層)
 echo ""
-echo "[2] Neo4j Bolt connectivity"
-if nc -z localhost 7688 2>/dev/null; then ok "localhost:7688 reachable"; else fail "localhost:7688 unreachable"; fi
-
-# 3. Skills symlinks
-# macOS はデフォルトで大文字小文字を区別しないファイルシステム (APFS case-insensitive)
-# のため、パス文字列の case 差異は同一ディレクトリを指す。比較は lowercase で行う。
-to_lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
-echo ""
-echo "[3] Skills symlinks (expect -> nest-support/claude-skills)"
-expected_base=$(to_lower "$PROJECT_DIR/claude-skills")
-for skill in "${EXPECTED_SKILLS[@]}"; do
-  link="$SKILLS_DIR/$skill"
-  if [ ! -L "$link" ]; then fail "$skill: not a symlink"; continue; fi
-  target=$(readlink "$link")
-  target_lower=$(to_lower "$target")
-  if [ "$target_lower" = "$expected_base/$skill" ]; then
-    ok "$skill"
+echo "[1] 前の DB は動いていない"
+for name in "${OLD_CONTAINERS[@]}"; do
+  if [ -n "$(running_line "${name}")" ]; then
+    fail "${name} が動いている（前の DB は起動しない。docker stop ${name}）"
   else
-    fail "$skill -> $target"
+    ok "${name}: 動いていない"
   fi
 done
-# 廃止済み livelihood-support の symlink が残っていないことを確認
-if [ -L "$SKILLS_DIR/livelihood-support" ]; then
-  fail "livelihood-support の symlink が残っています（廃止済み。削除してください）"
-else
-  ok "livelihood-support: 廃止・symlink 除去済み"
-fi
 
-# 4. Project .mcp.json
 echo ""
-echo "[4] Project .mcp.json"
-MCP_FILE="$PROJECT_DIR/.mcp.json"
-if [ -f "$MCP_FILE" ]; then
-  if grep -q '"neo4j"' "$MCP_FILE"; then
-    ok ".mcp.json defines neo4j (port 7688)"
+echo "[2] 新しい DB の待ち受け"
+for name in "${NEW_CONTAINERS[@]}"; do
+  line="$(running_line "${name}")"
+  if [ -z "${line}" ]; then
+    info "${name}: 止まっている（試験のときだけ起動する）"
+  elif printf '%s' "${line}" | awk '{ $1 = ""; print }' | tr ',' '\n' | awk 'NF && $1 !~ /^127\.0\.0\.1:/ { bad = 1 } END { exit bad ? 0 : 1 }'; then
+    fail "${name} が 127.0.0.1 の外でも待ち受けている（${line}）"
   else
-    fail ".mcp.json missing neo4j"
+    ok "${name}: 127.0.0.1 だけで待ち受けている"
   fi
-  if grep -q "neo4j-personal.env" "$MCP_FILE"; then
-    ok ".mcp.json neo4j reads neo4j-personal.env (port 7688)"
-  else
-    fail ".mcp.json neo4j does not read neo4j-personal.env"
-  fi
-  # 生活困窮DBは廃止済み: livelihood-support-db が残っていないことを確認
-  if grep -q "livelihood-support-db" "$MCP_FILE"; then
-    fail ".mcp.json に廃止済みの livelihood-support-db が残っています（削除してください）"
-  else
-    ok "livelihood-support-db は .mcp.json から除去済み（廃止）"
-  fi
-else
-  fail ".mcp.json not found"
-fi
+done
 
-# 5. Claude Desktop config (optional — informational)
 echo ""
-echo "[5] Claude Desktop config (informational)"
-if [ -f "$DESKTOP_CONFIG" ]; then
-  if grep -q '"neo4j"' "$DESKTOP_CONFIG"; then
-    ok "Desktop config defines neo4j"
+echo "[3] 接続の設定のファイル（中身は読まない）"
+if [ -f "${ENV_FILE}" ]; then
+  mode="$(stat -f %Lp "${ENV_FILE}" 2>/dev/null || stat -c %a "${ENV_FILE}" 2>/dev/null)"
+  if [ "${mode}" = "600" ]; then
+    ok "~/.config/nest/neo4j-redesign.env: 権限 600"
   else
-    info "Desktop config missing neo4j (Claude Desktop を使う場合のみ追加＋再起動が必要)"
+    fail "~/.config/nest/neo4j-redesign.env の権限が ${mode}（600 にする: chmod 600）"
   fi
 else
-  echo "  skip (config not found at $DESKTOP_CONFIG)"
+  fail "~/.config/nest/neo4j-redesign.env が無い（docs/SETUP_GUIDE.md の 4）"
 fi
 
 echo ""
-echo "=== Summary: $PASS passed, $FAIL failed ==="
-[ "$FAIL" -eq 0 ] && exit 0 || exit 1
+echo "[4] .mcp.json"
+MCP_FILE="${PROJECT_DIR}/.mcp.json"
+if [ -f "${MCP_FILE}" ]; then
+  for name in nest-personal nest-resource; do
+    if grep -q "\"${name}\"" "${MCP_FILE}"; then ok ".mcp.json に ${name} がある"; else fail ".mcp.json に ${name} が無い"; fi
+  done
+  for name in neo4j neo4j-shared; do
+    if grep -q "\"${name}\"" "${MCP_FILE}"; then fail ".mcp.json に前の MCP（${name}）が残っている"; else ok ".mcp.json に前の MCP（${name}）は無い"; fi
+  done
+else
+  fail ".mcp.json が無い"
+fi
+
+echo ""
+echo "[5] スキルのリンク（-> ${PROJECT_DIR}/claude-skills）"
+expected_base="$(to_lower "${PROJECT_DIR}/claude-skills")"
+for dir in "${PROJECT_DIR}"/claude-skills/*/; do
+  skill="$(basename "${dir}")"
+  [ -f "${dir}/SKILL.md" ] || continue
+  link="${SKILLS_DIR}/${skill}"
+  if [ ! -L "${link}" ]; then fail "${skill}: リンクが無い"; continue; fi
+  target="$(readlink "${link}")"
+  target="${target%/}"
+  if [ "$(to_lower "${target}")" = "${expected_base}/${skill}" ]; then ok "${skill}"; else fail "${skill} -> ${target}"; fi
+done
+for skill in "${REMOVED_SKILLS[@]}"; do
+  if [ -L "${SKILLS_DIR}/${skill}" ] || [ -e "${SKILLS_DIR}/${skill}" ]; then
+    fail "${skill} のリンクが残っている（外したスキル。rm \"${SKILLS_DIR}/${skill}\"）"
+  else
+    ok "${skill}: リンクは無い（外したスキル）"
+  fi
+done
+
+echo ""
+echo "[6] 正典のずれ"
+if (cd "${PROJECT_DIR}" && uv run --quiet python scripts/check_drift.py >/dev/null 2>&1); then
+  ok "docs/SCHEMA.md: ずれ 0 件"
+else
+  fail "docs/SCHEMA.md: ずれがある（uv run python scripts/check_drift.py）"
+fi
+
+echo ""
+echo "[7] Claude Desktop の設定（知らせるだけ）"
+if [ -f "${DESKTOP_CONFIG}" ]; then
+  if grep -q '"nest-personal"' "${DESKTOP_CONFIG}"; then
+    info "Desktop の設定に nest-personal がある"
+  else
+    info "Desktop の設定に nest-personal が無い（Claude Desktop を使うときだけ configs/claude_desktop_config.json を写す）"
+  fi
+else
+  info "Desktop の設定が無い（Claude Code だけなら要らない）"
+fi
+
+echo ""
+echo "=== Summary: ${PASS} passed, ${FAIL} failed ==="
+[ "${FAIL}" -eq 0 ] && exit 0 || exit 1

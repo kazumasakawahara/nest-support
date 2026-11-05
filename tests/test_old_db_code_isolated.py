@@ -10,7 +10,8 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-OLD_DB_CODE = ["lib/db_operations.py", "sos/api_server.py", "scripts/doctor.sh", "scripts/rotate_password.py", "setup.sh"]
+OLD_DB_CODE = ["lib/db_operations.py", "sos/api_server.py", "scripts/rotate_password.py", "setup.sh"]
+# scripts/doctor.sh は N-30 で新しい構成を点検する道具に書き直した（2026-11-06。tests/test_doctor.py）
 # claude-skills/ecomap-generator/scripts/generate_mermaid.py は N-27g で git から外した（2026-11-06）
 NEW_DB = re.compile(r"3[78](474|687)|nest-redesign|neo4j-redesign")
 

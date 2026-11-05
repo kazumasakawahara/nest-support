@@ -33,7 +33,8 @@ uv run python scripts/apply_schema.py --write
 # 5. 資源の側に tsunagu-net の配布の一式を読み込む（MANIFEST.json の指紋を確かめる）
 uv run python scripts/load_resource.py --bundle <配布の一式のフォルダ> --write
 
-# 6. 試験
+# 6. 試験と点検
+./scripts/doctor.sh                   # 環境の点検
 uv run pytest -q                      # DB を使わない試験
 NEST_LIVE_DB=1 uv run pytest -q       # DB を使う試験（架空の事例だけ）
 
