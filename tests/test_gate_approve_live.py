@@ -85,3 +85,38 @@ def test_review_lists_each_pending_fact_with_its_quotes(driver, admin, client):
     assert ng["quotes"][0]["certainty"] == "Hearsay"
     rec = items[out["ids"]["r0"]]
     assert [q["quote"] for q in rec["quotes"]] == ["根拠 %s" % mark]
+
+
+def test_estimated_org_reference_is_active_and_review_shows_the_involvement(driver, admin, client):
+    """止まる点 4 の決定（台帳 G-59）。機関は資源の側（読むだけ）から架空でない公開の ID を一つ借りる。"""
+    from nest import connections, org_estimate as oe
+    from nest.gate import approve as ga
+    from nest.gate import write as gw
+    with connections.driver("resource") as resource:
+        cands = oe.by_area(resource, "401099")["candidates"]
+        have = {r["id"] for r in _one(driver, "MATCH (o:Organization) RETURN o.orgId AS id")}
+        fresh = [c for c in cands if c["orgId"] not in have]
+        org = (fresh or cands)[0]
+        mark = uuid.uuid4().hex
+        out = gw.submit({"requestId": _rid(), "actorStaffId": admin,
+                         "nodes": [{"ref": "o", "label": "Organization", "origin": "AiExtracted", "properties": {"orgId": org["orgId"]}},
+                                   {"ref": "i", "label": "Involvement", "origin": "AiExtracted",
+                                    "properties": {"kind": "Consultation", "howEnded": "Unknown", "certainty": "Inference",
+                                                   "inferenceBasis": "CurrentResidenceArea"}},
+                                   {"ref": "r0", "label": "Record", "origin": "AiExtracted",
+                                    "properties": {"kind": "Interview", "text": "架空の相談 %s" % mark, "quote": "架空の相談 %s" % mark,
+                                                   "certainty": "Hearsay", "informantKind": "Family"}}],
+                         "relationships": [{"type": "HAS_INVOLVEMENT", "from": "o", "to": "i", "properties": {}},
+                                           {"type": "CONCERNS", "from": "i", "to": {"label": "Client", "id": client}, "properties": {}},
+                                           {"type": "EVIDENCED_BY", "from": "i", "to": "r0", "properties": {}}]}, driver)
+        assert out["ok"], out["errors"]
+        if fresh:
+            st = _one(driver, "MATCH (o:Organization {orgId: $id}) RETURN o.status AS s, o.origin AS o", id=org["orgId"])
+            assert st == [{"s": "Active", "o": "AiExtracted"}]
+        items = {i["id"]: i for i in ga.review_items(driver, client, resource_driver=resource)}
+    assert org["orgId"] not in items                                     # 機関の写しは承認の対象に出ない
+    inv = items[out["ids"]["i"]]
+    assert inv["content"] == {"kind": "Consultation", "certainty": "Inference", "howEnded": "Unknown",
+                              "inferenceBasis": "CurrentResidenceArea", "note": None,
+                              "organizations": [{"orgId": org["orgId"], "name": org["name"]}], "organizationUndecided": False}
+    assert [q["quote"] for q in inv["quotes"]] == ["架空の相談 %s" % mark]

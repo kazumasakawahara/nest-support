@@ -5,7 +5,7 @@
   自分で登録したもの（Create の AuditLog の ACTED_BY が自分）を承認したら、APPROVED と AuditLog に selfApproval: true を残す
 - AI 由来のものはまとめて承認しない。approve_many は、2 件以上で AI 由来が一つでもあれば、何も変えずに断る
 - 承認の出力には、事実ごとに原文の引用を並べる（review_items も同じ形。本人に直接つながるもの、本人について聞いた記録の話し手、
-  本人の事実の根拠の記録を並べる）。引用は、記録ならその記録、
+  本人の事実の根拠の記録を並べる）。関わりには中身（種類・確度・終わり方・推定の根拠・注記・機関）も添える（止まる点 4。台帳 G-59）。引用は、記録ならその記録、
   事実なら根拠（EVIDENCED_BY）の記録、人ならその人から聞いた（TOLD_BY）記録から引く
 - 承認は Staff -[:APPROVED {at, selfApproval}]-> 対象 で残す。承認・却下とも AuditLog（Approve／Reject）を残す
 手本：tsunagu-net の tsunagu/gate/approve.py（読むだけ）。
@@ -156,8 +156,29 @@ def approve_many(driver, actor_staff_id, targets, request_id, now=None, new_id=i
     return _run("Approve", driver, actor_staff_id, list(targets or []), request_id, now, new_id, database, out)
 
 
-def review_items(driver, client_id, database="neo4j"):
-    """本人のまわりの Pending を、事実ごとに原文の引用を添えて返す（読むだけ）。"""
+INVOLVEMENT_ORGS = """MATCH (o:Organization)-[:HAS_INVOLVEMENT]->(:Involvement {involvementId: $id})
+RETURN o.orgId AS orgId ORDER BY orgId"""
+ORG_NAMES = "MATCH (o:Organization) WHERE o.orgId IN $ids RETURN o.orgId AS orgId, o.name AS name"
+
+
+def involvement_content(props, org_ids, names):
+    """承認の前に見せる関わりの中身（止まる点 4。台帳 G-59）。機関の名前は資源の側から引いたもの（無ければ None）。"""
+    names = names or {}
+    return {"kind": props.get("kind"), "certainty": props.get("certainty"), "howEnded": props.get("howEnded"),
+            "inferenceBasis": props.get("inferenceBasis"), "note": props.get("note"),
+            "organizations": [{"orgId": o, "name": names.get(o)} for o in org_ids], "organizationUndecided": not org_ids}
+
+
+def _org_names(resource_driver, org_ids):
+    if resource_driver is None or not org_ids:
+        return {}
+    rows = resource_driver.execute_query(ORG_NAMES, {"ids": sorted(org_ids)}).records
+    return {r["orgId"]: r["name"] for r in rows}
+
+
+def review_items(driver, client_id, database="neo4j", resource_driver=None):
+    """本人のまわりの Pending を、事実ごとに原文の引用を添えて返す（読むだけ）。
+    関わりには中身（content：種類・確度・終わり方・推定の根拠・注記・機関）を添える。resource_driver を渡せば機関の名前も引く。"""
     items = []
     with driver.session(database=database) as s:
         for row in s.execute_read(lambda tx: list(tx.run(PENDING_AROUND, c=client_id))):
@@ -166,5 +187,9 @@ def review_items(driver, client_id, database="neo4j"):
                 continue
             key = gw.key_of(label)
             quotes = s.execute_read(_quotes, label, key, node[key])
-            items.append({"label": label, "id": node[key], "origin": node.get("origin"), "quotes": quotes})
+            item = {"label": label, "id": node[key], "origin": node.get("origin"), "quotes": quotes}
+            if label == "Involvement":
+                orgs = [r["orgId"] for r in s.execute_read(lambda tx: list(tx.run(INVOLVEMENT_ORGS, id=node[key])))]
+                item["content"] = involvement_content(dict(node), orgs, _org_names(resource_driver, orgs))
+            items.append(item)
     return items

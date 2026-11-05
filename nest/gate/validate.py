@@ -14,7 +14,7 @@
 - 埋め込みの項目（名前が embedding で始まる・終わる）は止める（D10）
 - 日付は正典の types のとおり。形の違うもの・時差の無い日時は補わずに止める
 - 後見の類型は kind が Guardianship の関わりにだけ書ける
-- AI 由来（origin AiExtracted）のノードは Pending で作る。ほかは Active。返す nodes に status を添え、書き込み（N-20）がそれを使う（約束 4-5。N-16）
+- AI 由来（origin AiExtracted）のノードは Pending で作る。ほかは Active。機関の写し（Organization。公開 ID への参照）だけは AI 由来でも Active（止まる点 4。台帳 G-59）。返す nodes に status を添え、書き込み（N-20）がそれを使う（約束 4-5。N-16）
 - 既にあるノードは {"label", "id"} だけで指す。名前を添えたり名前で指したりしたら止める（D8。N-16）
 - 情報提供の書面の記録：PROVIDED_BY を持つ記録は providerCertainty を持ち、certainty は receiver_certainty の値に限る。
   PROVIDED_BY の無い記録は providerCertainty を持たない。documentHash は SHA-256 の 16 進 64 字
@@ -156,7 +156,8 @@ def validate(req):
             managed |= set(spec["unique"])
         props = ck.check_props(where, label, spec, node.get("properties"), managed)
         labels_by_ref[ref] = label
-        status = "Pending" if node.get("origin") == "AiExtracted" else "Active"
+        # 機関の写し（公開 ID への参照）は AI 由来でも Active。判断は Pending の関わりの側で承認する（止まる点 4。台帳 G-59）
+        status = "Pending" if node.get("origin") == "AiExtracted" and label not in EXTERNAL_ID_PROP else "Active"
         nodes_out.append({"ref": ref, "label": label, "origin": node.get("origin"), "status": status, "properties": props})
 
     rels_out = []
