@@ -1,6 +1,6 @@
-# nest-support スキーマ正典 — v0.4
+# nest-support スキーマ正典 — v0.5
 
-- 状態：v0.4（2026-11-05。止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43 の判断（§9 の 10〜13）を反映した）
+- 状態：v0.5（2026-11-05。止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43・G-44 の判断（§9 の 10〜13）を反映した）
 - 根拠：ADR-001（承認 2026-11-05。D1〜D11。D3 は 2026-11-05 に 2 回改めた）、約束 v1（`~/Dev-Work/tsunagu-net/docs/contracts/nest-support-shared.md`。2026-11-04 確定）
 - 扱う範囲：個人の側の DB の、ラベル・リレーション・プロパティ・列挙値の**名前と構造**、ID の形、制約。資源の側は tsunagu-net の正典を参照するだけ
 - 扱わない範囲：業務上の意味・運用の規則・列挙値の日本語の表示名（nest-support の意味の文書 `docs/SEMANTICS.md` に置く。まだ無い。ADR D1）。機械が読む JSON は N-07 で §11 に置き、この表と一致させる（N-08 の乖離の検査）
@@ -85,7 +85,7 @@
 
 | ラベル | プロパティ（必須は ✅） | 説明 |
 |---|---|---|
-| `Residence` | `residenceId`✅, `address`✅, `certainty`✅(enum。作った後は変えない), `areaCode`, `from`(Date), `until`(Date) | 本人の住所の履歴（G-43）。上書きせず、転居のたびに足す。今の住所は `until` が空のもの。`areaCode`（6 桁の団体コード）はゲートが登録のときに住所の文から出して一緒に持つ |
+| `Residence` | `residenceId`✅, `address`✅, `certainty`✅(enum。作った後は変えない), `areaCode`, `since`(Date), `until`(Date) | 本人の住所の履歴（G-43）。上書きせず、転居のたびに足す。今の住所は `until` が空のもの。`areaCode`（6 桁の団体コード）はゲートが登録のときに住所の文から出して一緒に持つ |
 
 **機関と、機関との関わり**
 
@@ -119,7 +119,7 @@
 - 人を指すプロパティは ID で持つ。名前で持たない
 - `Record.quote` は原文のその箇所をそのまま持つ（約束 4-1）。`text` は事実の言い換え。言い換えに引用に無い数字を足さない（約束 4-2。ゲートが検査する）
 - `Residence.areaCode` は手元だけで出す。住所の文を外のジオコーディング（Google など）に送らない。同梱した総務省の市区町村コードの表と、市区町村名の文字列の一致で 6 桁を出す。一致しなければ空のままにし、担当機関の推定（計画 N-24a）は機関未確定に倒す。表の出どころと版は `docs/SEMANTICS.md` か README に書く
-- 読み取りの包み（N-22）は `Residence.address` を返さない。`areaCode` と `from`・`until` は返してよい。住所は訪問と SOS（NEXT-05 の位置）に要るので DB に持つ
+- 読み取りの包み（N-22）は `Residence.address` を返さない。`areaCode` と `since`・`until` は返してよい。住所は訪問と SOS（NEXT-05 の位置）に要るので DB に持つ
 - 音声のファイルの置き場所・保存の期間は DB に持たない。運用の文書に書く（計画 N-29）。音声の指紋は `Record.documentHash`
 
 ### 4.3 リレーション
@@ -270,7 +270,7 @@
 10. **機関の指し方（G-38）**：ID だけの `Organization {orgId, linkedAt}` を個人の側に置く。ADR D3 を 2 回目に改めた。`HAS_INVOLVEMENT` の始点に `Organization` を足し、`PROVIDED_BY`（Record → Organization）を足す。理由：(1) 記録をどの機関から得たかを辿れないと、`providerCertainty` と第三者から受けた情報の管理が辿れない (2) 「この機関に関わる本人」「この本人とこの機関の関わり」をプロパティの値の一致ではなく辺で引ける (3) tsunagu-net と同じ形になり、突き合わせに変換が要らない
 11. **関わりの種類（G-41）**：tsunagu-net の 8 つをすべて持ち、`Employment`・`Administrative` を足す。足した 2 つは tsunagu-net へ足す提案として台帳 G-40 に書く
 12. **手帳・受給者証・公的扶助の値（G-39）**：案のまま固定する。日本語の表示名と条番号は SEMANTICS（N-27）で持ち、照合までは【未照合】
-13. **本人の住所（G-43）**：住所の文と期間を持つ（案 (a)）。`Residence {address, areaCode, from, until, certainty}` を本人から `RESIDES_AT` で結ぶ。履歴なので上書きしない。`areaCode` はゲートが手元の市区町村コードの表で出す。包みは `address` を返さない。住所は訪問と SOS に要るので持たない選択はしない
+13. **本人の住所（G-43）**：住所の文と期間を持つ（案 (a)）。`Residence {address, areaCode, since, until, certainty}` を本人から `RESIDES_AT` で結ぶ。履歴なので上書きしない。`areaCode` はゲートが手元の市区町村コードの表で出す。包みは `address` を返さない。住所は訪問と SOS に要るので持たない選択はしない
 
 ## 10. tsunagu-net の正典 v0.29 とそろえなかったもの
 
@@ -297,7 +297,7 @@
 
 ```json machine-check
 {
-  "version": "0.4",
+  "version": "0.5",
   "personal": {
     "commonRequired": ["registeredAt", "status", "origin"],
     "immutable": ["registeredAt"],
@@ -308,7 +308,7 @@
       "Client":           {"required": ["clientId", "displayCode"], "optional": ["familyName", "givenName", "familyNameKana", "givenNameKana", "birthDate", "birthDatePrecision", "bloodType"], "unique": ["clientId", "displayCode"]},
       "Person":           {"required": ["personId"], "optional": ["familyName", "givenName", "familyNameKana", "givenNameKana", "phone", "note"], "unique": ["personId"]},
       "Staff":            {"required": ["staffId", "displayName", "role"], "optional": [], "unique": ["staffId"]},
-      "Residence":        {"required": ["residenceId", "address", "certainty"], "optional": ["areaCode", "from", "until"], "unique": ["residenceId"]},
+      "Residence":        {"required": ["residenceId", "address", "certainty"], "optional": ["areaCode", "since", "until"], "unique": ["residenceId"]},
       "Organization":     {"required": ["orgId", "linkedAt"], "optional": [], "unique": ["orgId"]},
       "Involvement":      {"required": ["involvementId", "kind", "howEnded", "certainty"], "optional": ["startDate", "endDate", "guardianshipType", "serviceTypeName"], "unique": ["involvementId"]},
       "NgAction":         {"required": ["ngActionId", "action", "riskLevel"], "optional": ["reason", "validFrom", "validTo"], "unique": ["ngActionId"]},
@@ -395,7 +395,7 @@
   },
   "types": {
     "*.registeredAt": "DateTime",
-    "Client.birthDate": "Date", "Organization.linkedAt": "DateTime", "Residence.from": "Date", "Residence.until": "Date", "Involvement.startDate": "Date", "Involvement.endDate": "Date",
+    "Client.birthDate": "Date", "Organization.linkedAt": "DateTime", "Residence.since": "Date", "Residence.until": "Date", "Involvement.startDate": "Date", "Involvement.endDate": "Date",
     "NgAction.validFrom": "Date", "NgAction.validTo": "Date", "CarePreference.validFrom": "Date", "CarePreference.validTo": "Date",
     "Condition.diagnosisDate": "Date", "Certificate.issuedDate": "Date", "Certificate.nextRenewalDate": "Date",
     "PublicAssistance.startDate": "Date", "PublicAssistance.endDate": "Date", "SupportLog.date": "Date",
@@ -417,6 +417,7 @@
 
 ## 変更履歴
 
+- v0.5（2026-11-05）：G-44 の河原さんの判断。`Residence.from` を `since` に改めた（tsunagu-net の `MEMBER_OF` と同じ `since`・`until`）。`since` は任意のまま
 - v0.4（2026-11-05）：G-43 の河原さんの判断（§9 の 13）。`Residence`（`address`・`areaCode`・`from`・`until`・`certainty`）と `RESIDES_AT`、接頭辞 `RES`。`EVIDENCED_BY` の始点と `CONTRADICTS` の終点に Residence
 - v0.3（2026-11-05）：G-38〜G-41 の河原さんの判断（§9 の 10〜12）。ID だけの `Organization {orgId, linkedAt}`、`HAS_INVOLVEMENT` の始点に Organization、`PROVIDED_BY`（Record → Organization）。`Involvement.orgId` を外した。`involvementKind` を tsunagu-net の 8 つ ＋ 2 つに。JSON に `externalIds`。§10 に `OWNED_BY`・`WORKS_AT` を持たない理由
 - v0.2（2026-11-05）：止まる点 2 の河原さんの判断を反映（§9）。`FAMILY_OF`・`HAS_KEY_PERSON`・`INVOLVED_IN`・`RECORDED_BY` を外し、`RELATED_TO`（Person → Client）・`HAS_INVOLVEMENT`・`AUTHORED_BY`・`REVIEWED` にした。`Involvement` に `certainty`・`howEnded`（必須）、`clientRelationKind`・`certificateType`・`publicAssistanceType` の値、`guardianshipType` に `VoluntaryGuardianship`。接頭辞のつき合わせ（§3）と、tsunagu-net とそろえなかったもの（§10）を足した

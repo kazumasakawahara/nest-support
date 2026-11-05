@@ -148,7 +148,7 @@ def test_empty_enum_fails(tmp_path):
 
 def test_repository_canon_loads():
     data = canon.load(SCHEMA)
-    assert data["version"] == "0.4"
+    assert data["version"] == "0.5"
 
 
 def test_repository_canon_labels():
@@ -203,7 +203,9 @@ def test_repository_canon_residence_history():
     data = canon.load(SCHEMA)
     res = data["personal"]["nodes"]["Residence"]
     assert set(res["required"]) >= {"residenceId", "address", "certainty"}
-    assert set(res["optional"]) >= {"areaCode", "from", "until"}  # 昔の住所は転居の日が分からないことが多い（台帳 G-44）
+    assert set(res["optional"]) >= {"areaCode", "since", "until"}  # 昔の住所は転居の日が分からないことが多い（台帳 G-44）
+    assert "from" not in res["required"] + res["optional"]  # tsunagu-net の MEMBER_OF と同じ since・until（台帳 G-44。2026-11-05 河原さん）
+    assert data["types"]["Residence.since"] == "Date" and "Residence.from" not in data["types"]
     rel = data["personal"]["relationships"]["RESIDES_AT"]
     assert rel["from"] == ["Client"] and rel["to"] == ["Residence"]
     assert "certainty" in data["personal"]["immutableByLabel"]["Residence"]
