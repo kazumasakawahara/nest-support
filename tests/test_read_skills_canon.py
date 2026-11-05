@@ -110,3 +110,25 @@ def test_the_checker_catches_old_queries():
                                      "WHERE n.status IN ['Active', 'Pending'] RETURN n.action, n.riskLevel")
     assert not _problems("resource", "MATCH (o:Organization {orgId: $id}) RETURN o.name")
     assert OLD_PORT.findall("bolt://localhost:7687") and not OLD_PORT.findall("127.0.0.1:37687")
+
+
+# ---- 止まる点 E-1：起動した架空の DB で、どの照会も包み（mcp_guard.run_read）を通って動く。NEST_LIVE_DB=1 のときだけ ----
+LIVE_PARAMS = {"code": "C-ZZZZZZ", "days": 90, "limit": 5, "id": "NGA-01HZZZZZZZZZZZZZZZZZZZZZZZ", "orgIds": [],
+               "situation": "", "minTimes": 2}
+
+
+@pytest.mark.skipif(__import__("os").environ.get("NEST_LIVE_DB") != "1", reason="NEST_LIVE_DB=1 のときだけ")
+@pytest.mark.parametrize("skill", SKILLS)
+def test_every_query_runs_through_the_read_wrapper(skill):
+    from nest import connections
+    for side in ("personal", "resource"):
+        queries = [(w, q) for w, s, q in _queries(skill) if s == side]
+        if not queries:
+            continue
+        with connections.driver(side) as d:
+            for where, q in queries:
+                params = {k: v for k, v in LIVE_PARAMS.items() if "$" + k in q}
+                try:
+                    mcp_guard.run_read(d, q, params, personal=(side == "personal"))
+                except Exception as e:  # どの照会で止まったかを出す
+                    raise AssertionError("%s %s: %s\n%s" % (skill, where, e, q[:200])) from e
