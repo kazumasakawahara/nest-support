@@ -75,8 +75,9 @@ def _dynamic_access(text):
         before = text[:m.start()].rstrip()
         if not before or before[-1] in LIST_OPENERS:
             continue
-        word = re.search(r"[A-Za-z_]\w*$", before)
-        if word and word.group(0).upper() in LIST_KEYWORDS:
+        # 語は、後ろに続く識別子の字（日本語の字・数字・$ を含む）をまるごと取り、英字だけで LIST_KEYWORDS と同じときだけ通す
+        word = re.search(r"[\w$]+$", before)
+        if word and re.fullmatch(r"[A-Za-z]+", word.group(0)) and word.group(0).upper() in LIST_KEYWORDS:
             continue
         if not INDEX_ONLY.match(text, m.end()):
             return True

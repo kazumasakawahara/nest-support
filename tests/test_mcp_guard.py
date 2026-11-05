@@ -169,6 +169,10 @@ def test_sensitive_names_exist_in_the_canon():
     "MATCH (c:Client) RETURN c.clientId // 注釈",
     "MATCH (c:Client) RETURN {a: c}['a']['family' + 'Name']",
     "MATCH (c:Client) RETURN c\t['x']",
+    # 語の後ろだけが IN などに見える変数名（2 回目の自動の点検の指摘）
+    "MATCH (あIN:Client) RETURN あIN['family' + 'Name']",
+    "MATCH (c1IN:Client) RETURN c1IN['family' + 'Name']",
+    "MATCH (c:Client) WITH c AS ｃIN RETURN ｃIN['x']",
 ])
 def test_personal_side_refuses_sensitive_or_dynamic_access(query):
     d = FakeDriver("r")
