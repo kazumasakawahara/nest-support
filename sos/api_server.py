@@ -9,6 +9,7 @@ nest SOS - APIサーバー
 """
 
 import os
+import re
 import sys
 import httpx
 from datetime import datetime
@@ -26,6 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from lib.db_operations import resolve_client_raw, get_display_name, run_query
 from lib.auth import require_auth, set_session_cookie, verify_token
 from nest import egress
+from nest.ids import DISPLAY_ALPHABET
 
 # 環境変数読み込み
 load_dotenv()
@@ -257,55 +259,28 @@ def get_client_cautions(client_identifier: str) -> list:
 
 
 # --- SOSメッセージ作成 ---
+# N-28（ADR-001 D11-3、external-api NEXT-05）：LINE に送るのは SOS・誰のことか（仮名）・位置・確かめる先だけ。
+# 電話・禁忌・実名・キーパーソンの名前は送らない。文を作るのに DB を読まない。
+DISPLAY_CODE = re.compile(r"C-[%s]{6}" % DISPLAY_ALPHABET)
+CONFIRM_LINE = "📇 連絡先と注意することは、手元の緊急連絡カードと SOS の画面で確かめてください"
+
+
 def create_sos_message(
-    client_name: str,
-    key_persons: list,
-    cautions: list,
+    code: str,
     latitude: float | None = None,
     longitude: float | None = None,
-    accuracy: float | None = None
+    accuracy: float | None = None,
 ) -> str:
-    """
-    SOSメッセージを作成
-    """
+    """SOS の文。誰のことかは仮名（displayCode）の形のときだけ書く"""
     now = datetime.now().strftime("%Y/%m/%d %H:%M")
-
-    # 基本メッセージ
-    message = f"""🆘【緊急SOS】
-
-{client_name}さんから助けを求めています！
-
-⏰ 発信時刻: {now}
-"""
-
-    # 位置情報
-    if latitude and longitude:
-        map_url = f"https://www.google.com/maps?q={latitude},{longitude}"
+    who = code if isinstance(code, str) and DISPLAY_CODE.fullmatch(code) else "（仮名の形でない ID のため書かない）"
+    message = f"🆘【緊急SOS】\n\n対象: {who}\n⏰ 発信時刻: {now}\n"
+    if latitude is not None and longitude is not None:
         acc_text = f"（精度: 約{int(accuracy)}m）" if accuracy else ""
-        message += f"""
-📍 現在地:
-{map_url}
-{acc_text}
-"""
+        message += f"\n📍 現在地:\nhttps://www.google.com/maps?q={latitude},{longitude}\n{acc_text}\n"
     else:
-        message += "\n📍 位置情報: 取得できませんでした\n"
-
-    # キーパーソン（緊急連絡先）
-    if key_persons and key_persons[0].get('name'):
-        message += "\n📞 緊急連絡先:\n"
-        for kp in key_persons[:3]:  # 上位3名まで
-            if kp.get('name'):
-                rel = kp.get('relationship', '')
-                phone = kp.get('phone', '番号未登録')
-                message += f"　・{kp['name']}（{rel}）{phone}\n"
-
-    # 注意事項（禁忌事項）
-    if cautions:
-        message += "\n⚠️ 対応時の注意:\n"
-        for c in cautions:
-            risk_mark = "🔴" if c.get('risk') == 'LifeThreatening' else "🟠"
-            message += f"　{risk_mark} {c['action']}\n"
-
+        message += "\n📍 位置: 取得できませんでした\n"
+    message += "\n" + CONFIRM_LINE + "\n"
     return message
 
 
@@ -321,63 +296,23 @@ async def receive_sos(request: SOSRequest):
     """
     SOSリクエストを受信し、LINEグループに通知
     """
-    print(f"SOS受信: {request.client_id}")
-
-    # クライアント情報を取得
-    client_info = get_client_info(request.client_id)
-
-    if not client_info:
-        # クライアントが見つからない場合も通知は送る
-        message = f"""🆘【緊急SOS】
-
-不明なユーザー（ID: {request.client_id}）からSOSがありました。
-
-⏰ 発信時刻: {datetime.now().strftime("%Y/%m/%d %H:%M")}
-"""
-        if request.latitude and request.longitude:
-            message += f"\n📍 現在地:\nhttps://www.google.com/maps?q={request.latitude},{request.longitude}"
-
-        await send_line_message(message)
-
-        # 登録有無を漏らさないため、登録済みと同一のメッセージ・形状で返す
-        return SOSResponse(
-            success=True,
-            message="SOSを送信しました",
-            received_id=request.client_id,
-        )
-
-    client_name = client_info['name']
-    key_persons = client_info.get('keyPersons', [])
-
-    # 禁忌事項を取得
-    cautions = get_client_cautions(client_name)
-
-    # メッセージ作成
     message = create_sos_message(
-        client_name=client_name,
-        key_persons=key_persons,
-        cautions=cautions,
+        request.client_id,
         latitude=request.latitude,
         longitude=request.longitude,
-        accuracy=request.accuracy
+        accuracy=request.accuracy,
     )
-
-    print(f"Generated SOS Message:\n{message}")
-
-    # LINE送信
-    success = await send_line_message(message)
-
-    if success:
+    # 登録の有無で文の形も応答も変えない（登録有無オラクル封じ）。DB は読まない
+    if await send_line_message(message):
         return SOSResponse(
             success=True,
             message="SOSを送信しました",
             received_id=request.client_id,
         )
-    else:
-        raise HTTPException(
-            status_code=500,
-            detail="LINE送信に失敗しました"
-        )
+    raise HTTPException(
+        status_code=500,
+        detail="LINE送信に失敗しました"
+    )
 
 
 class LoginInput(BaseModel):
