@@ -15,6 +15,8 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
 点検：
 - quote は原文にそのまま有ること（空白・改行の違いだけは無視する）（N-12）
 - 原本の指紋（documentHash）は、ここで原文から作る。案に書かせない（N-12）
+- text を書くなら、quote に無い数字（日付・回数・金額・年齢・体重など）を含まないこと。全角の数字は半角と同じに数える。
+  数字を足さない言い換えは警告して通す。text を書かなければ quote をそのまま本文にする（N-13）
 """
 import copy
 import hashlib
@@ -23,6 +25,8 @@ import re
 from nest import ids
 
 DOC_KINDS = ("ProvisionDocument", "OwnCaseRecord")
+DIGITS = re.compile(r"[0-9０-９]+")
+WIDE = str.maketrans("０１２３４５６７８９", "0123456789")
 
 
 def _norm(text):
@@ -31,6 +35,10 @@ def _norm(text):
 
 def _in_original(quote, original):
     return _norm(quote) in _norm(original)
+
+
+def _digits(text):
+    return {d.translate(WIDE) for d in DIGITS.findall(text or "")}
 
 
 def check(proposal, original, actor_staff_id, request_id):
@@ -61,6 +69,13 @@ def check(proposal, original, actor_staff_id, request_id):
         if not _in_original(quote, original):
             errors.append("%s: 引用が原文に無い（%s）" % (where, quote[:30]))
             continue
+        text = f.get("text")
+        if text is not None and _norm(text) != _norm(quote):
+            extra = sorted(_digits(text) - _digits(quote))
+            if extra:
+                errors.append("%s: 本文に原文の引用に無い数字 %s がある（補わない）" % (where, "・".join(extra)))
+            else:
+                warnings.append("%s: 本文は引用の言い換え。承認の前に原文と見比べる" % where)
     if errors:
         return {"ok": False, "errors": errors, "warnings": warnings, "request": None}
     return {"ok": True, "errors": [], "warnings": warnings,
