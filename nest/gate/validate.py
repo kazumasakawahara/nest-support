@@ -15,6 +15,7 @@
 - 日付は正典の types のとおり。形の違うもの・時差の無い日時は補わずに止める
 - 後見の類型は kind が Guardianship の関わりにだけ書ける
 - 終わり方 Transitioned は、任意後見受任者（guardianshipType VoluntaryGuardianshipContracted）と任意代理（kind AgencyContract）の関わりにだけ書ける（正典 v0.8。台帳 G-62）
+- 住所からの推定（inferenceBasis を持つ関わり）で作れる種類は Consultation と Administrative だけ。契約や選任で決まる関わりは住所から推し量れない（台帳 G-62・G-57）
 - AI 由来（origin AiExtracted）のノードは Pending で作る。ほかは Active。機関の写し（Organization。公開 ID への参照）だけは AI 由来でも Active（止まる点 4。台帳 G-59）。返す nodes に status を添え、書き込み（N-20）がそれを使う（約束 4-5。N-16）
 - 既にあるノードは {"label", "id"} だけで指す。名前を添えたり名前で指したりしたら止める（D8。N-16）
 - 情報提供の書面の記録：PROVIDED_BY を持つ記録は providerCertainty を持ち、certainty は receiver_certainty の値に限る。
@@ -38,6 +39,8 @@ GATE_MANAGED_REL = {"CONTRADICTS": {"raisedAt", "resolvedAt", "resolution", "res
 EXTERNAL_ID_PROP = {"Organization": "orgId"}
 GATE_MANAGED_BY_LABEL = {"Organization": {"linkedAt"}}
 # 確度の日本語名（tsunagu-net の SEMANTICS ENU-03 と同じ。nest-support の SEMANTICS ができたらそちらから読む。N-27）
+# 住所からの推定で作れる関わりの種類（2026-11-05 河原さん。台帳 G-62）
+INFERABLE_KINDS = ("Consultation", "Administrative")
 CERTAINTY_JA = {"確認済み": "Confirmed", "伝聞": "Hearsay", "本人の話": "SelfReport", "推測": "Inference", "確度の記載なし": "Unspecified"}
 EMBEDDING = re.compile(r"^embedding|embedding$", re.I)
 FULL_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -208,6 +211,9 @@ def _check_guardianship(ck, nodes):
             ck.errors.append("ノード %s: guardianshipType は kind が Guardianship の関わりにだけ書ける（kind %r）" % (n["ref"], p.get("kind")))
         if n["label"] == "Involvement" and "inferenceBasis" in p and p.get("certainty") != "Inference":
             ck.errors.append("ノード %s: inferenceBasis は確度が Inference の関わりにだけ書ける（certainty %r）" % (n["ref"], p.get("certainty")))
+        if n["label"] == "Involvement" and "inferenceBasis" in p and p.get("kind") not in INFERABLE_KINDS:
+            ck.errors.append("ノード %s: 住所からの推定（inferenceBasis）で作れる関わりは %s だけ（kind %r は契約や選任で決まるので推し量らない）"
+                             % (n["ref"], "・".join(INFERABLE_KINDS), p.get("kind")))
         if (n["label"] == "Involvement" and p.get("howEnded") == "Transitioned" and p.get("kind") != "AgencyContract"
                 and p.get("guardianshipType") != "VoluntaryGuardianshipContracted"):
             ck.errors.append("ノード %s: howEnded Transitioned は任意後見受任者（VoluntaryGuardianshipContracted）と任意代理（AgencyContract）の関わりにだけ書ける" % n["ref"])
