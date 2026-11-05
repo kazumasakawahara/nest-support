@@ -156,6 +156,25 @@ def test_intake_request_can_be_planned():
     assert all(n["props"]["status"] == "Pending" for n in plan["nodes"] if n["label"] == "Record")
 
 
+def test_intake_care_candidates_can_be_planned_as_pending():
+    """G-63：禁忌・推奨ケアの候補は、書き込みの計画でも Pending で、根拠の記録に結ばれる。"""
+    original = "架空の面談記録\n- 母の話では、後ろから急に声をかけるとパニックになる【伝聞】\n"
+    quote = "母の話では、後ろから急に声をかけるとパニックになる"
+    proposal = {"documentKind": "OwnCaseRecord", "clientId": CLIENT,
+                "facts": [{"quote": quote, "recordKind": "Interview", "certainty": "Hearsay", "informantKind": "Family"}],
+                "ngActions": [{"quote": quote, "action": "後ろから急に声をかける", "riskLevel": "Panic"}],
+                "carePreferences": [{"quote": quote, "category": "声のかけ方", "instruction": "前から声をかける"}]}
+    got = intake.check(proposal, original, STAFF, "req-g63")
+    assert got["ok"], got["errors"]
+    plan = _plan(got["request"])
+    assert plan["errors"] == []
+    cands = [n for n in plan["nodes"] if n["label"] in ("NgAction", "CarePreference")]
+    assert sorted(n["label"] for n in cands) == ["CarePreference", "NgAction"]
+    assert all(n["props"]["status"] == "Pending" and "certainty" not in n["props"] for n in cands)
+    assert sorted(r["type"] for r in plan["relationships"] if r["type"] in ("MUST_AVOID", "REQUIRES", "EVIDENCED_BY")) == \
+        ["EVIDENCED_BY", "EVIDENCED_BY", "MUST_AVOID", "REQUIRES"]
+
+
 def test_validation_errors_do_not_touch_the_driver():
     out = gw.submit(_req([{"ref": "x", "label": "Patient", "origin": "Human", "properties": {}}]), driver=None)
     assert out["ok"] is False and out["errors"]

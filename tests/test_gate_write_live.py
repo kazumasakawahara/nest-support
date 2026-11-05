@@ -180,3 +180,27 @@ def test_contradiction_is_held_without_changing_the_ng_action(driver, admin, cli
     row = _one(driver, "MATCH (:Record {recordId: $r})-[c:CONTRADICTS]->(:NgAction {ngActionId: $ng}) RETURN c.raisedAt IS NOT NULL AS ok",
                r=out["ids"]["r0"], ng=ng)
     assert row == [{"ok": True}]
+
+
+def test_intake_care_candidates_are_written_pending_with_evidence(driver, admin, client):
+    """G-63：入口の案の禁忌・推奨ケアの候補が、Pending で、根拠の記録（EVIDENCED_BY → Record）に結ばれて書かれる。"""
+    from nest.gate import intake
+    from nest.gate import write as gw
+    mark = uuid.uuid4().hex
+    quote = "架空の話 %s 後ろから急に声をかけるとパニックになる" % mark
+    original = "架空の面談記録\n- %s【伝聞】\n" % quote
+    proposal = {"documentKind": "OwnCaseRecord", "clientId": client,
+                "facts": [{"quote": quote, "recordKind": "Interview", "certainty": "Hearsay", "informantKind": "Family"}],
+                "ngActions": [{"quote": quote, "action": "架空の禁忌 %s" % mark, "riskLevel": "Panic"}],
+                "carePreferences": [{"quote": quote, "category": "声のかけ方", "instruction": "架空の推奨 %s" % mark}]}
+    got = intake.check(proposal, original, admin, "req-" + uuid.uuid4().hex)
+    assert got["ok"], got["errors"]
+    out = gw.submit(got["request"], driver)
+    assert out["ok"], out["errors"]
+    rows = _one(driver, """
+        MATCH (c:Client {clientId: $c})-[rel:MUST_AVOID|REQUIRES]->(n)-[:EVIDENCED_BY]->(r:Record {quote: $q})
+        WHERE n.action = $a OR n.instruction = $i
+        RETURN labels(n)[0] AS label, n.status AS status, n.certainty AS certainty, r.certainty AS evidence""",
+                c=client, q=quote, a="架空の禁忌 %s" % mark, i="架空の推奨 %s" % mark)
+    assert sorted((r["label"], r["status"], r["certainty"], r["evidence"]) for r in rows) == [
+        ("CarePreference", "Pending", None, "Hearsay"), ("NgAction", "Pending", None, "Hearsay")]
