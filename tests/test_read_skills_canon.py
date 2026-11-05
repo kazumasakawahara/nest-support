@@ -19,13 +19,20 @@ REPO = Path(__file__).resolve().parents[1]
 C = canon.load(REPO / "docs" / "SCHEMA.md")
 P = C["personal"]
 SKILLS = ["neo4j-support-db", "visit-prep", "emergency-protocol", "data-quality-agent", "resilience-checker",
-          "onboarding-wizard", "ecomap-generator", "insight-agent"]
+          "onboarding-wizard", "ecomap-generator", "insight-agent", "provider-search"]
 LABELS = set(P["nodes"])
 RELS = set(P["relationships"])
 PROPS = set(P["commonRequired"]) | {k for n in P["nodes"].values() for k in n["required"] + n["optional"]} | \
     {k for r in P["relationships"].values() for k in r["required"] + r["optional"]}
-RESOURCE_LABELS = {"Organization", "OrgName", "Area"}
-RESOURCE_RELS = {"HAS_NAME", "PART_OF", "SERVES"}
+# 資源の側のうち nest が読むもの（tsunagu-net の正典 §5。2026-11-06 に照らした。読むだけ）
+RESOURCE_LABELS = {"Organization", "OrgName", "Area", "Service"}
+RESOURCE_RELS = {"HAS_NAME", "PART_OF", "SERVES", "PROVIDES", "LOCATED_IN"}
+RESOURCE_PROPS = {"orgId", "name", "kind", "status", "corporateName", "address", "phone", "wamnetOfficeNo", "kaigoOfficeNo",
+                  "sourceUrl", "checkedOn", "inactiveOn", "locatedAreaCode", "alsoKinds", "authorityLevel",
+                  "orgNameId", "validFrom", "validTo", "determinedBy",
+                  "serviceId", "sourceSystem", "officeNo", "serviceTypeCode", "serviceTypeName", "capacity",
+                  "designationDate", "siteName", "siteAddress", "designatedBy",
+                  "areaCode", "level", "basis", "partOfArea"}
 WRITE = re.compile(r"\b(CREATE|MERGE|SET|DELETE|DETACH|REMOVE|FOREACH|CALL)\b|LOAD\s+CSV", re.I)
 STRING = re.compile(r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"")
 OLD_PORT = re.compile(r"(?<!\d)(7687|7688|7474|7475)(?!\d)")
@@ -64,6 +71,10 @@ def _problems(side, query):
     if side == "resource":
         found += ["資源の側に無いラベル %s" % x for x in sorted(labels - RESOURCE_LABELS)]
         found += ["資源の側に無いリレーション %s" % x for x in sorted(rels - RESOURCE_RELS)]
+        rprops = set(re.findall(r"\b[a-z_]\w*\.`?([A-Za-z_]\w*)`?(?!\s*\()", bare))
+        for body in re.findall(r"[(\[]\s*\w*\s*:[\w|`]+\s*\{([^}]*)\}", bare):
+            rprops |= set(re.findall(r"(\w+)\s*:", body))
+        found += ["資源の側に無いプロパティ %s" % x for x in sorted(rprops - RESOURCE_PROPS)]
         return found
     found += ["正典に無いラベル %s" % x for x in sorted(labels - LABELS)]
     found += ["正典に無いリレーション %s" % x for x in sorted(rels - RELS)]
@@ -119,7 +130,7 @@ def test_the_checker_catches_old_queries():
 
 # ---- 止まる点 E-1：起動した架空の DB で、どの照会も包み（mcp_guard.run_read）を通って動く。NEST_LIVE_DB=1 のときだけ ----
 LIVE_PARAMS = {"code": "C-ZZZZZZ", "days": 90, "limit": 5, "id": "NGA-01HZZZZZZZZZZZZZZZZZZZZZZZ", "orgIds": [],
-               "situation": "", "minTimes": 2}
+               "situation": "", "minTimes": 2, "name": "架空", "areaCode": "00000", "serviceType": ""}
 
 
 @pytest.mark.skipif(__import__("os").environ.get("NEST_LIVE_DB") != "1", reason="NEST_LIVE_DB=1 のときだけ")
