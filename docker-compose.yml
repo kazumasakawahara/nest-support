@@ -1,56 +1,58 @@
+# nest-support の新しい Neo4j（ADR-001 D2-2・計画 N-18）。Community 版を 2 つ：個人の側と資源の側。
+#
+# 前の DB（nest-support-neo4j、7688、neo4j_data/ など）は起動しない。この compose には入れていない。
+# 前のコンテナと同じ compose のプロジェクトにならないよう、name を分けた（down で前のコンテナに触れないため）。
+# docker compose down に --remove-orphans を付けない。
+#
+# 使い方（Mac。起動は河原さんが compose の中身を確かめてから。台帳 G-48）:
+#   認証情報は ~/.config/nest/neo4j-redesign.env に置く（リポジトリには置かない。権限 600）:
+#     NEST_PERSONAL_PASSWORD=...
+#     NEST_RESOURCE_PASSWORD=...
+#   起動の前に docker ps で、前の DB のコンテナが動いていないことを確かめる
+#   docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d
+#   docker compose --env-file ~/.config/nest/neo4j-redesign.env down   # 試験の終わりに必ず止める
+#
+# 入れるデータは架空のフィクスチャだけ。実データの読み込みは、契約の確認の記録がそろうまでしない。
+# APOC は入れない。プラグインのフォルダもマウントしない（計画 N-18。台帳 G-35 の 3）。
+# 版は tsunagu-net と同じ 5.26.32（長期サポート版）を digest で固定。資源の側に tsunagu-net の書き出し（dump）を読み込むため、同じ版にそろえた。
+# digest は tsunagu-net の compose.yaml（2026-10-26 に Mac で取得したもの）から写した。nest-support の側では取り直していない。
+
+name: nest-redesign
+
 services:
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # Neo4j データベース（個人層）
-  # 2026-10-31: 共有層（neo4j-agno-agent の support-db-neo4j、7687）と同時に動かすため 7688 に移した。
-  # 接続情報は ~/.config/nest/neo4j-personal.env（NEO4J_URI=bolt://localhost:7688）。
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  neo4j:
-    image: neo4j:5.15-community
-    container_name: nest-support-neo4j
+  neo4j-personal:
+    image: neo4j:5.26.32-community@sha256:adaa077a3ab023015143b8f73f7076a7d053f12985f5b06f4c6a128c3a2f7240
+    container_name: nest-redesign-personal
     ports:
-      - "7475:7474" # HTTP Browser UI
-      - "7688:7687" # Bolt/Neo4j Protocol
+      - "127.0.0.1:37474:7474"
+      - "127.0.0.1:37687:7687"
     environment:
-      - NEO4J_AUTH=${NEO4J_USERNAME:?see ~/.config/nest/neo4j-personal.env}/${NEO4J_PASSWORD:?}
-      - NEO4J_server_memory_pagecache_size=1G
-      - NEO4J_server_memory_heap_initial__size=1G
-      - NEO4J_server_memory_heap_max__size=1G
-      - NEO4J_PLUGINS=["apoc"]
+      NEO4J_AUTH: "neo4j/${NEST_PERSONAL_PASSWORD:?set in ~/.config/nest/neo4j-redesign.env}"
+      NEO4J_server_memory_heap_initial__size: "512m"
+      NEO4J_server_memory_heap_max__size: "1G"
+      NEO4J_server_memory_pagecache_size: "512m"
+      # file: の LOAD CSV を止める（tsunagu-net と同じ。http(s) は Community 版に止める設定が無く、読み取りの包みで止める。N-22）
+      NEO4J_dbms_security_allow__csv__import__from__file__urls: "false"
     volumes:
-      - ./neo4j_data:/data
-      - ./neo4j_logs:/logs
-      - ./neo4j_plugins:/plugins
-      - ./neo4j_backup:/backup
-    # 停止猶予（2026-09-03 追加・未検証）: 既定の 10 秒では Neo4j が落ちきらず SIGKILL（Exited 137）
-    # になり、PID ファイルが残って次回起動が再起動ループ（"Neo4j is already running"）になる疑い。
-    # 効果が確認できるまでは、ループしたら docker compose up -d --force-recreate neo4j で復旧する。
+      - ./nest_neo4j_personal_data:/data
+      - ./nest_neo4j_personal_logs:/logs
     stop_grace_period: 60s
-    # 2026-11-05: Docker の再起動で勝手に立ち上がらないよう "no" にした（ADR-001・N-18a）。
     restart: "no"
 
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # Neo4j データベース（生活困窮者自立支援）
-  # ⚠️ 非運用（2026-05 廃止）: 生活困窮支援機能は使用しないため無効化。
-  #   誤起動防止のためサービス定義をコメントアウトしている。
-  #   再開する場合は以下のコメントを解除し、Skill を decommissioned/ から
-  #   claude-skills/ へ戻したうえで .mcp.json に livelihood-support-db を再追加する。
-  #   （詳細は decommissioned/README.md を参照）
-  #   ⚠️ 7475・7688 は 2026-10-31 から上の neo4j（個人層）が使っている。再開するなら別のポートにする。
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # neo4j-livelihood:
-  #   image: neo4j:5.15-community
-  #   container_name: nest-support-neo4j-livelihood
-  #   ports:
-  #     - "7475:7474" # HTTP Browser UI
-  #     - "7688:7687" # Bolt/Neo4j Protocol
-  #   environment:
-  #     - NEO4J_AUTH=neo4j/password
-  #     - NEO4J_server_memory_pagecache_size=512M
-  #     - NEO4J_server_memory_heap_initial__size=512M
-  #     - NEO4J_server_memory_heap_max__size=512M
-  #     - NEO4J_PLUGINS=["apoc"]
-  #   volumes:
-  #     - ./neo4j_livelihood_data:/data
-  #     - ./neo4j_livelihood_logs:/logs
-  #     - ./neo4j_livelihood_plugins:/plugins
-  #   restart: unless-stopped
+  neo4j-resource:
+    image: neo4j:5.26.32-community@sha256:adaa077a3ab023015143b8f73f7076a7d053f12985f5b06f4c6a128c3a2f7240
+    container_name: nest-redesign-resource
+    ports:
+      - "127.0.0.1:38474:7474"
+      - "127.0.0.1:38687:7687"
+    environment:
+      NEO4J_AUTH: "neo4j/${NEST_RESOURCE_PASSWORD:?set in ~/.config/nest/neo4j-redesign.env}"
+      NEO4J_server_memory_heap_initial__size: "512m"
+      NEO4J_server_memory_heap_max__size: "1G"
+      NEO4J_server_memory_pagecache_size: "512m"
+      NEO4J_dbms_security_allow__csv__import__from__file__urls: "false"
+    volumes:
+      - ./nest_neo4j_resource_data:/data
+      - ./nest_neo4j_resource_logs:/logs
+    stop_grace_period: 60s
+    restart: "no"
