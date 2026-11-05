@@ -1,104 +1,83 @@
-# HANDOVER — 2026-08-03 main（WAM NET スキル整合 / serena_config 混入の切り出し）
+# HANDOVER — 2026-11-06 redesign/adr-001（ADR-001 の作り直し。段階 A〜D 済み、段階 E の前）
 
-> claude.ai 側のチャットから、`~/.claude/CLAUDE.md` の棚卸しを起点に横展開したセッション。
-> nest-support 本体のコード・テスト・DBへの書き込みは**一切なし**（読み取りのみ）。
-> 変更したのは `claude-skills/wamnet-provider-sync/SKILL.md` の1ファイルのみ。
-> 前セッション（2026-07-13 / grade=不明 検出の追加）の HANDOVER は
-> `~/.claude/backups/2026-08-03-claude-md-refactor/nest-support-HANDOVER-2026-07-13.md` と git 履歴を参照。
+> 前の HANDOVER（2026-08-03 main。WAM NET スキル整合）は git 履歴（ce627d9）にある。そこに書かれた
+> `~/.config/nest/neo4j.env`・ポート 7687・`nest-support-neo4j` は**前の構成**で、この枝では使わない。
 
-## 再開コマンド（前回検証済み・今回は未再検証）
+## 再開コマンド（2026-11-06 に DB なしの 2 行を確かめた。HANDOVER を書いたのは 05:54）
 
 ```bash
-cd ~/Dev-Work/project/nest-support
-export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
-./scripts/doctor.sh                              # 環境整合
-uv run python scripts/check_semantic_drift.py    # 四者一致
-uv run pytest tests/ -q                          # 全テスト
+cd ~/Dev-Work/project/nest-support && git switch redesign/adr-001
+uv run pytest -q                       # 679 passed, 75 skipped（DB を使う試験は skip）
+uv run python scripts/check_drift.py   # ずれ 0 件
 ```
 
-Neo4j（support-db, port 7687）コンテナ名は `nest-support-neo4j`。本セッション末に**停止済み**（Docker Desktop も終了）。再開時は起動が要る。
+DB を使う試験（結合試験のタスクのときだけ。終わったら必ず止める）：
 
----
+```bash
+docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d     # nest-redesign-personal（37474/37687）・nest-redesign-resource（38474/38687）
+NEST_LIVE_DB=1 uv run pytest -q                                       # 最後に流したのは 2026-11-05（DB を止めたのは 19:59）：717 passed
+docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove-orphans は使わない
+```
+
+- `neo4j-redesign.env` の中身は読まない・表示しない（接続の部品 `nest/connections.py` と試験が読む）
+- 2026-11-06 時点、nest-redesign のコンテナは無い（down 済み）。データのフォルダは残っていて、`up -d` で作り直される
+
+## 前提（実行前に現況で確かめること）
+
+| 想定 | 確かめ方 | 最終確認日 |
+|---|---|---|
+| 枝 `redesign/adr-001` は HEAD de2737b、main より 66 先、**未 push**（upstream なし） | `git rev-parse --short HEAD`・`git rev-list --count main..HEAD` | 2026-11-06 |
+| 前の DB（コンテナ `nest-support-neo4j`、`neo4j_data/` ほか）は止まっている。**実データが入っているものとして扱い、開かない・起動しない・消さない** | `docker ps -a`（Exited のまま） | 2026-11-06 |
+| `support-db-neo4j`（neo4j-agno-agent の共有層 7687）は restart=no で止まっている | `docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' support-db-neo4j` → `no` | 2026-11-05 |
+| 資源の側の写しは `~/Dist/tsunagu-net-trial-20261104`（tsunagu-net の 2026-11-04 の一式）から読み込んだもの | `MANIFEST.json`（台帳 G-55） | 2026-11-05 |
+| tsunagu-net は `~/Dev-Work/tsunagu-net`、枝 `claude/tender-dijkstra-xo3wwc`、HEAD 3bf49ca。正典 SCHEMA v0.31・SEMANTICS v0.32（BRS-49） | `git -C ~/Dev-Work/tsunagu-net log -1` | 2026-11-06 |
+| 共通の約束は v1.1（tsunagu-net `docs/contracts/nest-support-shared.md`） | 同ファイルの版の行 | 2026-11-05 |
+| 令和 8 年法律第 45 号（民法等の一部を改正する法律）の施行日を定める政令は、まだ出ていない | e-Gov の法令検索（tsunagu-net journal `2026-11-05-mac-voluntary-guardianship.md` の手順） | 2026-11-05 |
 
 ## 現在地
 
-### 完了：`wamnet-provider-sync/SKILL.md` の内部矛盾を解消
+- 目標：nest-support を、ADR-001（`docs/adr/ADR-001-redesign-and-shared-contract.md`。承認 2026-11-05）と約束 v1.1 に沿って作り直す。計画は `docs/implementation-plan.md`（1 タスク＝1 行）
+- 進捗：
+  - [x] 段階 A（送らない・埋め込まない）：N-00〜N-05・N-05b・N-18a
+  - [x] 段階 B（正典）：N-06〜N-09。正典は `docs/SCHEMA.md` **v0.8**、意味の文書は `docs/SEMANTICS.md`（SEM-AREA-01〜05・SEM-GUARD-01〜02）
+  - [x] 段階 C（ゲート）：N-10〜N-17
+  - [x] 段階 D（DB と書き込み・承認）：N-18〜N-24a。止まる点 4 の承認済み
+  - [x] N-24b（2026-11-06）：任意後見・任意代理を tsunagu-net の BRS-49 に合わせた（0270cd3）。住所からの推定で作れる関わりを `Consultation`・`Administrative` だけにした（de2737b）。どちらも台帳 G-62
+  - [ ] N-05a 前の DB の処分（河原さんが中身を確かめるまで手を付けない）
+  - [ ] 段階 E：N-25〜N-30（スキルと文書。未着手）
 
-SKILL.md 内で MERGE キーの記述が食い違っていた。**shared-schema との矛盾ではなく、SKILL.md 内部の矛盾**だった。
+## グレーな判断
 
-| プロパティ | 中身 | 役割 |
-|---|---|---|
-| `providerId` | `{事業所番号}_{サービス種類コード}` | **MERGE キー**（一意） |
-| `wamnetId` | 事業所番号そのもの | 名前揺れ対策・横断検索（**一意ではない**） |
+判断の台帳 `docs/gray-decisions.md` で、**承認欄が空の行が 20 件**ある（2026-11-06 に数えた）：
+G-2・G-5・G-6・G-7・G-10・G-11・G-14・G-15・G-22・G-42・G-45〜G-52・G-54・G-61。
+多くは作業の中で決めた細部（置き場所・試験の形・ゲートの細かい決まり）。次のセッションの冒頭で、まとめて承認を取るか、河原さんに見ていただく順を相談する。
 
-旧マッピング表は「事業所番号 → `providerId`（MERGE用キー）」「`wamnetId` は事業所番号と同じ」と書いており、Q2 の複合キーの説明と矛盾していた。
+- G-5 は、この HANDOVER の更新で中身が古いまま、という状態が解消した（承認欄はまだ空）
+- G-42・G-50 は「未決」として書かれている（下の未決論点）
 
-修正5点：
+## 未決論点
 
-1. マッピング表：事業所番号 → `wamnetId`、`name` に `normalize_name()` 適用を明記
-2. マッピング表：`providerId` を複合キーとして正しく記載
-3. **スキーマ規約の正典は `~/Dev-Work/shared-schema/SCHEMA_CONVENTION.md`** であることを明示（食い違ったら向こうを優先／camelCase のみ／正規化関数）
-4. **Cypher 例に `SET sp.wamnetId` を追加**（元は欠落していた）
-5. Q2 を書き下し（一意制約は `providerId` 側にかけ、`wamnetId` にはかけない）
-
-`claude-skills/wamnet-provider-sync/` が実体で、`~/.claude/skills/wamnet-provider-sync` はそこへの symlink。片方を直せば両方に反映される（複製ではない、正しい構成）。
-
-### 完了：`~/.serena/serena_config.yml` に紛れ込んでいた93行の切り出し
-
-Serena のグローバル設定ファイルの先頭に、`domain_skills:` という **Serena が解釈しないキー**で WAM NET のオープンデータ取得手順が書かれていた。本来 `wamnet-provider-sync` のスキル本文に書くつもりだったもの（河原氏の記憶による）。
-
-- 切り出し先：`~/.claude/backups/2026-08-03-claude-md-refactor/wamnet-domain-skills.yml`（93行）
-- 元ファイル全体：同ディレクトリの `serena_config.yml.orig`
-- `serena_config.yml` は 348 → 222行。YAML パース検証済み、トップレベルキーはすべて Serena 正規のもの
-- 副産物：`# the list of registered project paths...` が18回重複していたので1つに畳んだ（Serena が `projects:` 自動更新のたびに重ねる挙動。**また増える可能性がある**）
-
----
-
-## グレーな判断（次セッション冒頭で承認確認を）
-
-**「ServiceProvider は0件だからデータ移行不要」と結論したが、確認範囲が不十分だった。**
-
-- 照会したのは稼働中の `nest-support-neo4j` のみ → ServiceProvider **0件**、制約・インデックスなし。ラベルは Client/Supporter/Hospital 等16種で ServiceProvider を含まない
-- しかし別記録に「**ServiceProvider ノード2,621件（うち約1,500件が名称未登録）**」がある
-- 停止中の `neo4j-support-db`（4ヶ月前に停止、同じ 7687 を使う構成）側と推定されるが**未確認**
-
-SKILL.md の修正内容自体はどちらのDBでも正しい（内部矛盾の解消と欠落補完のため）。ただし**既存2,621件が `providerId` / `wamnetId` をどう持っているかは未確認**で、同期を実行する前に確かめる必要がある。
-
----
+1. **枝を push するか**（公開のリポジトリ。河原さんが別に決める。それまで push しない）
+2. **G-50**：資源の側を nest-support 専用の写し（`nest-redesign-resource`、38687）にするか、動いている tsunagu-net の資源 DB につなぐか（本番の前に決める）
+3. **G-42**：N-22 の読み取りで、職員が呼ぶ名前を `displayCode` に対応づける入口（名前を入れて仮名だけを返す形／職員が仮名で呼ぶ運用）。決めたら `docs/external-api.md` の NEXT-02 も直す
+4. **jp-normalize**（G-61）：今は依存にせず、自前の `_reached` と同じ答えを固定する試験で進める。共通の道具にするなら、公開のリポジトリに置いてコミットを固定する（LICENSE のファイルも要る）
+5. **令和 8 年法律第 45 号の施行**：政令が出たら、後見・保佐を新しく使わないようゲートで止める（tsunagu-net の T-31a に合わせる。SEMANTICS SEM-GUARD-02）
+6. **N-05a**：前の DB（`neo4j_data/`・`neo4j_backup/`・`neo4j_livelihood_*`）の処分。河原さんが確かめるまでそのまま
 
 ## 既知の罠・注意
 
-- **Serena は MCP クライアントごとにプロセスが立つ。** ダッシュボードのポートは 24282 から順に上がる（24283, 24284...）。「TOOL USAGE が空」のときは別インスタンスを見ている可能性を疑う。確実なのは、そのセッションで `open_dashboard` を呼ばせること
-- **Serena の CONTEXT が `desktop-app` のまま。** プラグイン（`plugin:serena:serena`）の `.mcp.json` に `--context` がなく、既定値にフォールバックしている。Claude Code から使う場合は `claude-code` context のほうが適切（重複ツールが減る）。ただし実使用実績がまだ乏しいため、TOOL USAGE に数字が溜まってから判断する方針とした
-- `~/.serena/contexts/ide-assistant-enhanced.yml` は2025年11月に自作されたが、`--context` で名指しされていないため**読み込まれていない**。移行時の参照資料として残置
-- `download_wamnet.py` は**自動ダウンロードをしない**。ポータルURLを案内して手動DLを促すだけ（21行目に「手動ダウンロード用」と明記）。ファイル名例は都道府県別（`shogai_fukuoka_YYYYMM.csv`）を想定
-
----
+- **開かないフォルダ**：`neo4j_data/`・`neo4j_backup/`・`neo4j_livelihood_*`・`.quarantine/`。`neo4j_plugins` は扱わない
+- `Read(**/.env)`・`Read(**/.env.*)` の deny を外さない。`.env.example` も読まない。`mcp__neo4j__*` の道具は使わない
+- tsunagu-net のポート（17474・17687・27474・27687、試しの 47xxx・48xxx）を使わない。nest-support の新しい DB は 37xxx・38xxx
+- 開発と試験は架空の事例だけ。実案件のデータをリポジトリに入れない。パスワードはリポジトリにもチャットにも書かない
+- 条番号は e-Gov で照合してから書く。照合できないものは【未照合】
+- rtk の hook が Bash の出力を切り詰める。長い出力・JSON・日本語を含む処理は Python のスクリプトにして流す
+- 試験の数の目安：DB なし 679 passed・75 skipped（2026-11-06）、DB つき 717 passed（2026-11-05。N-24b の 37 件が足されたので、次に流すと増える）
 
 ## 次タスク（優先度順）
 
-### A: 必須
-
-1. **`neo4j-support-db` の ServiceProvider を確認する。** 2,621件が実在するか、`providerId` / `wamnetId` をどう持っているか、制約はどこにかかっているか。同期を実行する前に必須。`nest-support-neo4j` と同じ 7687 を使うので、起動時のポート衝突に注意
-
-### B: 推奨
-
-2. **切り出した93行を SKILL.md に統合する。** 内容は CSV 直接DL の URL 形式とサービス種別コード一覧。統合先は `## WAM NETオープンデータについて` の `### データソース` 節が有力（現状は人間向けポータルURLのみで、機械可読な入口がない）
-
-   ```
-   https://www.wam.go.jp/content/files/pcpub/top/sfkopendata/{YYYYMM}/sfkopendata_{YYYYMM}_{SERVICE_CODE}.zip
-   ```
-
-3. **上記 URL が現在も有効か確認する。** WAM NET は年2回更新（4月・10月頃）なので、最新の `{YYYYMM}` も要確認。生きていれば `download_wamnet.py` を手動案内から自動取得へ書き換えられる。**スキルの実用性が大きく変わる**
-
-### C: 余裕があれば
-
-4. `shared-schema/SCHEMA_CONVENTION.md` §6.4 の「WAM NET インポート時期によりレガシーの snake_case が残存」が現状と合っているか確認。稼働中DBには ServiceProvider が0件なので残存していない。ただし停止中DB側の記録の可能性があるため、A の確認とセットで判断すること（**削除は慎重に**）
-5. Serena の context 変更（プラグイン無効化 ＋ `claude mcp add serena -- ... --context claude-code`）。使用実績が溜まってから
-
-## Neo4j 認証の置き場（2026-09-04）
-
-- Neo4j 認証の正典は `~/.config/nest/neo4j.env`（`NEO4J_URI` / `NEO4J_USERNAME` / `NEO4J_PASSWORD` の3行、chmod 600）。各リポジトリの `.env` にはもう書かない（`NEO4J_LIVELIHOOD_*` は対象外で従来どおり `.env`）。
-- `~/.zshrc` が `set -a` で読み込むので、シェルから起動するプロセスと `docker compose` の `${NEO4J_USERNAME}` / `${NEO4J_PASSWORD}` 展開はこれで賄う。未設定のまま `docker compose` を実行すると `:?` で止まる（`see ~/.config/nest/neo4j.env`）。
-- パスワード変更は `project/nest-support/scripts/rotate_password.py`（`uv run python scripts/rotate_password.py`）。DB 側の `ALTER CURRENT USER SET PASSWORD` と正典ファイルの書き換えを一括で行い、値は表示しない。実行後は開いているシェルで `source ~/.config/nest/neo4j.env` し直す。
-- compose の `NEO4J_AUTH` は初回起動時（データディレクトリが空のとき）にしか効かない。既存データの DB のパスワードは compose ではなく rotate_password.py で変える。
+- A：台帳の承認欄が空の 20 件を、河原さんに見ていただく（まとめて／順に）
+- A：枝を push するかの判断を待つ（こちらからは push しない）
+- B：N-25 narrative-extractor の書き直し（書き込みの案の JSON を出すだけにする。案の例がゲートを通ることを架空の例で確かめる）→ N-26 EXTRACTION_PROMPT
+- B：N-24b の後に DB つきの試験を一度流す（`NEST_LIVE_DB=1`。終わったら down）
+- C：N-27〜N-30（読み取りのスキル、SOS の中身、文書、`doctor.sh`）
