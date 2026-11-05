@@ -90,7 +90,7 @@ def test_missing_section_fails(tmp_path):
 
 
 def test_broken_canon_fails(tmp_path):
-    p = _variant(tmp_path, '"version": "0.3",', '"version": "0.3"')
+    p = _variant(tmp_path, '  "personal": {\n', '  "personal": {,\n')
     assert check_drift.check(p) != []
 
 

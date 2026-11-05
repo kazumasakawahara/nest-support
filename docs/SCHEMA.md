@@ -1,6 +1,6 @@
-# nest-support スキーマ正典 — v0.3
+# nest-support スキーマ正典 — v0.4
 
-- 状態：v0.3（2026-11-05。止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41 の判断（§9 の 10〜12）を反映した）
+- 状態：v0.4（2026-11-05。止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43 の判断（§9 の 10〜13）を反映した）
 - 根拠：ADR-001（承認 2026-11-05。D1〜D11。D3 は 2026-11-05 に 2 回改めた）、約束 v1（`~/Dev-Work/tsunagu-net/docs/contracts/nest-support-shared.md`。2026-11-04 確定）
 - 扱う範囲：個人の側の DB の、ラベル・リレーション・プロパティ・列挙値の**名前と構造**、ID の形、制約。資源の側は tsunagu-net の正典を参照するだけ
 - 扱わない範囲：業務上の意味・運用の規則・列挙値の日本語の表示名（nest-support の意味の文書 `docs/SEMANTICS.md` に置く。まだ無い。ADR D1）。機械が読む JSON は N-07 で §11 に置き、この表と一致させる（N-08 の乖離の検査）
@@ -35,7 +35,7 @@
 
 | 対象 | 形 | 正規表現 |
 |---|---|---|
-| 個人の側のノード | 接頭辞 ＋ `-` ＋ ULID | `^(CLI|PER|STF|INV|REC|NGA|CPF|CND|WSH|LHS|CRL|CRT|PAS|SLG|REV|AUD)-[0-9A-HJKMNP-TV-Z]{26}$` |
+| 個人の側のノード | 接頭辞 ＋ `-` ＋ ULID | `^(CLI|PER|STF|INV|RES|REC|NGA|CPF|CND|WSH|LHS|CRL|CRT|PAS|SLG|REV|AUD)-[0-9A-HJKMNP-TV-Z]{26}$` |
 | Organization（資源の側の ID。個人の側では発番しない） | `ORG-` ＋ ULID | `^ORG-[0-9A-HJKMNP-TV-Z]{26}$` |
 | 表示用の仮名 | `displayCode` | 形は N-10 で決める。実名から作らない |
 
@@ -53,6 +53,7 @@
 | `REV` | Review | Review | 同じ意味 |
 | `AUD` | AuditLog | AuditLog | 同じ意味 |
 | `CLI` | Client | — | nest-support だけ。tsunagu-net の接頭辞と重ならない |
+| `RES` | Residence | — | nest-support だけ。重ならない（tsunagu-net の `REC`・`REV`・`RTD`・`RUN` とも別） |
 | `NGA`・`CPF`・`CND`・`WSH`・`LHS`・`CRL`・`CRT`・`PAS`・`SLG` | NgAction・CarePreference・Condition・Wish・LifeHistory・CareRole・Certificate・PublicAssistance・SupportLog | — | nest-support だけ。重ならない |
 | — | — | `HH`・`MTG`・`DSC`・`COR`・`SUP`・`ONT`・`ITV`・`OUT`・`DST`・`CLS`・`RTD`・`RUN`・`PRP`・`ONM` | nest-support では使わない。同じ文字列を別の意味で使わない |
 | `ORG` | Organization | Organization | 同じ意味・同じ形（`orgId`・`linkedAt` だけ）。資源の側の ID を持つ |
@@ -79,6 +80,12 @@
 | `Client` | `clientId`✅, `displayCode`✅, `familyName`, `givenName`, `familyNameKana`, `givenNameKana`, `birthDate`(Date), `birthDatePrecision`(enum), `bloodType` | 本人。名前で一意にしない（D8） |
 | `Person` | `personId`✅, `familyName`, `givenName`, `familyNameKana`, `givenNameKana`, `phone`, `note` | 本人の周りの人（家族・キーパーソン・主治医・近隣・ヘルパー・個人の後見人など）。本人との関係は `RELATED_TO.kind`（§4.3）。ADR D3 の改め（2026-11-05）で `Doctor` のラベルを外し、ここに寄せた |
 | `Staff` | `staffId`✅, `displayName`✅, `role`✅(enum) | この DB を使う人（相談支援専門員・事業所の職員）。承認と記録の書き手 |
+
+**住まい**
+
+| ラベル | プロパティ（必須は ✅） | 説明 |
+|---|---|---|
+| `Residence` | `residenceId`✅, `address`✅, `certainty`✅(enum。作った後は変えない), `areaCode`, `from`(Date), `until`(Date) | 本人の住所の履歴（G-43）。上書きせず、転居のたびに足す。今の住所は `until` が空のもの。`areaCode`（6 桁の団体コード）はゲートが登録のときに住所の文から出して一緒に持つ |
 
 **機関と、機関との関わり**
 
@@ -111,6 +118,8 @@
 
 - 人を指すプロパティは ID で持つ。名前で持たない
 - `Record.quote` は原文のその箇所をそのまま持つ（約束 4-1）。`text` は事実の言い換え。言い換えに引用に無い数字を足さない（約束 4-2。ゲートが検査する）
+- `Residence.areaCode` は手元だけで出す。住所の文を外のジオコーディング（Google など）に送らない。同梱した総務省の市区町村コードの表と、市区町村名の文字列の一致で 6 桁を出す。一致しなければ空のままにし、担当機関の推定（計画 N-24a）は機関未確定に倒す。表の出どころと版は `docs/SEMANTICS.md` か README に書く
+- 読み取りの包み（N-22）は `Residence.address` を返さない。`areaCode` と `from`・`until` は返してよい。住所は訪問と SOS（NEXT-05 の位置）に要るので DB に持つ
 - 音声のファイルの置き場所・保存の期間は DB に持たない。運用の文書に書く（計画 N-29）。音声の指紋は `Record.documentHash`
 
 ### 4.3 リレーション
@@ -120,6 +129,7 @@
 | `RELATED_TO` | Person → Client | `kind`✅(enum `clientRelationKind`), `certainty`✅, `evidenceRecordIds`✅(List), `status`✅, `rank`(Integer。kind が KeyPerson のときは必須), `since`(Date), `until`(Date) |
 | `HAS_INVOLVEMENT` | Organization / Person → Involvement | — |
 | `CONCERNS` | Involvement → Client | — |
+| `RESIDES_AT` | Client → Residence | — |
 | `MUST_AVOID` | Client → NgAction | — |
 | `REQUIRES` | Client → CarePreference | — |
 | `HAS_CONDITION` | Client → Condition | — |
@@ -132,8 +142,8 @@
 | `PERFORMS` | Person → CareRole | `since`(Date), `until`(Date) |
 | `ROLE_FOR` | CareRole → Client | — |
 | `CAN_BE_PERFORMED_BY` | CareRole → Person / Involvement | — |
-| `EVIDENCED_BY` | NgAction / CarePreference / Condition / Wish / LifeHistory / CareRole / Certificate / PublicAssistance / SupportLog / Involvement → Record | `linkedBy`✅(enum), `at`✅(DateTime) |
-| `CONTRADICTS` | Record → NgAction / CarePreference / Condition / Wish / LifeHistory / CareRole / Certificate / PublicAssistance / SupportLog / Involvement | `claim`✅, `raisedAt`✅(DateTime), `resolvedAt`(DateTime), `resolution`, `resolvedBy` |
+| `EVIDENCED_BY` | NgAction / CarePreference / Condition / Wish / LifeHistory / CareRole / Certificate / PublicAssistance / SupportLog / Involvement / Residence → Record | `linkedBy`✅(enum), `at`✅(DateTime) |
+| `CONTRADICTS` | Record → NgAction / CarePreference / Condition / Wish / LifeHistory / CareRole / Certificate / PublicAssistance / SupportLog / Involvement / Residence | `claim`✅, `raisedAt`✅(DateTime), `resolvedAt`(DateTime), `resolution`, `resolvedBy` |
 | `CONFIRMS` | Review → Record | — |
 | `ABOUT` | Record / Review / SupportLog → Client | — |
 | `TOLD_BY` | Record → Person / Client | — |
@@ -203,7 +213,7 @@
 ```
 
 - 事実のノード 9 つ（§4.2）は確度を持たない。確度は根拠の `Record.certainty` にあり、事実の強さは、つながる記録の確度から読む道具が計算する（最も強いもの・最も新しいものなど、見せ方は読む側で決める）
-- 関係（`RELATED_TO`）と関わり（`Involvement`）は、tsunagu-net と同じく自分の `certainty` を持つ。根拠は `RELATED_TO.evidenceRecordIds`、`Involvement` は `EVIDENCED_BY`
+- 関係（`RELATED_TO`）と関わり（`Involvement`）と住まい（`Residence`）は、自分の `certainty` を持つ（関係と関わりは tsunagu-net と同じ）。根拠は `RELATED_TO.evidenceRecordIds`、`Involvement`・`Residence` は `EVIDENCED_BY`
 - 確度は作った後に変えない。確かめ直したら、新しい `Record`（または `Review` が `CONFIRMS`）を作り、元の記録はそのまま残す（約束 3）
 - 情報源は `Record.informantKind`（5 値）と `TOLD_BY`（誰か。分かるときだけ）。確度に混ぜない
 - 他の機関から受けた書面は二段：`providerCertainty`（提供元の原文の印）と `certainty`（受けた側から見た確度。提供元より強くしない）。`receivedOn` と `documentHash` を添える（約束 3・tsunagu-net BRS-44 と同じ）
@@ -260,6 +270,7 @@
 10. **機関の指し方（G-38）**：ID だけの `Organization {orgId, linkedAt}` を個人の側に置く。ADR D3 を 2 回目に改めた。`HAS_INVOLVEMENT` の始点に `Organization` を足し、`PROVIDED_BY`（Record → Organization）を足す。理由：(1) 記録をどの機関から得たかを辿れないと、`providerCertainty` と第三者から受けた情報の管理が辿れない (2) 「この機関に関わる本人」「この本人とこの機関の関わり」をプロパティの値の一致ではなく辺で引ける (3) tsunagu-net と同じ形になり、突き合わせに変換が要らない
 11. **関わりの種類（G-41）**：tsunagu-net の 8 つをすべて持ち、`Employment`・`Administrative` を足す。足した 2 つは tsunagu-net へ足す提案として台帳 G-40 に書く
 12. **手帳・受給者証・公的扶助の値（G-39）**：案のまま固定する。日本語の表示名と条番号は SEMANTICS（N-27）で持ち、照合までは【未照合】
+13. **本人の住所（G-43）**：住所の文と期間を持つ（案 (a)）。`Residence {address, areaCode, from, until, certainty}` を本人から `RESIDES_AT` で結ぶ。履歴なので上書きしない。`areaCode` はゲートが手元の市区町村コードの表で出す。包みは `address` を返さない。住所は訪問と SOS に要るので持たない選択はしない
 
 ## 10. tsunagu-net の正典 v0.29 とそろえなかったもの
 
@@ -286,17 +297,18 @@
 
 ```json machine-check
 {
-  "version": "0.3",
+  "version": "0.4",
   "personal": {
     "commonRequired": ["registeredAt", "status", "origin"],
     "immutable": ["registeredAt"],
-    "immutableByLabel": {"Record": ["certainty", "text", "quote", "informantKind", "documentHash", "providerCertainty"], "Involvement": ["certainty"]},
+    "immutableByLabel": {"Record": ["certainty", "text", "quote", "informantKind", "documentHash", "providerCertainty"], "Involvement": ["certainty"], "Residence": ["certainty"]},
     "immutableByRelationship": {"RELATED_TO": ["certainty"]},
     "appendOnlyByRelationship": {"RELATED_TO": ["evidenceRecordIds"]},
     "nodes": {
       "Client":           {"required": ["clientId", "displayCode"], "optional": ["familyName", "givenName", "familyNameKana", "givenNameKana", "birthDate", "birthDatePrecision", "bloodType"], "unique": ["clientId", "displayCode"]},
       "Person":           {"required": ["personId"], "optional": ["familyName", "givenName", "familyNameKana", "givenNameKana", "phone", "note"], "unique": ["personId"]},
       "Staff":            {"required": ["staffId", "displayName", "role"], "optional": [], "unique": ["staffId"]},
+      "Residence":        {"required": ["residenceId", "address", "certainty"], "optional": ["areaCode", "from", "until"], "unique": ["residenceId"]},
       "Organization":     {"required": ["orgId", "linkedAt"], "optional": [], "unique": ["orgId"]},
       "Involvement":      {"required": ["involvementId", "kind", "howEnded", "certainty"], "optional": ["startDate", "endDate", "guardianshipType", "serviceTypeName"], "unique": ["involvementId"]},
       "NgAction":         {"required": ["ngActionId", "action", "riskLevel"], "optional": ["reason", "validFrom", "validTo"], "unique": ["ngActionId"]},
@@ -316,6 +328,7 @@
       "RELATED_TO":          {"from": ["Person"], "to": ["Client"], "required": ["kind", "certainty", "evidenceRecordIds", "status"], "optional": ["rank", "since", "until"]},
       "HAS_INVOLVEMENT":     {"from": ["Organization", "Person"], "to": ["Involvement"], "required": [], "optional": []},
       "CONCERNS":            {"from": ["Involvement"], "to": ["Client"], "required": [], "optional": []},
+      "RESIDES_AT":          {"from": ["Client"], "to": ["Residence"], "required": [], "optional": []},
       "MUST_AVOID":          {"from": ["Client"], "to": ["NgAction"], "required": [], "optional": []},
       "REQUIRES":            {"from": ["Client"], "to": ["CarePreference"], "required": [], "optional": []},
       "HAS_CONDITION":       {"from": ["Client"], "to": ["Condition"], "required": [], "optional": []},
@@ -328,8 +341,8 @@
       "PERFORMS":            {"from": ["Person"], "to": ["CareRole"], "required": [], "optional": ["since", "until"]},
       "ROLE_FOR":            {"from": ["CareRole"], "to": ["Client"], "required": [], "optional": []},
       "CAN_BE_PERFORMED_BY": {"from": ["CareRole"], "to": ["Person", "Involvement"], "required": [], "optional": []},
-      "EVIDENCED_BY":        {"from": ["NgAction", "CarePreference", "Condition", "Wish", "LifeHistory", "CareRole", "Certificate", "PublicAssistance", "SupportLog", "Involvement"], "to": ["Record"], "required": ["linkedBy", "at"], "optional": []},
-      "CONTRADICTS":         {"from": ["Record"], "to": ["NgAction", "CarePreference", "Condition", "Wish", "LifeHistory", "CareRole", "Certificate", "PublicAssistance", "SupportLog", "Involvement"], "required": ["claim", "raisedAt"], "optional": ["resolvedAt", "resolution", "resolvedBy"]},
+      "EVIDENCED_BY":        {"from": ["NgAction", "CarePreference", "Condition", "Wish", "LifeHistory", "CareRole", "Certificate", "PublicAssistance", "SupportLog", "Involvement", "Residence"], "to": ["Record"], "required": ["linkedBy", "at"], "optional": []},
+      "CONTRADICTS":         {"from": ["Record"], "to": ["NgAction", "CarePreference", "Condition", "Wish", "LifeHistory", "CareRole", "Certificate", "PublicAssistance", "SupportLog", "Involvement", "Residence"], "required": ["claim", "raisedAt"], "optional": ["resolvedAt", "resolution", "resolvedBy"]},
       "CONFIRMS":            {"from": ["Review"], "to": ["Record"], "required": [], "optional": []},
       "ABOUT":               {"from": ["Record", "Review", "SupportLog"], "to": ["Client"], "required": [], "optional": []},
       "TOLD_BY":             {"from": ["Record"], "to": ["Person", "Client"], "required": [], "optional": []},
@@ -342,7 +355,7 @@
     }
   },
   "idPrefixes": {
-    "Client": "CLI", "Person": "PER", "Staff": "STF", "Involvement": "INV", "Record": "REC",
+    "Client": "CLI", "Person": "PER", "Staff": "STF", "Involvement": "INV", "Residence": "RES", "Record": "REC",
     "NgAction": "NGA", "CarePreference": "CPF", "Condition": "CND", "Wish": "WSH", "LifeHistory": "LHS",
     "CareRole": "CRL", "Certificate": "CRT", "PublicAssistance": "PAS", "SupportLog": "SLG",
     "Review": "REV", "AuditLog": "AUD"
@@ -372,7 +385,7 @@
   "enumBindings": {
     "*.status": "status", "*.origin": "origin",
     "Client.birthDatePrecision": "birthDatePrecision", "Staff.role": "staffRole",
-    "Involvement.kind": "involvementKind", "Involvement.howEnded": "howEnded", "Involvement.certainty": "certainty", "Involvement.guardianshipType": "guardianshipType",
+    "Involvement.kind": "involvementKind", "Involvement.howEnded": "howEnded", "Involvement.certainty": "certainty", "Residence.certainty": "certainty", "Involvement.guardianshipType": "guardianshipType",
     "NgAction.riskLevel": "riskLevel", "CarePreference.priority": "priority", "CareRole.priority": "priority",
     "Certificate.type": "certificateType", "PublicAssistance.type": "publicAssistanceType", "SupportLog.effectiveness": "effectiveness",
     "Record.kind": "recordKind", "Record.certainty": "certainty", "Record.providerCertainty": "certainty", "Record.informantKind": "informantKind",
@@ -382,7 +395,7 @@
   },
   "types": {
     "*.registeredAt": "DateTime",
-    "Client.birthDate": "Date", "Organization.linkedAt": "DateTime", "Involvement.startDate": "Date", "Involvement.endDate": "Date",
+    "Client.birthDate": "Date", "Organization.linkedAt": "DateTime", "Residence.from": "Date", "Residence.until": "Date", "Involvement.startDate": "Date", "Involvement.endDate": "Date",
     "NgAction.validFrom": "Date", "NgAction.validTo": "Date", "CarePreference.validFrom": "Date", "CarePreference.validTo": "Date",
     "Condition.diagnosisDate": "Date", "Certificate.issuedDate": "Date", "Certificate.nextRenewalDate": "Date",
     "PublicAssistance.startDate": "Date", "PublicAssistance.endDate": "Date", "SupportLog.date": "Date",
@@ -404,6 +417,7 @@
 
 ## 変更履歴
 
+- v0.4（2026-11-05）：G-43 の河原さんの判断（§9 の 13）。`Residence`（`address`・`areaCode`・`from`・`until`・`certainty`）と `RESIDES_AT`、接頭辞 `RES`。`EVIDENCED_BY` の始点と `CONTRADICTS` の終点に Residence
 - v0.3（2026-11-05）：G-38〜G-41 の河原さんの判断（§9 の 10〜12）。ID だけの `Organization {orgId, linkedAt}`、`HAS_INVOLVEMENT` の始点に Organization、`PROVIDED_BY`（Record → Organization）。`Involvement.orgId` を外した。`involvementKind` を tsunagu-net の 8 つ ＋ 2 つに。JSON に `externalIds`。§10 に `OWNED_BY`・`WORKS_AT` を持たない理由
 - v0.2（2026-11-05）：止まる点 2 の河原さんの判断を反映（§9）。`FAMILY_OF`・`HAS_KEY_PERSON`・`INVOLVED_IN`・`RECORDED_BY` を外し、`RELATED_TO`（Person → Client）・`HAS_INVOLVEMENT`・`AUTHORED_BY`・`REVIEWED` にした。`Involvement` に `certainty`・`howEnded`（必須）、`clientRelationKind`・`certificateType`・`publicAssistanceType` の値、`guardianshipType` に `VoluntaryGuardianship`。接頭辞のつき合わせ（§3）と、tsunagu-net とそろえなかったもの（§10）を足した
 - v0.1 案（2026-11-05）：初版（N-06）。止まる点 2 の前

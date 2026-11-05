@@ -148,7 +148,7 @@ def test_empty_enum_fails(tmp_path):
 
 def test_repository_canon_loads():
     data = canon.load(SCHEMA)
-    assert data["version"] == "0.3"
+    assert data["version"] == "0.4"
 
 
 def test_repository_canon_labels():
@@ -157,7 +157,7 @@ def test_repository_canon_labels():
         "Client", "Person", "Staff", "Involvement",
         "NgAction", "CarePreference", "Condition", "Wish", "LifeHistory", "CareRole",
         "Certificate", "PublicAssistance", "SupportLog",
-        "Record", "Review", "AuditLog", "Organization",
+        "Record", "Review", "AuditLog", "Organization", "Residence",
     }
 
 
@@ -196,3 +196,14 @@ def test_repository_canon_has_no_embedding_property():
     for label, spec in data["personal"]["nodes"].items():
         for prop in spec["required"] + spec["optional"]:
             assert not prop.lower().startswith("embedding") and not prop.lower().endswith("embedding"), (label, prop)
+
+
+def test_repository_canon_residence_history():
+    """G-43（2026-11-05 河原さん）：住所は Residence（履歴。上書きしない）を本人から RESIDES_AT で結ぶ。"""
+    data = canon.load(SCHEMA)
+    res = data["personal"]["nodes"]["Residence"]
+    assert set(res["required"]) >= {"residenceId", "address", "certainty"}
+    assert set(res["optional"]) >= {"areaCode", "from", "until"}  # 昔の住所は転居の日が分からないことが多い（台帳 G-44）
+    rel = data["personal"]["relationships"]["RESIDES_AT"]
+    assert rel["from"] == ["Client"] and rel["to"] == ["Residence"]
+    assert "certainty" in data["personal"]["immutableByLabel"]["Residence"]
