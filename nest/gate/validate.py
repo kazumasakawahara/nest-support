@@ -203,6 +203,8 @@ def _check_guardianship(ck, nodes):
         p = n["properties"]
         if n["label"] == "Involvement" and "guardianshipType" in p and p.get("kind") != "Guardianship":
             ck.errors.append("ノード %s: guardianshipType は kind が Guardianship の関わりにだけ書ける（kind %r）" % (n["ref"], p.get("kind")))
+        if n["label"] == "Involvement" and "inferenceBasis" in p and p.get("certainty") != "Inference":
+            ck.errors.append("ノード %s: inferenceBasis は確度が Inference の関わりにだけ書ける（certainty %r）" % (n["ref"], p.get("certainty")))
 
 
 def _check_provided(ck, nodes, rels):

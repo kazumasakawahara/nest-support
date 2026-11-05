@@ -42,7 +42,7 @@ def test_chosen_candidate_becomes_a_pending_inference_involvement():
     assert rep["ok"], rep["errors"]
     inv = _nodes(rep, "Involvement")
     assert len(inv) == 1 and inv[0]["origin"] == "AiExtracted"
-    assert inv[0]["properties"] == {"kind": "Consultation", "howEnded": "Unknown", "certainty": "Inference"}
+    assert inv[0]["properties"] == {"kind": "Consultation", "howEnded": "Unknown", "certainty": "Inference"}  # ESTIMATE に basis が無い
     rels = {(r["type"], r["from"] if isinstance(r["from"], str) else r["from"]["id"],
              r["to"] if isinstance(r["to"], str) else r["to"]["id"]) for r in rep["request"]["relationships"]}
     ref = inv[0]["ref"]

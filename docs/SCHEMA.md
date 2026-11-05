@@ -1,6 +1,6 @@
-# nest-support スキーマ正典 — v0.5
+# nest-support スキーマ正典 — v0.6
 
-- 状態：v0.5（2026-11-05。止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43・G-44 の判断（§9 の 10〜13）を反映した）
+- 状態：v0.6（2026-11-05。関わりの種類の定義と推定の根拠を足した（§4.5、台帳 G-40・G-57）。それより前は 止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43・G-44 の判断（§9 の 10〜13）を反映した）
 - 根拠：ADR-001（承認 2026-11-05。D1〜D11。D3 は 2026-11-05 に 2 回改めた）、約束 v1.1（`~/Dev-Work/tsunagu-net/docs/contracts/nest-support-shared.md`。2026-11-05 改め。v1 は 2026-11-04 確定）
 - 扱う範囲：個人の側の DB の、ラベル・リレーション・プロパティ・列挙値の**名前と構造**、ID の形、制約。資源の側は tsunagu-net の正典を参照するだけ
 - 扱わない範囲：業務上の意味・運用の規則・列挙値の日本語の表示名（nest-support の意味の文書 `docs/SEMANTICS.md` に置く。まだ無い。ADR D1）。機械が読む JSON は N-07 で §11 に置き、この表と一致させる（N-08 の乖離の検査）
@@ -92,7 +92,7 @@
 | ラベル | プロパティ（必須は ✅） | 説明 |
 |---|---|---|
 | `Organization` | `orgId`✅, `linkedAt`✅(DateTime) | 資源の側の機関の ID を持つだけのノード（tsunagu-net と同じ形）。`orgId` で MERGE する（ID だけなので名前の一致にならない）。名前・住所・電話・種類は持たない（D3） |
-| `Involvement` | `involvementId`✅, `kind`✅(enum), `howEnded`✅(enum), `certainty`✅(enum。作った後は変えない), `startDate`(Date), `endDate`(Date), `guardianshipType`(enum。kind が Guardianship のときだけ), `serviceTypeName` | 通院先・サービスの利用・後見・行政の窓口など（tsunagu-net の `Involvement` と同じ形）。機関は `(Organization)-[:HAS_INVOLVEMENT]->` で指す。その辺が無ければ「機関未確定」（D3）。原文の機関の名前は根拠の `Record.quote` に残り、ここには写さない。医療機関は `kind: Medical` |
+| `Involvement` | `involvementId`✅, `kind`✅(enum), `howEnded`✅(enum), `certainty`✅(enum。作った後は変えない), `startDate`(Date), `endDate`(Date), `guardianshipType`(enum。kind が Guardianship のときだけ), `serviceTypeName`, `inferenceBasis`(enum。certainty が Inference のときだけ。作った後は変えない), `note` | 通院先・サービスの利用・後見・行政の窓口・勤め先など（tsunagu-net の `Involvement` と同じ形に、推定の根拠と注記を足した）。機関は `(Organization)-[:HAS_INVOLVEMENT]->` で指す。その辺が無ければ「機関未確定」（D3）。原文の機関の名前は根拠の `Record.quote` に残り、ここには写さない。医療機関は `kind: Medical` |
 
 **ケアの暗黙知と本人の事実**（どれも根拠の記録 `Record` に `EVIDENCED_BY` でつなぐ。§6）
 
@@ -166,7 +166,7 @@
 
 - 一意制約：§3 の ID のプロパティすべて（`Organization.orgId` を含む）と、`Client.displayCode`
 - RANGE 索引：`Record.sourceHash`、`Client.familyNameKana`・`Person.familyNameKana`（候補を出すため）、`Client.birthDate`
-- Community 版には存在制約が無い。必須の項目と、条件つきの必須（`RELATED_TO.rank`・`Involvement.guardianshipType`・`AuditLog.selfApproval`）はゲートで強制する
+- Community 版には存在制約が無い。必須の項目と、条件つきの必須（`RELATED_TO.rank`・`Involvement.guardianshipType`・`AuditLog.selfApproval`）と条件つきの項目（`Involvement.inferenceBasis` は Inference のときだけ）はゲートで強制する
 - ベクトル索引：作らない（D10）。全文索引：作らない（ADR 未決論点 9 が決まるまで）
 - 名前の一意制約（前の `Client.name`）は作らない（D8）
 
@@ -181,7 +181,7 @@
 | `recordKind`（tsunagu-net と同じ） | `Observation`, `Interview`, `Notification`, `MeetingMinutes`, `Plan`, `Document` |
 | `riskLevel` | `LifeThreatening`, `Panic`, `Discomfort` |
 | `clientRelationKind`（nest-support だけ） | `Parent`, `Child`, `Spouse`, `Partner`, `Sibling`, `Grandparent`, `Grandchild`, `OtherRelative`, `KeyPerson`, `PrimaryDoctor`, `Neighbor`, `Helper`, `OtherSupporter` |
-| `involvementKind` | `Consultation`, `CaseManagement`, `ServiceProvision`, `Protection`, `Education`, `Medical`, `Monitoring`, `Guardianship`（ここまで tsunagu-net と同じ 8 つ）, `Employment`, `Administrative`（この 2 つは tsunagu-net に無い。足す提案を台帳 G-40 に書いた） |
+| `involvementKind` | `Consultation`, `CaseManagement`, `ServiceProvision`, `Protection`, `Education`, `Medical`, `Monitoring`, `Guardianship`（ここまで tsunagu-net と同じ 8 つ）, `Employment`, `Administrative`（この 2 つは nest-support だけ。tsunagu-net には足さない。定義は下） |
 | `howEnded`（tsunagu-net と同じ） | `Ongoing`, `Lapsed`, `DeclinedByPerson`, `EndedByAgency`, `Unknown` |
 | `guardianshipType` | `Guardianship`, `Curatorship`, `Assistance`, `VoluntaryGuardianship`（最後の値は tsunagu-net に無い。同じ値を足す提案を台帳 G-40 に書いた） |
 | `birthDatePrecision`（tsunagu-net と同じ） | `Day`, `Month`, `Year`, `Unknown` |
@@ -193,8 +193,17 @@
 | `priority` | `High`, `Medium`, `Low` |
 | `certificateType` | `IntellectualDisabilityHandbook`, `PhysicalDisabilityHandbook`, `MentalDisabilityHandbook`, `DisabilityServiceRecipientCertificate`, `ChildDayServiceRecipientCertificate`, `SupportiveMedicalCareCertificate`, `Other` |
 | `publicAssistanceType` | `PublicAssistance`, `DisabilityBasicPension`, `DisabilityEmployeesPension`, `SpecialDisabilityAllowance`, `SpecialChildRearingAllowance`, `Other` |
+| `inferenceBasis`（nest-support だけ） | `ResidenceAreaAtTheTime`, `CurrentResidenceArea` |
 
 - `clientRelationKind` は tsunagu-net の `relatedKind`（親族の 8 つ）をそのまま頭に置き、親族でない関係を足した。名前を分けたのは、同じ名前の列挙値の中身が二つの DB で違わないようにするため
+- `involvementKind` の nest-support だけの 2 つ（2026-11-05 河原さん。台帳 G-40）：
+  - `Employment`：本人の勤め先との関わり。一般の会社での就労と、障害者雇用の枠での就労（特例子会社を含む）。勤め先は資源 DB に載らないので、約束 2 のとおり nest-support の中で持ち、資源 DB の機関 ID の形を使わない。`Organization` を作らず、勤め先の名前は根拠の `Record.quote` に残る（§3 の「資源 DB に無い機関」と同じ）
+  - 境界：就労移行支援・就労継続支援 A 型・B 型・就労定着支援・就労選択支援は障害福祉サービスで、事業所は資源 DB（WAM NET）にある。関わりは `ServiceProvision`、事業所は資源 DB の機関 ID で指す。A 型は雇用契約があるが、種類は分けず `ServiceProvision` にする。雇用契約が支援の上で大事なら、関わりの `note` に書く
+  - `Administrative`：手帳・受給者証・年金・手当などの申請・更新・決定の関係（書類を出し、窓口の側が決める関係）
+  - 同じ窓口との関わりが相談と申請の両方になるときは、関わりを二つに分ける：困りごとの相談・助言は `Consultation`、申請・更新・決定の手続きは `Administrative`。それぞれの根拠の記録に結び、一つにまとめない。どちらか分からなければ `Consultation` にし、確かめてから手続きの関わりを足す
+- `inferenceBasis`（推定の根拠。2026-11-05 河原さん。台帳 G-57）：機関を推定した関わり（`certainty: Inference`）にだけ持つ。住所そのものと区のコードは持たない。値はゲートが推定の結果から付け、案には書かせない。作った後は変えない
+  - `ResidenceAreaAtTheTime`：言及の当時の住所の区から推定した
+  - `CurrentResidenceArea`：今の住所の区から推定した（当時の住所が記録に無い、または言及の時期が分からない）
 - `certificateType`・`publicAssistanceType` の値は制度の名前から付けた英語で固定する（2026-11-05 河原さん。台帳 G-39）。日本語の表示名と根拠の条番号は `docs/SEMANTICS.md`（N-27）で持ち、この正典には書かない。条番号は e-Gov で照合するまで SEMANTICS の側に【未照合】を付ける
 
 ## 5. 資源の側
@@ -284,7 +293,8 @@
 | `HAS_INVOLVEMENT` の始点 | Organization / Supporter | Organization / Person | 個人の支援者は `Supporter` に分けず `Person` に持つ（§9 の 2） |
 | `CONCERNS` の終点 | Person / Household | Client | 本人一人が中心（ADR-001 背景）。世帯を持たない |
 | `RELATED_TO` | Person → Person、`kind`（親族 8 つ）・`certainty` | Person → Client、`kind`（`clientRelationKind`）・`certainty`・`evidenceRecordIds`・`status`・`rank`・`since`・`until` | §9 の 2・6 |
-| `involvementKind` の値 | 8 つ | 8 つ ＋ `Employment`・`Administrative` | 足した 2 つは tsunagu-net へ足す提案（台帳 G-40）。そろうまでの差 |
+| `involvementKind` の値 | 8 つ | 8 つ ＋ `Employment`・`Administrative` | nest-support だけに置く（2026-11-05 河原さん。台帳 G-40）。定義は §4.5 |
+| `Involvement.inferenceBasis`・`Involvement.note` | 無い | 任意 | 担当機関の推定の根拠を後で人が確かめられるように（台帳 G-57）。注記は雇用契約など（§4.5） |
 | `staffRole` | `Approver` がある | 無い | §9 の 8 |
 | `APPROVED.selfApproval` | 無い | 必須 | D9 |
 | `AuditLog.selfApproval` | 無い | 任意（Approve のとき） | D9 |
@@ -310,7 +320,7 @@
       "Staff":            {"required": ["staffId", "displayName", "role"], "optional": [], "unique": ["staffId"]},
       "Residence":        {"required": ["residenceId", "address", "certainty"], "optional": ["areaCode", "since", "until"], "unique": ["residenceId"]},
       "Organization":     {"required": ["orgId", "linkedAt"], "optional": [], "unique": ["orgId"]},
-      "Involvement":      {"required": ["involvementId", "kind", "howEnded", "certainty"], "optional": ["startDate", "endDate", "guardianshipType", "serviceTypeName"], "unique": ["involvementId"]},
+      "Involvement":      {"required": ["involvementId", "kind", "howEnded", "certainty"], "optional": ["startDate", "endDate", "guardianshipType", "serviceTypeName", "inferenceBasis", "note"], "unique": ["involvementId"]},
       "NgAction":         {"required": ["ngActionId", "action", "riskLevel"], "optional": ["reason", "validFrom", "validTo"], "unique": ["ngActionId"]},
       "CarePreference":   {"required": ["carePreferenceId", "category", "instruction"], "optional": ["priority", "validFrom", "validTo"], "unique": ["carePreferenceId"]},
       "Condition":        {"required": ["conditionId", "name"], "optional": ["diagnosisDate"], "unique": ["conditionId"]},
@@ -380,12 +390,13 @@
     "effectiveness": ["Effective", "Ineffective", "Neutral", "Unknown"],
     "priority": ["High", "Medium", "Low"],
     "certificateType": ["IntellectualDisabilityHandbook", "PhysicalDisabilityHandbook", "MentalDisabilityHandbook", "DisabilityServiceRecipientCertificate", "ChildDayServiceRecipientCertificate", "SupportiveMedicalCareCertificate", "Other"],
-    "publicAssistanceType": ["PublicAssistance", "DisabilityBasicPension", "DisabilityEmployeesPension", "SpecialDisabilityAllowance", "SpecialChildRearingAllowance", "Other"]
+    "publicAssistanceType": ["PublicAssistance", "DisabilityBasicPension", "DisabilityEmployeesPension", "SpecialDisabilityAllowance", "SpecialChildRearingAllowance", "Other"],
+    "inferenceBasis": ["ResidenceAreaAtTheTime", "CurrentResidenceArea"]
   },
   "enumBindings": {
     "*.status": "status", "*.origin": "origin",
     "Client.birthDatePrecision": "birthDatePrecision", "Staff.role": "staffRole",
-    "Involvement.kind": "involvementKind", "Involvement.howEnded": "howEnded", "Involvement.certainty": "certainty", "Residence.certainty": "certainty", "Involvement.guardianshipType": "guardianshipType",
+    "Involvement.kind": "involvementKind", "Involvement.howEnded": "howEnded", "Involvement.certainty": "certainty", "Residence.certainty": "certainty", "Involvement.guardianshipType": "guardianshipType", "Involvement.inferenceBasis": "inferenceBasis",
     "NgAction.riskLevel": "riskLevel", "CarePreference.priority": "priority", "CareRole.priority": "priority",
     "Certificate.type": "certificateType", "PublicAssistance.type": "publicAssistanceType", "SupportLog.effectiveness": "effectiveness",
     "Record.kind": "recordKind", "Record.certainty": "certainty", "Record.providerCertainty": "certainty", "Record.informantKind": "informantKind",
@@ -417,6 +428,7 @@
 
 ## 変更履歴
 
+- v0.6（2026-11-05）：河原さんの決定。`involvementKind` の `Employment`・`Administrative` を nest-support だけに置き、定義と境界を §4.5 に書いた（台帳 G-40 のこの部分を閉じた）。`Involvement` に `inferenceBasis`（列挙 `inferenceBasis`。Inference のときだけ）と `note` を足した（台帳 G-57・G-58）
 - v0.5（2026-11-05 追記）：参照する約束を v1.1 に改めた（2026-11-05 河原さん承認。この正典の項目は変わらない。`docs/journal/2026-11-05-contract-v1.1.md`）
 - v0.5（2026-11-05）：G-44 の河原さんの判断。`Residence.from` を `since` に改めた（tsunagu-net の `MEMBER_OF` と同じ `since`・`until`）。`since` は任意のまま
 - v0.4（2026-11-05）：G-43 の河原さんの判断（§9 の 13）。`Residence`（`address`・`areaCode`・`from`・`until`・`certainty`）と `RESIDES_AT`、接頭辞 `RES`。`EVIDENCED_BY` の始点と `CONTRADICTS` の終点に Residence

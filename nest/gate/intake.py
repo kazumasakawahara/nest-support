@@ -26,7 +26,7 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
   org_candidates.by_name で候補を出し、職員が選んだ機関 ID を provider_org_id で渡す。渡すまでは未確定で、依頼を作らない（N-24。D3）
 - 機関の名前が無い言及（「区役所の窓口で」）は involvements [{"quote", "kind", "orgId"?}] に書く（N-24a）。quote は事実の引用のどれか
   （その記録を根拠に結ぶ）。orgId は担当機関の推定（org_estimate.estimate。estimate で渡す）の候補の中からだけ。無ければ機関未確定。
-  確度は書かせず、いつも Inference・終わり方 Unknown・AI 由来（Pending）。後見は推定で作らない。推定の注記は結果の notes に載せる
+  確度は書かせず、いつも Inference・終わり方 Unknown・AI 由来（Pending）。候補から選んだら、推定の根拠（inferenceBasis）を推定の結果から付ける（案には書かせない）。後見は推定で作らない。推定の注記は結果の notes に載せる
 - 案に、上の形に無い項目があれば止める。snake_case などの別の綴りも直さない（N-15）。ゲートの検証（validate.py）も同じ考え方
 """
 import copy
@@ -40,6 +40,8 @@ DOC_KINDS = ("ProvisionDocument", "OwnCaseRecord")
 TOP_KEYS = {"documentKind", "providerName", "clientId", "receivedOn", "newPeople", "facts", "involvements"}
 INVOLVEMENT_KEYS = {"quote", "kind", "orgId"}
 SCHEMA = Path(__file__).resolve().parents[2] / "docs" / "SCHEMA.md"
+# 推定の結果の basis → 関わりの inferenceBasis（正典 v0.6。台帳 G-57）。住所も区のコードも持たない
+INFERENCE_BASIS = {"AtTheTime": "ResidenceAreaAtTheTime", "CurrentFallback": "CurrentResidenceArea"}
 FACT_KEYS = {"quote", "text", "recordKind", "certainty", "providerCertainty", "informantKind", "aboutDate", "heardOn", "toldBy"}
 PERSON_KEYS = {"ref", "familyName", "givenName", "familyNameKana", "givenNameKana"}
 REF = re.compile(r"^[a-z][a-z0-9-]*$")
@@ -192,10 +194,10 @@ def check(proposal, original, actor_staff_id, request_id, provider_org_id=None, 
             out["needsProviderChoice"] = needs_choice
         return out
     return {"ok": True, "errors": [], "warnings": warnings, "notes": notes,
-            "request": _request(p, original, actor_staff_id, request_id, provider_org_id)}
+            "request": _request(p, original, actor_staff_id, request_id, provider_org_id, estimate)}
 
 
-def _request(p, original, actor_staff_id, request_id, provider_org_id):
+def _request(p, original, actor_staff_id, request_id, provider_org_id, estimate=None):
     doc_hash = hashlib.sha256(original.encode("utf-8")).hexdigest()
     client = {"label": "Client", "id": p["clientId"]}
     staff = {"label": "Staff", "id": actor_staff_id}
@@ -234,6 +236,9 @@ def _request(p, original, actor_staff_id, request_id, provider_org_id):
         rels.append({"type": "CONCERNS", "from": ref, "to": client})
         rels.append({"type": "EVIDENCED_BY", "from": ref, "to": fact_refs[_norm(inv["quote"])]})
         if inv.get("orgId"):
+            basis = INFERENCE_BASIS.get((estimate or {}).get("basis"))
+            if basis:
+                nodes[-1]["properties"]["inferenceBasis"] = basis
             if inv["orgId"] not in orgs:
                 orgs[inv["orgId"]] = "estimated-org-%d" % n
                 nodes.append({"ref": orgs[inv["orgId"]], "label": "Organization", "origin": "AiExtracted",
