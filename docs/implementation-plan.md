@@ -31,7 +31,7 @@
 | **止まる点 2** | 正典の案（型）を河原さんに見せる。ラベル・関係の名前、D5 を広げる範囲 | | |
 | N-07 | 正典の JSON と、それを読む部品（`nest/canon.py`） | 壊れた JSON・欠けたキーで失敗する |  ✅ 2026-11-05（正典 v0.2 §11 に JSON を置いた。ブロックの数・壊れた JSON・欠けたキー・無いラベルへの関係・接頭辞の欠け・重なり・`ORG`・無い列挙値への対応で失敗する。本物の正典で、ラベル 16、約束の列挙値、`Record` の項目が tsunagu-net とそろうこと、埋め込みの項目が無いことを確かめる。`tests/test_canon.py` 30 件。全体 301 passed） |
 | N-08 | 乖離の検査（`scripts/check_drift.py`）：正典の表と JSON、のちにゲートの許す一覧と突き合わせる | 表と JSON がずれた入力で失敗する |  ✅ 2026-11-05（正典の表と JSON：§3 の接頭辞、§4.2 のノードと項目（✅＝必須）、§4.3 の始点・終点と項目、§4.5 の列挙値（順も）。節・表が見つからないとき、JSON が読めないときも失敗。読めるように §4.3 の `EVIDENCED_BY`・`CONTRADICTS` の始点・終点をラベルの並びで書き、「（…ノード）」は任意のラベルとした。本物の正典でずれ 0 件。ゲートの許す一覧との突き合わせはゲート（N-15）ができてから足す。`tests/test_check_drift.py` 15 件。全体 321 passed） |
-| N-09 | shared-schema の写しを外す：`docs/SCHEMA_CONVENTION.md`・`docs/SEMANTIC_MODEL.md` とその `.bak`、`check_semantic_drift.py` の agno・shared-schema の参照（付録の表） | 外した後に、リポジトリの中に shared-schema・`/api/narrative` への参照が残っていない検査（記録の文書は除く） | |
+| N-09 | shared-schema の写しを外す：`docs/SCHEMA_CONVENTION.md`・`docs/SEMANTIC_MODEL.md` とその `.bak`、`check_semantic_drift.py` の agno・shared-schema の参照（付録の表） | 外した後に、リポジトリの中に shared-schema・`/api/narrative` への参照が残っていない検査（記録の文書は除く） |  ✅ 2026-11-05（git から 4 件を外した。`docs/*.bak-*` 19 件は git の外なので保管の場所へ移した。参照の行は台帳 G-45。検査は、コードと設定に `shared-schema`・`/api/narrative`・`check_semantic_drift` が無いこと。文書・スキルの説明文は N-27・N-29。`tests/test_old_canon_removed.py` 3 件。全体 325 passed。**段階 B を閉じた**（2026-11-05 河原さん）） |
 
 ## 段階 C　ゲート（約束 4）
 
