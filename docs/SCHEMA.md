@@ -1,6 +1,6 @@
-# nest-support スキーマ正典 — v0.7
+# nest-support スキーマ正典 — v0.8
 
-- 状態：v0.7（2026-11-05。関わりを本人以外の人にも向けられるようにした（§4.3、台帳 G-60）。v0.6 で関わりの種類の定義と推定の根拠を足した（§4.5、台帳 G-40・G-57）。それより前は 止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43・G-44 の判断（§9 の 10〜13）を反映した）
+- 状態：v0.8（2026-11-06。任意後見・任意代理を tsunagu-net の正典 v0.31（SEMANTICS v0.32 の BRS-49）に合わせた（§4.5、台帳 G-62）。v0.7 で関わりを本人以外の人にも向けられるようにした（§4.3、台帳 G-60）。v0.6 で関わりの種類の定義と推定の根拠を足した（§4.5、台帳 G-40・G-57）。それより前は 止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43・G-44 の判断（§9 の 10〜13）を反映した）
 - 根拠：ADR-001（承認 2026-11-05。D1〜D11。D3 は 2026-11-05 に 2 回改めた）、約束 v1.1（`~/Dev-Work/tsunagu-net/docs/contracts/nest-support-shared.md`。2026-11-05 改め。v1 は 2026-11-04 確定）
 - 扱う範囲：個人の側の DB の、ラベル・リレーション・プロパティ・列挙値の**名前と構造**、ID の形、制約。資源の側は tsunagu-net の正典を参照するだけ
 - 扱わない範囲：業務上の意味・運用の規則・列挙値の日本語の表示名（nest-support の意味の文書 `docs/SEMANTICS.md` に置く。まだ無い。ADR D1）。機械が読む JSON は N-07 で §11 に置き、この表と一致させる（N-08 の乖離の検査）
@@ -183,9 +183,9 @@
 | `recordKind`（tsunagu-net と同じ） | `Observation`, `Interview`, `Notification`, `MeetingMinutes`, `Plan`, `Document` |
 | `riskLevel` | `LifeThreatening`, `Panic`, `Discomfort` |
 | `clientRelationKind`（nest-support だけ） | `Parent`, `Child`, `Spouse`, `Partner`, `Sibling`, `Grandparent`, `Grandchild`, `OtherRelative`, `KeyPerson`, `PrimaryDoctor`, `Neighbor`, `Helper`, `OtherSupporter` |
-| `involvementKind` | `Consultation`, `CaseManagement`, `ServiceProvision`, `Protection`, `Education`, `Medical`, `Monitoring`, `Guardianship`（ここまで tsunagu-net と同じ 8 つ）, `Employment`, `Administrative`（この 2 つは nest-support だけ。tsunagu-net には足さない。定義は下） |
-| `howEnded`（tsunagu-net と同じ） | `Ongoing`, `Lapsed`, `DeclinedByPerson`, `EndedByAgency`, `Unknown` |
-| `guardianshipType` | `Guardianship`, `Curatorship`, `Assistance`, `VoluntaryGuardianship`（最後の値は tsunagu-net に無い。同じ値を足す提案を台帳 G-40 に書いた） |
+| `involvementKind` | `Consultation`, `CaseManagement`, `ServiceProvision`, `Protection`, `Education`, `Medical`, `Monitoring`, `Guardianship`, `AgencyContract`（ここまで tsunagu-net と同じ 9 つ）, `Employment`, `Administrative`（この 2 つは nest-support だけ。tsunagu-net には足さない。定義は下） |
+| `howEnded`（tsunagu-net と同じ） | `Ongoing`, `Lapsed`, `DeclinedByPerson`, `EndedByAgency`, `Unknown`, `Transitioned` |
+| `guardianshipType`（tsunagu-net と同じ） | `Guardianship`, `Curatorship`, `Assistance`, `VoluntaryGuardianship`, `VoluntaryGuardianshipContracted` |
 | `birthDatePrecision`（tsunagu-net と同じ） | `Day`, `Month`, `Year`, `Unknown` |
 | `staffRole`（tsunagu-net の部分集合） | `Staff`, `Administrator` |
 | `reviewDomain` | `NgAction`, `CarePreference`, `KeyPerson`, `Guardianship`, `Certificate`, `CareRole` |
@@ -203,6 +203,13 @@
   - 境界：就労移行支援・就労継続支援 A 型・B 型・就労定着支援・就労選択支援は障害福祉サービスで、事業所は資源 DB（WAM NET）にある。関わりは `ServiceProvision`、事業所は資源 DB の機関 ID で指す。A 型は雇用契約があるが、種類は分けず `ServiceProvision` にする。雇用契約が支援の上で大事なら、関わりの `note` に書く
   - `Administrative`：手帳・受給者証・年金・手当などの申請・更新・決定の関係（書類を出し、窓口の側が決める関係）
   - 同じ窓口との関わりが相談と申請の両方になるときは、関わりを二つに分ける：困りごとの相談・助言は `Consultation`、申請・更新・決定の手続きは `Administrative`。それぞれの根拠の記録に結び、一つにまとめない。どちらか分からなければ `Consultation` にし、確かめてから手続きの関わりを足す
+- 任意後見と任意代理（2026-11-06 河原さん。台帳 G-62。tsunagu-net の BRS-49 と同じ。根拠の条は `docs/SEMANTICS.md` の SEM-GUARD-01）：
+  - `VoluntaryGuardianship`：任意後見（効力が生じた後。任意後見人）。関わりの始まり（`startDate`）は効力が生じた日：今は任意後見監督人の選任の日、令和 8 年法律第 45 号の施行の後は任意後見開始の審判の日
+  - `VoluntaryGuardianshipContracted`：任意後見受任者（任意後見契約が公正証書で結ばれ登記されているが、効力の前）。代理権は無いので `VoluntaryGuardianship` と同じ値にしない（「代わりに決められる人がいる」と読み違えない）
+  - `AgencyContract`（関わりの種類）：委任契約による任意代理（財産管理契約・見守り契約などで代理権を与えるもの）。後見の類型は持たない（`guardianshipType` は `kind: Guardianship` だけ）。社協の日常生活自立支援事業はサービスの利用の契約なので `ServiceProvision`
+  - 任意代理と任意後見を一緒に結んだ形は、同じ受任者から二つの関わり（`AgencyContract` と `VoluntaryGuardianshipContracted`）で持つ。効力が生じたら、この二つは `howEnded: Transitioned` で終え、`VoluntaryGuardianship` の関わりを新しく作る。`Transitioned` はこの二つの関わりにだけ書ける（ゲートが止める）
+  - 関わりの始点は、受任者・任意後見人が個人なら `Person`、法人なら `Organization`（§4.3 の `HAS_INVOLVEMENT`）
+  - 令和 8 年法律第 45 号の施行の後、後見（`Guardianship`）・保佐（`Curatorship`）は新しく使わない。施行日前に始まった後見・保佐は施行の後も残るので、値は消さない。ゲートで新しい後見・保佐を止めるのは、施行日を定める政令が出て条を照合してから（今は止めない）
 - `inferenceBasis`（推定の根拠。2026-11-05 河原さん。台帳 G-57）：機関を推定した関わり（`certainty: Inference`）にだけ持つ。住所そのものと区のコードは持たない。値はゲートが推定の結果から付け、案には書かせない。作った後は変えない
   - `ResidenceAreaAtTheTime`：言及の当時の住所の区から推定した
   - `CurrentResidenceArea`：今の住所の区から推定した（当時の住所が記録に無い、または言及の時期が分からない）
@@ -301,7 +308,7 @@
 | `APPROVED.selfApproval` | 無い | 必須 | D9 |
 | `AuditLog.selfApproval` | 無い | 任意（Approve のとき） | D9 |
 | `Person` のプロパティ | `birthDate`・`recordedSex`・`nameConsentAt` など | `phone`・`note` | 本人は `Client`。周りの人には連絡先が要り、生年月日は要らない |
-| `guardianshipType` | 3 値 | 4 値（`VoluntaryGuardianship`） | §9 の 7 |
+| `guardianshipType` | 5 値 | 5 値（同じ） | v0.8 で tsunagu-net の v0.31 に合わせた（台帳 G-62）。前は §9 の 7 で nest-support だけ 4 値 |
 
 ## 11. 機械検証ブロック
 
@@ -381,9 +388,9 @@
     "recordKind": ["Observation", "Interview", "Notification", "MeetingMinutes", "Plan", "Document"],
     "riskLevel": ["LifeThreatening", "Panic", "Discomfort"],
     "clientRelationKind": ["Parent", "Child", "Spouse", "Partner", "Sibling", "Grandparent", "Grandchild", "OtherRelative", "KeyPerson", "PrimaryDoctor", "Neighbor", "Helper", "OtherSupporter"],
-    "involvementKind": ["Consultation", "CaseManagement", "ServiceProvision", "Protection", "Education", "Medical", "Monitoring", "Guardianship", "Employment", "Administrative"],
-    "howEnded": ["Ongoing", "Lapsed", "DeclinedByPerson", "EndedByAgency", "Unknown"],
-    "guardianshipType": ["Guardianship", "Curatorship", "Assistance", "VoluntaryGuardianship"],
+    "involvementKind": ["Consultation", "CaseManagement", "ServiceProvision", "Protection", "Education", "Medical", "Monitoring", "Guardianship", "AgencyContract", "Employment", "Administrative"],
+    "howEnded": ["Ongoing", "Lapsed", "DeclinedByPerson", "EndedByAgency", "Unknown", "Transitioned"],
+    "guardianshipType": ["Guardianship", "Curatorship", "Assistance", "VoluntaryGuardianship", "VoluntaryGuardianshipContracted"],
     "birthDatePrecision": ["Day", "Month", "Year", "Unknown"],
     "staffRole": ["Staff", "Administrator"],
     "reviewDomain": ["NgAction", "CarePreference", "KeyPerson", "Guardianship", "Certificate", "CareRole"],
@@ -430,6 +437,7 @@
 
 ## 変更履歴
 
+- v0.8（2026-11-06）：河原さんの決定（台帳 G-62）。任意後見・任意代理を tsunagu-net の正典 v0.31（BRS-49）に合わせた：`guardianshipType` に `VoluntaryGuardianshipContracted`、`involvementKind` に `AgencyContract`、`howEnded` に `Transitioned` を足し、`VoluntaryGuardianship` の始まりを定めた（§4.5）。`Transitioned` の書ける先をゲートで確かめる
 - v0.7（2026-11-05）：河原さんの決定（台帳 G-60 の案 (a)）。`CONCERNS` の終点に `Person` を足した（tsunagu-net と同じ向き）。本人以外の人の関わりは根拠の記録を必ず付けて `Pending`、住所からの推定では作らない（§4.3）
 - v0.6（2026-11-05）：河原さんの決定。`involvementKind` の `Employment`・`Administrative` を nest-support だけに置き、定義と境界を §4.5 に書いた（台帳 G-40 のこの部分を閉じた）。`Involvement` に `inferenceBasis`（列挙 `inferenceBasis`。Inference のときだけ）と `note` を足した（台帳 G-57・G-58）
 - v0.5（2026-11-05 追記）：参照する約束を v1.1 に改めた（2026-11-05 河原さん承認。この正典の項目は変わらない。`docs/journal/2026-11-05-contract-v1.1.md`）
