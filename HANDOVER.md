@@ -7,7 +7,7 @@
 
 ```bash
 cd ~/Dev-Work/project/nest-support && git switch redesign/adr-001
-uv run pytest -q                       # 750 passed, 83 skipped（DB を使う試験は skip）
+uv run pytest -q                       # 749 passed, 84 skipped（DB を使う試験は skip）
 uv run python scripts/check_drift.py   # ずれ 0 件
 ```
 
@@ -74,7 +74,7 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 - 条番号は e-Gov で照合してから書く。照合できないものは【未照合】
 - rtk の hook が Bash の出力を切り詰める。長い出力・JSON・日本語を含む処理は Python のスクリプトにして流す
 - 前の DB を指すコードの残り（G-49）：`lib/db_operations.py`・`sos/api_server.py`・`scripts/doctor.sh`・`scripts/rotate_password.py`・`setup.sh`・`installer/*`・`claude-skills/ecomap-generator/scripts/generate_mermaid.py`。消した script の名前を書いた文書（`CLAUDE.md`・`docs/PRIVACY_GUIDELINES.md`）は N-29
-- 試験の数の目安：DB なし 750 passed・83 skipped、DB つき 833 passed（2026-11-06 止まる点 E-1）
+- 試験の数の目安：DB なし 749 passed・84 skipped、DB つき 833 passed（2026-11-06 止まる点 E-1）
 - 段階 E の止まる点は E-1（N-27 の後）・E-2（N-28 の後）・E-3（N-30 の後）。計画の表にある
 - 読み取りの包みは、実名・住所などの項目の名前を部分の一致で拒否する。正典の `ADDRESSES` も拒否される（台帳 G-64。決まるまでスキルで使わない）
 
