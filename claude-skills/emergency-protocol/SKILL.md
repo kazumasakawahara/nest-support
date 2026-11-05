@@ -1,468 +1,113 @@
 ---
 name: emergency-protocol
-description: 緊急時対応プロトコル。クライアントの安全に関わる情報を優先順位付きで取得し、二次被害を防止する。禁忌事項→推奨ケア→緊急連絡先→かかりつけ医→法的代理人の順で情報を提示。
+description: 緊急時対応プロトコル。本人（仮名 displayCode、例 C-7K3M9Q）の安全に関わる情報を、禁忌 → 推奨ケア → 支える人 → 医療 → 法的な代理 の順で個人の側の DB から読み、二次被害を防ぐ。「パニック」「自傷」「事故」「急病」「けが」「救急」「発作」「倒れた」「助けて」などの緊急の言葉、「C-… さんの緊急情報」「してはいけないことは？」で使う。読むだけ。
 ---
 
-# 緊急時対応プロトコル (emergency-protocol)
+# emergency-protocol：緊急時対応
 
-> **正本参照ルール（2026-07-12 追記・検収指摘対応）**: 業務的意味・運用原則・
-> 指標の解釈は、まず `docs/SEMANTIC_MODEL.md` を読むこと（プロジェクト内は
-> 同期コピー。正は `~/Dev-Work/shared-schema/SEMANTIC_MODEL.md`。特に BRS-01
-> 提示順・BRS-03 embedding 信頼ルール）。リレーション名・列挙値・命名は
-> `docs/SCHEMA_CONVENTION.md` が正。本スキルは索引に徹し、定義を二重化しない。
+## 最重要
 
-## ★ 最重要: このスキルについて
+人命に関わる情報を扱う。**禁忌を最初に出さないと二次被害のおそれがある**（計画 N-27c）。
 
-このスキルは**人命に関わる情報**を扱います。緊急時に支援者が迷わず適切な対応を取れるよう、
-Safety Firstプロトコルに基づき**厳格な優先順位**で情報を提示します。
+- **読むだけ。** 緊急時に書き込みはしない
+- 本人は仮名（`displayCode`）で呼ぶ。名前は受け取らない（SEMANTICS SEM-REC-02）。仮名が分からなければ、職員に仮名を確かめてもらう（名前で探さない）
+- 道具は MCP `nest-personal` の `read_personal_cypher`（機関の名前は `nest-resource` の `read_resource_cypher`）
+- **包みは実名・電話・住所・生年月日を返さない。** 連絡先の電話番号、救急隊に伝える氏名・住所・年齢は、Claude からは出せない。手元の緊急連絡カード・事業所の連絡網・SOS の仕組み（`sos/`）で確かめるよう、出力の頭に書く
 
-**絶対原則**: 禁忌事項（NgAction）を最初に表示しないと**二次被害のリスク**があります。
+## 出す順（変えない）
 
----
+1. 🚫 禁忌（生命に関わる → パニックを招く → 不快・ストレス）
+2. ✅ 推奨ケア（その場を落ち着かせる）
+3. 📞 支える人（キーパーソンを先に、`rank` の順。続柄だけ。電話は連絡網で）
+4. 🏥 医療（医療の関わりの機関、主治医の続柄の人）
+5. ⚖️ 法的な代理（後見・保佐・補助・任意後見、任意代理）
 
-## トリガー条件
+## 安全の決まり
 
-以下のいずれかに該当する場合、**即座に**このスキルを起動すること:
+1. **状況で絞る**：職員が状況（パニック・食事・入浴など）を言ったら、照会 1 の `$situation` に入れる。絞って 0 件なら、絞らずに全部出す（安全のため）
+2. **未確定**（`Pending`）の禁忌も出す。「未確定」と添える
+3. **禁忌が 0 件のとき「なし」と言わない**：禁忌の確認（`Review`、領域 `NgAction`）が無ければ「🚨 禁忌は未確認。登録が無いだけで、禁忌が無いとは確かめられていない。慎重に動き、キーパーソンに確かめる」と出す。確認があれば「✅ 確認済み（0 件）— 確認の日・情報源」。「禁忌なし」「登録なし」「特にありません」と書かない
+4. 確度は根拠の記録の確度を添える（表示名は `docs/SEMANTICS.md` SEM-ENUM-01）。食い違い（解決していない `CONTRADICTS`）があれば「食い違いあり」と添える
+5. 「後見の関わりが 0 件」も、確認（領域 `Guardianship`）が無ければ「未確認」と出す
 
-### 緊急ワード（即時起動）
-- パニック、自傷、事故、急病、けが、救急、緊急、発作
-- 倒れた、暴れている、出血、呼吸、意識がない
-- 「どうすればいい」「助けて」
+## 照会
 
-### insight-agent からの自動連動（即時起動）
-- `generate_risk_assessment()` が `risk_level: "high"` を返した場合
-- `should_trigger_emergency: true` の場合
-- **この場合、レポート冒頭に以下を表示:**
+### 1. 緊急時の一括（禁忌・推奨ケア。状況で絞る）
 
-```
-🚨 インサイト・エージェントからの自動アラート
-リスクレベル「高」が検知されました。以下の緊急情報を確認してください。
-検知内容: [emotion_drift / cascading_risk の概要]
-```
-
-### 通常の緊急情報照会
-- 「〇〇さんの緊急情報を見せて」
-- 「〇〇さんの禁忌事項は？」
-- 「〇〇さんにしてはいけないことは？」
-- 「緊急連絡先を教えて」
-
----
-
-## 安全ルール（厳守）
-
-### ルール1: 情報提示の優先順位（絶対遵守）
-
-情報は**必ず以下の順序で提示**する。順序の変更は禁止。
-
-```
-1. 🚫 禁忌事項（NgAction）       ← 二次被害防止のため最優先
-2. ✅ 推奨ケア（CarePreference）  ← その場を落ち着かせるため
-3. 📞 緊急連絡先（KeyPerson）     ← ランク順に連絡
-4. 🏥 かかりつけ医（Hospital）    ← 医療が必要な場合
-5. ⚖️ 法的代理人（Guardian）      ← 医療同意等が必要な場合
-```
-
-### ルール2: 禁忌事項のリスクレベル表示
-
-NgActionには3段階のリスクレベルがあり、以下の順で表示する:
-
-| レベル | 意味 | 表示 |
-|--------|------|------|
-| `LifeThreatening` | 命に関わる | ⚠️🔴 **最優先** |
-| `Panic` | パニック誘発 | ⚠️🟡 **要注意** |
-| `Discomfort` | 不快・ストレス | ⚠️🟢 **配慮必要** |
-
-### ルール3: 状況フィルタリング
-
-ユーザーが状況キーワード（パニック、食事、入浴等）を指定した場合:
-- NgActionの`action`フィールドで関連するものをフィルタリング
-- CarePreferenceの`category`フィールドで関連するものをフィルタリング
-- **フィルタしてもヒットがない場合は全件表示**する（安全のため）
-
-### ルール4: 年齢計算
-
-生年月日（dob）が取得できた場合、必ず現在の年齢を計算して併記する。
-例: `1995-04-15（30歳）`
-
-### ルール5: 読み取り専用
-
-このスキルは**読み取り専用**。緊急時にデータの書き込みは行わない。
-すべてのクエリは `neo4j:execute_query`（読み取り）を使用する。
-
-### ルール6: 禁忌0件を「登録なし（だから安全）」と言わない（BRS-12） ★人命に直結★
-
-**禁忌0件には二つの意味がある——「確認したうえで無い」と「まだ聞き取れていない」。**
-緊急時にこの二つを混同することは、**未聴取を「安全確認済み」と偽って支援者に伝える**ことに等しい。
-支援者はそれを読んで行動する。アレルギーが未登録なだけの人に、「禁忌なし」を根拠に
-食品を提供する事態が起き得る。
-
-判定には **Review（確認記録）** を使う（テンプレート1・2 に含まれている）。
-
-| 状態 | 緊急時の表示 |
-|---|---|
-| 禁忌あり | 通常どおり riskLevel 順に提示 |
-| 禁忌0件・Review **なし** | **🚨 禁忌未確認——登録が無いだけで、禁忌が無いとは確認されていません。慎重に行動し、キーパーソンに確認してください** |
-| 禁忌0件・Review **あり** | ✅ 禁忌なし（2026-03-10、母親に確認済み） |
-
-**禁止表現**（Review が無い0件に対して）:
-「禁忌事項: 登録なし」「禁忌なし」「特にありません」——いずれも**使用禁止**。
-
-> 根拠: SEMANTIC_MODEL BRS-12 / BRS-04 / ENT-24（2026-07-12 河原氏決定）
-> このルールは、旧版の「禁忌0件も『登録なし』と明示する（確認済みであることを示す）」
-> という記述を**否定して置き換えるもの**である（旧記述は未聴取を確認済みと偽る危険な規定だった）。
-
----
-
-## 使用するMCPツール
-
-| ツール | 用途 |
-|--------|------|
-| `neo4j:execute_query` | すべての読み取りクエリに使用 |
-
-**注意**: このスキルは緊急時の安全情報を**読み取るだけ**で、`execute_query` による書き込み（CREATE/MERGE/SET/DELETE）は**使用禁止**。
-
----
-
-## Cypherテンプレート集
-
-### テンプレート1: 緊急時一括取得（推奨）
-
-最も効率的な方法。1つのクエリで全情報を取得する。
+`$situation` は状況の言葉（無ければ空の文字列 `''`）。
 
 ```cypher
-MATCH (c:Client)
-WHERE c.name CONTAINS $clientName
-OPTIONAL MATCH (c)-[:MUST_AVOID|PROHIBITED]->(ng:NgAction)
-OPTIONAL MATCH (ng)-[:IN_CONTEXT|RELATES_TO]->(ngCond:Condition)
-WITH c, collect(DISTINCT {
-    action: ng.action,
-    reason: ng.reason,
-    riskLevel: ng.riskLevel,
-    context: ngCond.name
-}) AS ngActions
-
-OPTIONAL MATCH (c)-[:REQUIRES|PREFERS]->(cp:CarePreference)
-OPTIONAL MATCH (cp)-[:ADDRESSES]->(cpCond:Condition)
-WITH c, ngActions, collect(DISTINCT {
-    category: cp.category,
-    instruction: cp.instruction,
-    priority: cp.priority,
-    forCondition: cpCond.name
-}) AS carePrefs
-
-OPTIONAL MATCH (c)-[kpRel:HAS_KEY_PERSON|EMERGENCY_CONTACT]->(kp:KeyPerson)
-WITH c, ngActions, carePrefs, collect(DISTINCT {
-    rank: kpRel.rank,
-    name: kp.name,
-    relationship: kp.relationship,
-    phone: kp.phone,
-    role: kp.role
-}) AS keyPersons
-
-OPTIONAL MATCH (c)-[:TREATED_AT]->(h:Hospital)
-WITH c, ngActions, carePrefs, keyPersons, collect(DISTINCT {
-    name: h.name,
-    specialty: h.specialty,
-    phone: h.phone,
-    doctor: coalesce([(h)-[:HAS_DOCTOR]->(hd:Doctor) | hd.name][0], h.doctor)
-}) AS hospitals
-
-OPTIONAL MATCH (c)-[:HAS_LEGAL_REP|HAS_GUARDIAN]->(g:Guardian)
-
-// 確認記録（Review）—— 禁忌0件の意味を判定するために必須（BRS-12 / ルール6）
-OPTIONAL MATCH (rvNg:Review {domain: 'NgAction'})-[:ABOUT]->(c)
-
-RETURN
-    c.name AS clientName,
-    c.dob AS dob,
-    c.bloodType AS bloodType,
-    ngActions,
-    carePrefs,
-    keyPersons,
-    hospitals,
-    max(rvNg.reviewedAt)          AS ngReviewedAt,
-    collect(DISTINCT rvNg.source) AS ngReviewSources,
-    collect(DISTINCT {
-        name: g.name,
-        type: g.type,
-        phone: g.phone,
-        organization: g.organization
-    }) AS guardians
+MATCH (c:Client {displayCode: $code})
+OPTIONAL MATCH (c)-[:MUST_AVOID]->(n:NgAction)
+  WHERE n.status IN ['Active', 'Pending'] AND ($situation = '' OR n.action CONTAINS $situation OR n.reason CONTAINS $situation)
+OPTIONAL MATCH (n)-[:EVIDENCED_BY]->(nr:Record)
+OPTIONAL MATCH (x:Record)-[k:CONTRADICTS]->(n) WHERE k.resolvedAt IS NULL
+WITH c, n, collect(DISTINCT nr.certainty) AS ngEvidence, count(DISTINCT k) AS ngOpen
+WITH c, collect(CASE WHEN n IS NULL THEN NULL ELSE {action: n.action, riskLevel: n.riskLevel, reason: n.reason,
+       status: n.status, evidence: ngEvidence, openContradictions: ngOpen} END) AS ngActions
+OPTIONAL MATCH (c)-[:REQUIRES]->(p:CarePreference)
+  WHERE p.status IN ['Active', 'Pending'] AND ($situation = '' OR p.category CONTAINS $situation OR p.instruction CONTAINS $situation)
+RETURN c.bloodType AS bloodType, ngActions,
+       collect(CASE WHEN p IS NULL THEN NULL ELSE {category: p.category, instruction: p.instruction, priority: p.priority,
+       status: p.status} END) AS carePreferences
 ```
 
-**パラメータ**: `$clientName` — クライアント名（部分一致）
+`ngActions` を `riskLevel` の順（生命に関わる → パニックを招く → 不快・ストレス）に並べ替えて出す。
 
-> `ngActions` が空の場合は、`ngReviewedAt` を見て**ルール6 のとおり表示を分ける**。
-> `ngReviewedAt` が null なら「🚨 禁忌未確認」。「登録なし」とは書かない。
-
-### テンプレート2: 禁忌事項のみ取得（最速）
-
-緊急度が最も高い場合に使用。禁忌事項だけを即座に取得する。
-
-> **注意**: `MATCH (c)-[:MUST_AVOID]->(ng)` だけだと、**禁忌0件の人は行が返らない**。
-> 「0件なのか、人違いなのか」も区別できないため、**Client を起点に OPTIONAL MATCH する**。
+### 2. 支える人・医療・法的な代理
 
 ```cypher
-MATCH (c:Client)
-WHERE c.name CONTAINS $clientName
-OPTIONAL MATCH (c)-[:MUST_AVOID|PROHIBITED]->(ng:NgAction)
-OPTIONAL MATCH (ng)-[:IN_CONTEXT|RELATES_TO]->(cond:Condition)
-OPTIONAL MATCH (rv:Review {domain: 'NgAction'})-[:ABOUT]->(c)
-RETURN
-    c.name AS clientName,
-    collect(DISTINCT {
-        action: ng.action,
-        reason: ng.reason,
-        riskLevel: ng.riskLevel,
-        relatedCondition: cond.name
-    }) AS ngActions,
-    count(DISTINCT ng)            AS ngCount,
-    max(rv.reviewedAt)            AS ngReviewedAt,
-    collect(DISTINCT rv.source)   AS ngReviewSources
+MATCH (c:Client {displayCode: $code})
+OPTIONAL MATCH (p:Person)-[rt:RELATED_TO]->(c)
+  WHERE rt.status IN ['Active', 'Pending'] AND rt.until IS NULL
+WITH c, p, rt ORDER BY CASE rt.kind WHEN 'KeyPerson' THEN 0 WHEN 'PrimaryDoctor' THEN 2 ELSE 1 END, rt.rank
+WITH c, collect(CASE WHEN p IS NULL THEN NULL ELSE {personId: p.personId, kind: rt.kind, rank: rt.rank,
+       status: rt.status} END) AS people
+OPTIONAL MATCH (i:Involvement)-[:CONCERNS]->(c)
+  WHERE i.status IN ['Active', 'Pending'] AND i.howEnded IN ['Ongoing', 'Unknown']
+    AND i.kind IN ['Medical', 'Guardianship', 'AgencyContract']
+OPTIONAL MATCH (o:Organization)-[:HAS_INVOLVEMENT]->(i)
+OPTIONAL MATCH (q:Person)-[:HAS_INVOLVEMENT]->(i)
+RETURN people, collect(CASE WHEN i IS NULL THEN NULL ELSE {kind: i.kind, guardianshipType: i.guardianshipType,
+       service: i.serviceTypeName, orgId: o.orgId, personId: q.personId, status: i.status} END) AS involvements
 ```
 
-**提示順**: `riskLevel` を LifeThreatening → Panic → Discomfort の順に並べ直す（ルール2）。
+機関の名前：
 
-**`ngCount` が 0 のとき**（ルール6）:
-- `ngReviewedAt` が null → **🚨 禁忌未確認。「禁忌なし」とは絶対に言わない**
-- `ngReviewedAt` あり → ✅ 禁忌なし（確認日と情報源を併記）
+```cypher-resource
+MATCH (o:Organization)
+WHERE o.orgId IN $orgIds
+RETURN o.orgId AS orgId, o.name AS name, o.kind AS kind
+```
 
-### テンプレート3: 状況別フィルタ付き取得
-
-特定の状況（パニック、食事、入浴等）に関連する情報のみ取得。
+### 3. 確認の状況（0 件のとき）
 
 ```cypher
-MATCH (c:Client)
-WHERE c.name CONTAINS $clientName
-
-// 状況に関連する禁忌事項
-OPTIONAL MATCH (c)-[:MUST_AVOID|PROHIBITED]->(ng:NgAction)
-WHERE ng.action CONTAINS $situation OR ng.reason CONTAINS $situation
-OPTIONAL MATCH (ng)-[:IN_CONTEXT|RELATES_TO]->(ngCond:Condition)
-WITH c, collect(DISTINCT {
-    action: ng.action,
-    reason: ng.reason,
-    riskLevel: ng.riskLevel,
-    context: ngCond.name
-}) AS ngActions
-
-// 状況に関連する推奨ケア
-OPTIONAL MATCH (c)-[:REQUIRES|PREFERS]->(cp:CarePreference)
-WHERE cp.category CONTAINS $situation OR cp.instruction CONTAINS $situation
-WITH c, ngActions, collect(DISTINCT {
-    category: cp.category,
-    instruction: cp.instruction,
-    priority: cp.priority
-}) AS carePrefs
-
-// 緊急連絡先（常に全件取得）
-OPTIONAL MATCH (c)-[kpRel:HAS_KEY_PERSON|EMERGENCY_CONTACT]->(kp:KeyPerson)
-WITH c, ngActions, carePrefs, collect(DISTINCT {
-    rank: kpRel.rank,
-    name: kp.name,
-    relationship: kp.relationship,
-    phone: kp.phone
-}) AS keyPersons
-
-RETURN
-    c.name AS clientName,
-    c.dob AS dob,
-    c.bloodType AS bloodType,
-    ngActions,
-    carePrefs,
-    keyPersons
+MATCH (v:Review)-[:ABOUT]->(c:Client {displayCode: $code})
+WHERE v.status = 'Active' AND v.domain IN ['NgAction', 'CarePreference', 'KeyPerson', 'Guardianship']
+RETURN v.domain AS domain, max(v.reviewedAt) AS lastReviewedAt, collect(DISTINCT v.informantKind) AS informantKinds
 ```
 
-**パラメータ**: `$clientName`, `$situation`
+## 出力の形
 
-### テンプレート4: 緊急連絡先のみ取得
+```text
+⚠️ 緊急対応情報：C-……（血液型：……。記録があるときだけ）
+※ 氏名・住所・年齢・電話番号は Claude からは出せない。緊急連絡カード・連絡網・SOS で確かめる
 
-連絡先だけが必要な場合。
+🚫 1. 禁忌（絶対にしないこと）
+⚠️🔴【生命に関わる】……（確度・未確定・食い違い）
+⚠️🟡【パニックを招く】……
+⚠️🟢【不快・ストレス】……
+（0 件の扱いは「安全の決まり」3）
 
-```cypher
-MATCH (c:Client)-[r:HAS_KEY_PERSON|EMERGENCY_CONTACT]->(kp:KeyPerson)
-WHERE c.name CONTAINS $clientName
-RETURN
-    kp.name AS name,
-    kp.relationship AS relationship,
-    kp.phone AS phone,
-    kp.role AS role,
-    r.rank AS rank
-ORDER BY r.rank
-```
-
----
-
-## 出力フォーマット
-
-### 緊急時の出力テンプレート
-
-クエリ結果を取得したら、以下の形式で整形して提示する:
-
-```
-⚠️ 緊急対応情報: 【クライアント名】
-生年月日: YYYY-MM-DD（XX歳） / 血液型: X型
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚫 1. 禁忌事項（絶対にしないこと）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️🔴 【LifeThreatening】...
-⚠️🟡 【Panic】...
-⚠️🟢 【Discomfort】...
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✅ 2. 推奨ケア（こうすると落ち着く）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[カテゴリ] 手順...
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📞 3. 緊急連絡先
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1位: 名前（続柄）TEL: XXX-XXXX-XXXX
-2位: 名前（続柄）TEL: XXX-XXXX-XXXX
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏥 4. かかりつけ医
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-病院名 / 診療科 / 担当医 / TEL: XXX-XXXX-XXXX
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚖️ 5. 法的代理人
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-名前 / 種別 / TEL: XXX-XXXX-XXXX
+📞 3. 支える人（キーパーソン → 家族ほか。続柄と順位だけ）
+🏥 4. 医療（機関の名前・主治医の続柄の人）
+⚖️ 5. 法的な代理（類型・機関の名前。0 件で確認が無ければ「未確認」）
 ```
 
-### データが空の場合の処理
+救急隊に伝えるときは、禁忌のうち医療の処置に関わるもの（生命に関わる禁忌）と、医療の機関を先に短くまとめる。
 
-各セクションでデータが空（`null`値のみ）の場合:
-- 空のエントリを除外する（`action`や`name`が`null`のレコードは表示しない）
-- 連絡先・医療機関・法的代理人が0件なら「登録されていません」と表示する
+## 関連スキル
 
-**禁忌事項（NgAction）が0件の場合は、ルール6（BRS-12）に従うこと**——
-確認記録（Review）の有無で表示を分ける:
-
-```
-【Review なし】
-🚨 禁忌事項: 未確認
-   登録が無いだけで、禁忌が無いとは確認されていません。
-   慎重に行動し、キーパーソン（下記）に確認してください。
-
-【Review あり】
-✅ 禁忌事項: なし（2026-03-10、母親に確認済み）
-```
-
-> **旧規定は廃止**（2026-07-12）: 旧版は「禁忌事項が0件の場合も『禁忌事項: 登録なし』と
-> 明示する（確認済みであることを示す）」と規定していたが、これは**未聴取を
-> 確認済みと偽る危険な規定**であり、BRS-04（No Fabrication）違反だった。
-> Review（ENT-24）の新設により、本当に確認済みのときだけ「なし」と言えるようになった。
-
----
-
-## 典型的な使用シナリオ
-
-### シナリオ1: パニック発生
-
-```
-ユーザー: 「山田健太さんがパニックを起こしています！」
-
-手順:
-1. テンプレート3（状況別フィルタ）を使用
-   → $clientName = "山田健太", $situation = "パニック"
-2. フィルタ結果が0件の場合 → テンプレート1（全件取得）にフォールバック
-3. 出力フォーマットに従い、禁忌事項から順に提示
-```
-
-### シナリオ2: 初めて担当するクライアント
-
-```
-ユーザー: 「佐藤花子さんの緊急情報を確認したい」
-
-手順:
-1. テンプレート1（一括取得）を使用
-   → $clientName = "佐藤花子"
-2. 全情報を出力フォーマットに従い提示
-```
-
-### シナリオ3: 救急隊への情報提供
-
-```
-ユーザー: 「山田健太さんの情報を救急隊に伝えたい」
-
-手順:
-1. テンプレート1（一括取得）を使用
-2. 以下を簡潔にまとめて提示:
-   - 氏名、年齢、血液型
-   - 禁忌事項（医療処置に影響するもの）
-   - かかりつけ医
-   - 緊急連絡先（第1位）
-```
-
-### シナリオ4: クライアントが見つからない場合
-
-```
-クエリ結果が0件の場合:
-1. 「該当するクライアントが見つかりませんでした」と通知
-2. list_clients相当のクエリで候補を提示:
-
-MATCH (c:Client)
-RETURN c.name AS name
-ORDER BY c.name
-
-3. 「もしかして: 〇〇さん？」と候補を提示
-```
-
----
-
-## 関連スキルとの連携
-
-| スキル | 連携タイミング |
-|--------|---------------|
-| `insight-agent` | **リスク「高」判定時に本スキルを自動起動** |
-| `neo4j-support-db` | 緊急対応後の支援記録追加 |
-| `ecomap-generator` | 支援ネットワーク図の生成 |
-| `resilience-checker` | 親なき後のバックアップ体制確認 |
-
-### insight-agent 連動時の追加アクション
-
-`insight-agent` の `generate_risk_assessment()` から連動された場合、通常の緊急情報提示に加えて:
-
-1. **推奨アクション（recommended_actions）を提示**: リスク評価結果に含まれる具体的な対応指示
-2. **感情トレンド情報の付記**: どのタグ・どの感情が悪化しているかの概要
-3. **成功パターンの提案**: 発見された効果的なケアパターンがあれば併記
-
----
-
-## データモデル参照
-
-### 関連ノード
-
-| ノード | 役割 | 主要プロパティ |
-|--------|------|----------------|
-| `Client` | 本人 | name, dob, bloodType |
-| `NgAction` | 禁忌事項 | action, reason, riskLevel |
-| `CarePreference` | 推奨ケア | category, instruction, priority |
-| `KeyPerson` | 緊急連絡先 | name, relationship, phone, role |
-| `Hospital` | かかりつけ医 | name, specialty, doctor, phone |
-| `Guardian` | 法的代理人 | name, type, phone, organization |
-| `Condition` | 特性・診断 | name, status |
-
-### 関連リレーション
-
-| リレーション | 方向 | 備考 |
-|-------------|------|------|
-| `MUST_AVOID` | Client → NgAction | **正式名**（書き込み時はこちらを使用） |
-| ~~`PROHIBITED`~~ | Client → NgAction | **廃止**（読み取り時のみ後方互換で対応） |
-| `REQUIRES` | Client → CarePreference | **正式名**（書き込み時はこちらを使用） |
-| ~~`PREFERS`~~ | Client → CarePreference | **廃止**（読み取り時のみ後方互換で対応） |
-| `HAS_KEY_PERSON` | Client → KeyPerson | rankプロパティで優先順位 |
-| `TREATED_AT` | Client → Hospital | — |
-| `HAS_LEGAL_REP` | Client → Guardian | — |
-| `IN_CONTEXT` | NgAction → Condition | **正式名**。禁忌の文脈（関連特性） |
-| ~~`RELATES_TO`~~ | NgAction → Condition | **廃止**（読み取り時のみ後方互換で対応） |
-| `ADDRESSES` | CarePreference → Condition | ケアの対象特性 |
-
----
-
-## バージョン
-
-- v1.0.0 (2026-02-12) - 初版: server.py の search_emergency_info から移行
+`neo4j-support-db`（詳しい照会）、`visit-prep`、`insight-agent`（予兆の分析。リスクが高いと出たら、このスキルの照会 1 を先に流す）
