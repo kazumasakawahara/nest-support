@@ -1,18 +1,15 @@
 """
-多機能インポーター (Multi-Source Importer)
+多機能インポーター (Multi-Source Importer) — 文字の取り出しだけ
 
-音声（MeetingRecord）、手書きメモ画像、PDF、テキストファイルから
-「感情の揺れ」を含む構造化データを抽出し、Neo4j に一括登録するスクリプト。
+音声・手書きメモ画像・PDF・Word・Excel・テキストから文字を取り出して出力する。
+DB には書かない。構造化（書き込みの案）は Claude（docs/external-api.md NEXT-01）と
+ゲートの経路で行う（ADR-001 D6・D11-1。Gemini による構造化は N-05 で外した）。
 
-前提条件:
-    - GEMINI_API_KEY 環境変数が設定されていること（.env ファイル or export）
-      → Gemini 生成モデル（既定 gemini-2.5-pro）による音声文字起こし・画像OCR・テキスト構造化に必須
-    - Neo4j が起動していること（docker compose up -d）
+音声の文字起こし・画像の OCR は Gemini に送る（NEXT-03・NEXT-04）。機能の設定と契約の確認の
+記録がそろわなければ送らず、その文書は「取り出せない」になる。鍵の有無は送る印にしない。
 
 Usage:
-    uv run python scripts/multi_importer.py <file_or_dir> --client "クライアント名" [--supporter "支援者名"]
-    uv run python scripts/multi_importer.py ./data/ --client "山田太郎" --supporter "鈴木"
-    uv run python scripts/multi_importer.py memo.jpg --client "山田太郎" --dry-run
+    uv run python scripts/multi_importer.py <file_or_dir> [--json]
 """
 
 import argparse
@@ -114,141 +111,20 @@ def extract_text(file_path: Path) -> str | None:
     return None
 
 
-def structurize_with_gemini(
-    text: str,
-    client_name: str,
-    supporter_name: str | None = None,
-    source_file: str = "",
-) -> dict | None:
-    """
-    Gemini でテキストを構造化データに変換する。
-    EXTRACTION_PROMPT.md のプロンプトを使用し、emotion/triggerTag/context を含む
-    グラフデータを生成する。
-    """
-    try:
-        from lib.genai import get_genai_client, GENERATION_MODEL
-    except ImportError:
-        _log("lib.genai が利用できません", "ERROR")
-        return None
-
-    client = get_genai_client("NEXT-07")
-    if client is None:
-        _log("GEMINI_API_KEY が未設定です", "ERROR")
-        return None
-
-    # EXTRACTION_PROMPT.md を読み込み
-    prompt_path = Path(__file__).resolve().parent.parent / "docs" / "EXTRACTION_PROMPT.md"
-    if not prompt_path.exists():
-        _log(f"抽出プロンプトが見つかりません: {prompt_path}", "ERROR")
-        return None
-
-    extraction_prompt = prompt_path.read_text(encoding="utf-8")
-
-    # コンテキスト情報を付加
-    context_info = f"\n\nクライアント名: {client_name}"
-    if supporter_name:
-        context_info += f"\n支援者名: {supporter_name}"
-    context_info += f"\nソースファイル: {source_file}"
-
-    full_prompt = extraction_prompt + context_info + f"\n\n--- 以下のテキストを構造化してください ---\n\n{text}"
-
-    try:
-        response = client.models.generate_content(
-            model=GENERATION_MODEL,
-            contents=[full_prompt],
-        )
-        response_text = response.text.strip()
-
-        # JSON ブロック記法を除去
-        if response_text.startswith("```json"):
-            response_text = response_text[7:]
-        if response_text.startswith("```"):
-            response_text = response_text[3:]
-        if response_text.endswith("```"):
-            response_text = response_text[:-3]
-
-        graph_data = json.loads(response_text.strip())
-        _log(f"構造化完了: ノード{len(graph_data.get('nodes', []))}件, "
-             f"リレーション{len(graph_data.get('relationships', []))}件")
-        return graph_data
-    except json.JSONDecodeError as e:
-        _log(f"JSON パースエラー: {e}", "ERROR")
-        _log(f"レスポンス先頭200文字: {response_text[:200]}", "DEBUG")
-        return None
-    except Exception as e:
-        _log(f"Gemini 構造化エラー: {e}", "ERROR")
-        return None
-
-
-def register_graph(graph_data: dict, user_name: str = "multi_importer") -> dict:
-    """構造化データを Neo4j に登録する"""
-    from lib.db_operations import register_to_database
-    return register_to_database(graph_data, user_name=user_name)
-
-
-def process_file(
-    file_path: Path,
-    client_name: str,
-    supporter_name: str | None = None,
-    dry_run: bool = False,
-) -> dict:
-    """
-    1ファイルを処理する: テキスト抽出 → 構造化 → 登録
-    """
-    result = {
-        "file": str(file_path),
-        "status": "pending",
-        "text_length": 0,
-        "nodes": 0,
-        "relationships": 0,
-    }
-
-    # Step 1: テキスト抽出
+def process_file(file_path: Path) -> dict:
+    """1 ファイルから文字を取り出す。DB には書かない。"""
     _log(f"処理中: {file_path.name}")
     text = extract_text(file_path)
     if not text:
-        result["status"] = "extraction_failed"
-        return result
-
-    result["text_length"] = len(text)
-
-    # Step 2: Gemini で構造化
-    graph_data = structurize_with_gemini(
-        text=text,
-        client_name=client_name,
-        supporter_name=supporter_name,
-        source_file=file_path.name,
-    )
-    if not graph_data:
-        result["status"] = "structurize_failed"
-        return result
-
-    result["nodes"] = len(graph_data.get("nodes", []))
-    result["relationships"] = len(graph_data.get("relationships", []))
-
-    if dry_run:
-        result["status"] = "dry_run"
-        result["graph_data"] = graph_data
-        _log(f"[DRY RUN] {file_path.name}: {result['nodes']}ノード, "
-             f"{result['relationships']}リレーション")
-        return result
-
-    # Step 3: Neo4j に登録
-    reg_result = register_graph(graph_data)
-    result["status"] = reg_result.get("status", "unknown")
-    result["registration"] = reg_result
-
-    return result
+        return {"file": str(file_path), "status": "extraction_failed", "text_length": 0, "text": None}
+    return {"file": str(file_path), "status": "extracted", "text_length": len(text), "text": text}
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="多機能インポーター: 音声・画像・PDF・テキストから感情データを含む構造化データを一括登録",
+        description="多機能インポーター: 音声・画像・PDF・文書から文字を取り出す（DB には書かない）",
     )
     parser.add_argument("path", help="ファイルまたはディレクトリのパス")
-    parser.add_argument("--client", required=True, help="クライアント名")
-    parser.add_argument("--supporter", help="支援者名")
-    parser.add_argument("--dry-run", action="store_true", help="登録せず構造化結果のみ表示")
     parser.add_argument("--json", action="store_true", help="結果をJSON形式で出力")
     args = parser.parse_args()
 
@@ -258,46 +134,19 @@ def main():
         sys.exit(1)
 
     _log(f"処理対象: {len(files)}ファイル")
-    results = []
-    success = 0
-    failed = 0
+    results = [process_file(f) for f in files]
+    failed = sum(1 for r in results if r["status"] != "extracted")
 
-    for file_path in files:
-        result = process_file(
-            file_path=file_path,
-            client_name=args.client,
-            supporter_name=args.supporter,
-            dry_run=args.dry_run,
-        )
-        results.append(result)
-        if result["status"] in ("success", "dry_run"):
-            success += 1
-        else:
-            failed += 1
-
-    # 結果出力
     if args.json:
-        # dry_run 時の graph_data は大きいので省略可能
-        output = []
-        for r in results:
-            out = {k: v for k, v in r.items() if k != "graph_data"}
-            output.append(out)
-        print(json.dumps(output, ensure_ascii=False, indent=2))
+        print(json.dumps(results, ensure_ascii=False, indent=2))
     else:
-        print(f"\n{'='*60}")
-        print(f"多機能インポーター 処理結果")
-        print(f"{'='*60}")
-        print(f"クライアント: {args.client}")
-        if args.supporter:
-            print(f"支援者: {args.supporter}")
-        print(f"対象ファイル数: {len(files)}")
-        print(f"成功: {success}, 失敗: {failed}")
-        print(f"{'='*60}")
         for r in results:
-            status_icon = "OK" if r["status"] in ("success", "dry_run") else "NG"
-            print(f"  [{status_icon}] {Path(r['file']).name}: "
-                  f"{r['text_length']}文字 → {r['nodes']}ノード, "
-                  f"{r['relationships']}リレーション ({r['status']})")
+            print(f"{'='*60}")
+            print(f"{Path(r['file']).name}（{r['status']}, {r['text_length']}文字）")
+            print(f"{'='*60}")
+            if r["text"]:
+                print(r["text"])
+        print(f"\n取り出し: {len(results) - failed}件, 失敗: {failed}件")
 
     if failed > 0:
         sys.exit(1)

@@ -78,5 +78,5 @@ def test_gemini_entry_is_called_with_literal_open_rows_only():
                 nonliteral.append(p)
     assert nonliteral == []
     assert rows, "呼び出しが一つも見つからない（検査が働いていない）"
-    # NEXT-07（構造化）は N-05 で外すまで残る。常に不許可の行
-    assert {r for _, r in rows} <= {"NEXT-03", "NEXT-04", "NEXT-07"}
+    # NEXT-07（構造化）は N-05 で外した（tests/test_no_structurize.py）
+    assert {r for _, r in rows} <= {"NEXT-03", "NEXT-04"}

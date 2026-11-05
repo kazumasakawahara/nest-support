@@ -2,7 +2,7 @@
 
 - 鍵（GEMINI_API_KEY）があるだけでは送らない。機能の設定と契約の確認の記録がそろった行だけ送る
 - 許可は行ごと、呼ぶたびに確かめる（一度クライアントを作った後でも）
-- やめた行（構造化 NEXT-07）は、設定と記録があっても送らない。埋め込み（NEXT-06）はコードから外した（N-04、tests/test_no_embedding.py）
+- 埋め込み（NEXT-06）は N-04、構造化（NEXT-07）は N-05 でコードから外した（tests/test_no_embedding.py・tests/test_no_structurize.py）
 - 送り先は generativelanguage.googleapis.com に固定する（Vertex AI・環境変数での base_url の差し替えを効かせない）
 
 google.genai.Client は偽物に差し替え、外へは出さない。
@@ -104,13 +104,6 @@ def test_rechecks_every_call_after_client_made(fake_genai):
     fake_genai["feat"].unlink()  # 設定を外す
     assert emb.transcribe_audio(fake_genai["audio"]) is None
     assert fake_genai["calls"] == ["generate_content"]
-
-
-def test_structurize_never_sends(fake_genai):
-    from scripts.multi_importer import structurize_with_gemini
-    allow(fake_genai, "NEXT-03", "NEXT-04", "NEXT-07")
-    assert structurize_with_gemini("架空の語り", "架空の人") is None
-    assert fake_genai["calls"] == []
 
 
 def test_destination_fixed_to_gemini_api(fake_genai, monkeypatch):

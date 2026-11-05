@@ -249,7 +249,10 @@ async def api_voice_upload(
     supporterName: str = Form(""),
     user: str = Depends(require_auth),
 ):
-    """音声ファイルをアップロードし、文字起こし→構造化→登録"""
+    """音声ファイルをアップロードし、文字起こしを返す（NEXT-03）。
+
+    構造化と登録はしない（N-05）。書き込みの案は Claude とゲートの経路で作る（ADR-001 D6）。
+    """
     # 存在しないクライアントでの登録はゴースト Client を生むため先に弾く
     # （文字起こし等の高コスト処理に入る前に検証する）。
     if not _client_exists(clientName):
@@ -295,27 +298,10 @@ async def api_voice_upload(
         if not transcript:
             raise HTTPException(status_code=422, detail="音声の文字起こしに失敗しました")
 
-        # Step 2: 構造化
-        from scripts.multi_importer import structurize_with_gemini
-        graph_data = structurize_with_gemini(
-            text=transcript,
-            client_name=clientName,
-            supporter_name=supporterName or None,
-            source_file=audio.filename or "voice_recording",
-        )
-        if not graph_data:
-            raise HTTPException(status_code=422, detail="テキストの構造化に失敗しました")
-
-        # Step 3: 登録
-        result = register_to_database(
-            graph_data,
-            user_name=f"voice-ui:{user}",
-        )
-
         return {
-            "status": result.get("status", "unknown"),
+            "status": "transcribed",
             "transcript": transcript[:500],
-            "nodes_registered": result.get("count", result.get("registered_count", 0)),
+            "nodes_registered": 0,
         }
     finally:
         os.unlink(tmp_path)
