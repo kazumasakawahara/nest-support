@@ -18,6 +18,7 @@
 - 終わり方 Transitioned は、任意後見受任者（guardianshipType VoluntaryGuardianshipContracted）と任意代理（kind AgencyContract）の関わりにだけ書ける（正典 v0.8。台帳 G-62）
 - 住所からの推定（inferenceBasis を持つ関わり）で作れる種類は Consultation と Administrative だけ。契約や選任で決まる関わりは住所から推し量れない（台帳 G-62・G-57）
 - AI 由来（origin AiExtracted）のノードは Pending で作る。ほかは Active。機関の写し（Organization。公開 ID への参照）だけは AI 由来でも Active（止まる点 4。台帳 G-59）。返す nodes に status を添え、書き込み（N-20）がそれを使う（約束 4-5。N-16）
+- 確認の記録（Review）は人の記録（Human）。依頼の職員の REVIEWED、本人への ABOUT、記録への CONFIRMS が要る（N-20a）
 - 既にあるノードは {"label", "id"} だけで指す。名前を添えたり名前で指したりしたら止める（D8。N-16）
 - 情報提供の書面の記録：PROVIDED_BY を持つ記録は providerCertainty を持ち、certainty は receiver_certainty の値に限る。
   PROVIDED_BY の無い記録は providerCertainty を持たない。documentHash は SHA-256 の 16 進 64 字
@@ -203,8 +204,31 @@ def validate(req):
     _check_concerns_person(ck, nodes_out, rels_out)
     _check_ngaction_evidence(ck, nodes_out, rels_out)
     _check_provided(ck, nodes_out, rels_out)
+    _check_review(ck, nodes_out, rels_out, req.get("actorStaffId"))
     return {"ok": not ck.errors, "errors": ck.errors, "corrections": ck.corrections,
             "nodes": nodes_out, "relationships": rels_out, "requestId": req.get("requestId")}
+
+
+def _check_review(ck, nodes, rels, actor):
+    """N-20a（2026-11-06 河原さん）。確認の記録（Review）は人が確かめた記録：AI 由来にしない。依頼の職員が REVIEWED で結び、
+    ABOUT で本人に、CONFIRMS で対象の記録（Record）に一つ以上結ぶ。domain・reviewedAt・informantKind は正典の必須。"""
+    labels = {n["ref"]: n["label"] for n in nodes}
+
+    def label_of(end):
+        return end.get("label") if isinstance(end, dict) else labels.get(end)
+    for n in nodes:
+        if n["label"] != "Review":
+            continue
+        ref = n["ref"]
+        if n["origin"] != "Human":
+            ck.errors.append("ノード %s: Review は人が確かめた記録。origin は Human だけ（AI 由来にしない）" % ref)
+        by = [r["from"] for r in rels if r["type"] == "REVIEWED" and r["to"] == ref]
+        if by != [{"label": "Staff", "id": actor}]:
+            ck.errors.append("ノード %s: Review は依頼の職員（%s）の REVIEWED 一本で結ぶ（%r）" % (ref, actor, by))
+        if not any(r["type"] == "ABOUT" and r["from"] == ref and label_of(r["to"]) == "Client" for r in rels):
+            ck.errors.append("ノード %s: Review は ABOUT で本人に結ぶ" % ref)
+        if not any(r["type"] == "CONFIRMS" and r["from"] == ref and label_of(r["to"]) == "Record" for r in rels):
+            ck.errors.append("ノード %s: Review は CONFIRMS で対象の記録（Record）に一つ以上結ぶ" % ref)
 
 
 def _check_guardianship(ck, nodes):

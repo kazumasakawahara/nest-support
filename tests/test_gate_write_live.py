@@ -204,3 +204,23 @@ def test_intake_care_candidates_are_written_pending_with_evidence(driver, admin,
                 c=client, q=quote, a="架空の禁忌 %s" % mark, i="架空の推奨 %s" % mark)
     assert sorted((r["label"], r["status"], r["certainty"], r["evidence"]) for r in rows) == [
         ("CarePreference", "Pending", None, "Hearsay"), ("NgAction", "Pending", None, "Hearsay")]
+
+
+def test_review_is_written_active_and_confirms_the_record(driver, admin, client):
+    """N-20a：確認の記録が Active で書かれ、職員の REVIEWED・本人への ABOUT・記録への CONFIRMS と、操作の記録が残る。"""
+    from nest.gate import write as gw
+    req = _records_req(admin, client, ["架空の確認の話 %s" % uuid.uuid4().hex])
+    out = gw.submit(req, driver)
+    assert out["ok"], out["errors"]
+    record_id = next(v for k, v in out["ids"].items() if v.startswith("REC-"))
+    rv = gw.record_review(driver, admin, client, "NgAction", "2026-11-06T10:00:00+09:00", "Family", [record_id],
+                          "req-" + uuid.uuid4().hex, note="架空：母に聞き、禁忌は無いと言われた")
+    assert rv["ok"], rv["errors"]
+    rows = _one(driver, """
+        MATCH (s:Staff {staffId: $a})-[:REVIEWED]->(v:Review {reviewId: $id})-[:CONFIRMS]->(r:Record {recordId: $r}),
+              (v)-[:ABOUT]->(:Client {clientId: $c})
+        OPTIONAL MATCH (l:AuditLog)-[:AUDIT_FOR]->(v)
+        RETURN v.status AS status, v.origin AS origin, v.domain AS domain, count(l) AS audits""",
+                a=admin, id=rv["ids"]["review"], r=record_id, c=client)
+    assert len(rows) == 1 and rows[0]["audits"] >= 1, rows
+    assert {k: rows[0][k] for k in ("status", "origin", "domain")} == {"status": "Active", "origin": "Human", "domain": "NgAction"}

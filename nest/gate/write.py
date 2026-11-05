@@ -232,6 +232,29 @@ def _link(tx, actor, fact, record_id, request_id, now, new_id):
            props=audit_props(new_id, now, "LinkEvidence", "EVIDENCED_BY", fact["id"], request_id, "Human"))
 
 
+def review_request(actor, client_id, domain, reviewed_at, informant_kind, record_ids, request_id, note=None):
+    """N-20a。確認の記録（Review）を作る依頼。人が確かめた記録なので origin は Human。
+    reviewed_at は確かめた日時（時差つき）、domain は reviewDomain、record_ids は確かめた対象の記録（REC-…）。
+    検証は validate が行う（欠けていれば止める。こちらで補わない）。"""
+    props = {"domain": domain, "reviewedAt": reviewed_at, "informantKind": informant_kind}
+    if note is not None:
+        props["note"] = note
+    props = {k: v for k, v in props.items() if v is not None}
+    rels = [{"type": "REVIEWED", "from": {"label": "Staff", "id": actor}, "to": "review"},
+            {"type": "ABOUT", "from": "review", "to": {"label": "Client", "id": client_id}}]
+    rels += [{"type": "CONFIRMS", "from": "review", "to": {"label": "Record", "id": rid}} for rid in record_ids]
+    return {"requestId": request_id, "actorStaffId": actor,
+            "nodes": [{"ref": "review", "label": "Review", "origin": "Human", "properties": props}],
+            "relationships": rels}
+
+
+def record_review(driver, actor, client_id, domain, reviewed_at, informant_kind, record_ids, request_id, note=None,
+                  now=None, database="neo4j"):
+    """N-20a。確認の記録を作り、CONFIRMS で対象の記録に結ぶ（ゲートの submit を通す）。"""
+    req = review_request(actor, client_id, domain, reviewed_at, informant_kind, record_ids, request_id, note)
+    return submit(req, driver, now=now, database=database)
+
+
 def link_evidence(driver, actor, fact, record_id, request_id, now=None, new_id=ids.new_id, database="neo4j"):
     """人の指定で、既にある事実（禁忌など）に聞いた記録を根拠として結ぶ（D5）。自動では呼ばない。"""
     allowed = gv.canon.load(gv.SCHEMA)["personal"]["relationships"]["EVIDENCED_BY"]["from"]
