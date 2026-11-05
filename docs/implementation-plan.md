@@ -74,7 +74,7 @@
 | N-27c | `emergency-protocol` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） || ✅ 2026-11-06 照会 3 本＋資源の側 1 本。氏名・住所・年齢・電話は出せないことを出力の頭に書く |
 | N-27d | `data-quality-agent` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） || ✅ 2026-11-06 点検 8 種。埋め込みを使う重みの一貫性の点検は外した |
 | N-27e | `resilience-checker` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） || ✅ 2026-11-06 照会 3 本＋資源の側 1 本。登録の Cypher と事業所の候補探しは外した |
-| N-27f | `onboarding-wizard` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） | |
+| N-27f | `onboarding-wizard` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） || ✅ 2026-11-06 登録の Cypher を外し、聞き取りの案内と登録の状況の照会 2 本にした。本人の作成は Claude の外。確認（Review）を作る手順が無いことを書いた |
 | N-27g | `ecomap-generator` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） | |
 | N-27h | `insight-agent` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） | |
 | **止まる点 E-1** | N-27 の後（2026-11-06 河原さん）。スキル 8 本それぞれの「何を消し、何を足したか」を 1 行ずつ報告し、河原さんが全部見る。DB の試験を一度流し（N-18 の条件。終わったら down）、G-63 の候補が Pending で書かれることを確かめる | | |
