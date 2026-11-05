@@ -31,7 +31,7 @@
 
 ## 2. データモデルの7本柱 (The 7 Data Pillars)
 
-v4.0では、中核Skills（neo4j-support-db / provider-search / emergency-protocol / ecomap-generator）が扱う領域を統一的に整理した。その後 narrative-extractor / visit-prep / resilience-checker / onboarding-wizard / data-quality-agent / insight-agent / wamnet-provider-sync / inheritance-calculator / html-to-pdf を追加し、現在は計14 Skills（最新は `CLAUDE.md` を参照）。以下の7本柱はこれら全Skillに通底するデータモデルである。
+v4.0では、中核Skills（neo4j-support-db / provider-search / emergency-protocol / ecomap-generator）が扱う領域を統一的に整理した。その後 narrative-extractor / visit-prep / resilience-checker / onboarding-wizard / data-quality-agent / insight-agent / inheritance-calculator / html-to-pdf を追加した（最新は `CLAUDE.md` を参照）。以下の7本柱はこれら全Skillに通底するデータモデルである。
 
 ### 第1の柱：本人性 (Identity & Narrative)
 「その人は誰か」を定義する。属性だけでなく、人生の物語を含む。
@@ -127,23 +127,25 @@ v4.0では、中核Skills（neo4j-support-db / provider-search / emergency-proto
 
 ---
 
-## 4. Skills & Neo4j MCP 構成
+## 4. Skills と DB の構成
 
-このシステムは複数のSkills（現在14個）と汎用Neo4j MCP（`neo4j`, port 7687）で構成される。データモデルの中心を担う代表的なSkillを以下に示す（全Skillの一覧・ルーティング判断フローは `CLAUDE.md` を正典とする）。
+（2026-11-06 計画 N-29 で書き直した。ADR-001 の作り直しに合わせた）
 
-| スキル | 対象業務 | 柱の対応 | Neo4j ポート |
+DB は二つ。どちらも使う人の Mac の中だけで動く。
+
+- **個人の側**：本人・家族・支援の記録。Claude は読み取りだけの包み（MCP `nest-personal`）で読む。包みは実名・電話・住所・生年月日を返さず、本人は仮名（`displayCode`）で呼ぶ。書き込みはゲート（`nest/gate/`）だけが行い、AI が作ったものは未確定で入って職員が承認する
+- **資源の側**：事業所・窓口などの公開情報（tsunagu-net の写し）。MCP `nest-resource` で読むだけ
+
+| スキル | 対象業務 | 柱の対応 | 読む側 |
 |--------|----------|---------|-------------|
-| **neo4j-support-db** | 計画相談支援（障害福祉サービス） | 第1〜5の柱 | 7688（個人層） |
-| **provider-search** | 事業所検索・口コミ管理 | 第4の柱（法的基盤） | 7687（共有層） |
-| **emergency-protocol** | 緊急時対応プロトコル | 第2の柱（ケアの暗黙知） | — |
-| **ecomap-generator** | 支援ネットワーク可視化 | 第3の柱（危機管理） | — |
+| **neo4j-support-db** | 計画相談支援（障害福祉サービス） | 第1〜5の柱 | 個人の側 |
+| **provider-search** | 事業所を探す（公開情報） | 第7の柱（多機関連携） | 資源の側（本人の関わりは個人の側） |
+| **emergency-protocol** | 緊急時対応 | 第2・3の柱 | 個人の側 |
+| **ecomap-generator** | 支援ネットワークの図（Mermaid） | 第3の柱（危機管理） | 個人の側（機関の名前は資源の側） |
 
-（上記に加え narrative-extractor / visit-prep / resilience-checker / onboarding-wizard / data-quality-agent / insight-agent / wamnet-provider-sync / inheritance-calculator / html-to-pdf がある）
+（上記に加え narrative-extractor / visit-prep / resilience-checker / onboarding-wizard / data-quality-agent / insight-agent / inheritance-calculator / html-to-pdf がある）
 
-**Neo4j MCP:**
-- `neo4j`（port 7687）: neo4j-support-db, provider-search スキル用
-
-→ 全Skillの使い分けとルーティング判断フロー: `CLAUDE.md`「Skills 一覧と使い分けガイド」
+→ 全Skillの使い分け: `CLAUDE.md`
 
 ---
 

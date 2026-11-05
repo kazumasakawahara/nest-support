@@ -1,18 +1,12 @@
 {
   "mcpServers": {
-    "neo4j": {
-      "command": "sh",
-      "args": [
-        "-c",
-        "set -a; . \"$HOME/.config/nest/neo4j-personal.env\"; set +a; exec npx -y @alanse/mcp-neo4j-server"
-      ]
+    "nest-personal": {
+      "command": "uv",
+      "args": ["run", "--quiet", "--directory", "<nest-support のフォルダ>", "python", "-m", "nest.mcp_personal"]
     },
-    "neo4j-shared": {
-      "command": "sh",
-      "args": [
-        "-c",
-        "set -a; . \"$HOME/.config/nest/neo4j.env\"; set +a; exec npx -y @alanse/mcp-neo4j-server"
-      ]
+    "nest-resource": {
+      "command": "uv",
+      "args": ["run", "--quiet", "--directory", "<nest-support のフォルダ>", "python", "-m", "nest.mcp_resource"]
     }
   }
 }

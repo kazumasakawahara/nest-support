@@ -1,271 +1,58 @@
-# クイックスタートガイド
+# クイックスタート
 
-5分で始められるセットアップ手順です。
+- 版：2026-11-06（計画 N-29。ADR-001 の作り直しの構成に合わせて書き直した。Mac で確かめた手順。Windows は確かめていない）
+- 詳しい手順は `docs/SETUP_GUIDE.md`
 
----
+## 要るもの
 
-## 前提条件
+| ツール | 用途 |
+|---|---|
+| Docker Desktop | Neo4j を二つ動かす（個人の側・資源の側） |
+| uv | Python の環境と試験 |
+| Claude Desktop か Claude Code | スキルと読み取りの MCP |
 
-| ツール | 必須 | 用途 |
-|-------|------|------|
-| Docker Desktop | ○ | Neo4j データベース |
-| Claude Desktop | ○ | AI 分析・操作 |
-| Node.js (npx) | ○ | Neo4j MCP サーバー |
-
----
-
-## ステップ 1: セットアップの実行
-
-### macOS の場合
+## 手順
 
 ```bash
+# 1. 取ってきて、環境を作る
+git clone https://github.com/kazumasakawahara/nest-support.git
 cd nest-support
-chmod +x setup.sh
-./setup.sh
+uv sync
+
+# 2. 接続の設定のファイルを作る（リポジトリの外。中身は自分で書き、人に見せない）
+mkdir -p ~/.config/nest
+#    ~/.config/nest/neo4j-redesign.env に NEST_PERSONAL_PASSWORD と NEST_RESOURCE_PASSWORD を書き、
+chmod 600 ~/.config/nest/neo4j-redesign.env
+
+# 3. DB を起動する（127.0.0.1 だけで待ち受ける）
+docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d
+
+# 4. 正典の制約を個人の側に作る（既定は流す文を出すだけ）
+uv run python scripts/apply_schema.py --write
+
+# 5. 資源の側に tsunagu-net の配布の一式を読み込む（MANIFEST.json の指紋を確かめる）
+uv run python scripts/load_resource.py --bundle <配布の一式のフォルダ> --write
+
+# 6. 試験
+uv run pytest -q                      # DB を使わない試験
+NEST_LIVE_DB=1 uv run pytest -q       # DB を使う試験（架空の事例だけ）
+
+# 7. 使い終わったら止める
+docker compose --env-file ~/.config/nest/neo4j-redesign.env down
 ```
 
-### Windows の場合
+## Claude からつなぐ
 
-PowerShell を開いて実行します:
+- Claude Code：リポジトリの `.mcp.json` に `nest-personal`・`nest-resource` がある。リポジトリで Claude Code を開けば使える
+- スキル：`claude-skills/` の中のスキルを `~/.claude/skills/` にリンクする（例：`ln -s "$PWD/claude-skills/neo4j-support-db" ~/.claude/skills/`）
+- 個人の側の MCP は、外に送る前の確認（`docs/external-api.md` NEXT-02 の設定と記録）がそろうか、架空の印のある DB のときだけ動く
 
-```powershell
-cd nest-support
-.\setup.ps1
-```
-
-> 初回実行時に `Set-ExecutionPolicy Bypass -Scope Process -Force` が必要な場合があります。
-
-このスクリプトが以下を実行します:
-
-1. **Neo4j の起動** — Docker コンテナで2つのデータベースを立ち上げ
-2. **Skills のインストール** — `claude-skills/` から Skills ディレクトリにリンクを作成
-3. **設定ガイダンスの表示** — 次に行うべきことを案内
-
-> Neo4j のブラウザ UI は http://localhost:7475 でアクセスできます（認証情報は `~/.config/nest/neo4j-personal.env`。インストーラーが作ります）
-
-### ワンクリックインストーラー（推奨）
-
-前提条件のインストールも含めて自動化したい場合は:
-
-**macOS:**
-```bash
-chmod +x installer/install-mac.sh
-./installer/install-mac.sh
-```
-
-**Windows（PowerShell を管理者として実行）:**
-```powershell
-Set-ExecutionPolicy Bypass -Scope Process -Force
-.\installer\install-windows.ps1
-```
-
----
-
-## ステップ 2: Claude Desktop の設定
-
-### 自動設定（推奨）
-
-**macOS:**
-```bash
-chmod +x installer/configure-claude.sh
-./installer/configure-claude.sh
-```
-
-**Windows:**
-```powershell
-.\installer\configure-claude.ps1
-```
-
-### 手動設定
-
-Claude Desktop の設定ファイルを開きます:
-
-**macOS:**
-```bash
-open ~/Library/Application\ Support/Claude/claude_desktop_config.json
-```
-
-**Windows:**
-```powershell
-notepad "$env:APPDATA\Claude\claude_desktop_config.json"
-```
-
-以下の内容を追加（または `configs/claude_desktop_config.json` からコピー）:
-
-```json
-{
-  "mcpServers": {
-    "neo4j": {
-      "command": "sh",
-      "args": ["-c", "set -a; . \"$HOME/.config/nest/neo4j-personal.env\"; set +a; exec npx -y @alanse/mcp-neo4j-server"]
-    },
-    "neo4j-shared": {
-      "command": "sh",
-      "args": ["-c", "set -a; . \"$HOME/.config/nest/neo4j.env\"; set +a; exec npx -y @alanse/mcp-neo4j-server"]
-    }
-  }
-}
-```
-
-> 既に他の MCP サーバーが設定されている場合は、`mcpServers` オブジェクト内に追加してください。
-
----
-
-## ステップ 3: Claude Desktop の再起動
-
-設定を保存した後、Claude Desktop を完全に終了して再起動します。
-
-起動後、ツールアイコンに `neo4j` が表示されていれば成功です。
-
----
-
-## ステップ 4: デモデータの投入（オプション）
-
-動作確認やデモ用に、匿名化された架空データを投入できます:
-
-**macOS:**
-```bash
-chmod +x installer/load-demo-data.sh
-./installer/load-demo-data.sh
-```
-
-**Windows:**
-```powershell
-.\installer\load-demo-data.ps1
-```
-
-デモデータの削除:
-
-**macOS:**
-```bash
-./installer/load-demo-data.sh --remove
-```
-
-**Windows:**
-```powershell
-.\installer\load-demo-data.ps1 -Remove
-```
-
----
-
-## 動作確認
-
-Claude Desktop で以下のように話しかけてみましょう:
+## 最初に話しかける例（架空）
 
 ```
-データベースの統計情報を教えて
+C-ZZZZZZ さんの禁忌を見せて
 ```
 
-デモデータ投入済みの場合:
-
 ```
-山本翔太さんのプロフィールを見せて
-鈴木花さんの禁忌事項を教えて
+次の面談の記録（架空）から、書き込みの案を作って。DB には書かないで。
 ```
-
-初めてクライアントを登録する場合:
-
-```
-新しいクライアントを登録したい
-```
-
-→ `onboarding-wizard` スキルが対話的に案内します。
-
----
-
-## データベースについて
-
-nest-support は単一の Neo4j インスタンス（障害福祉クライアント管理）で構成されています:
-
-| インスタンス | 層 | Bolt | ブラウザUI | MCP | 用途 |
-|------------|---|------|-----------|-----|------|
-| nest-support-neo4j | 個人層 | localhost:7688 | http://localhost:7475 | `neo4j` | 利用者・家族・支援記録（このリポジトリの `docker-compose.yml`） |
-| support-db-neo4j | 共有層 | localhost:7687 | http://localhost:7474 | `neo4j-shared` | 事業所（ServiceProvider）・口コミ（neo4j-agno-agent の `docker-compose.yml`） |
-
-> 2026-10-31 に 2 層に分けました。個人層は 7688、共有層は 7687 で、同時に動かします。
-> 生活困窮者自立支援（livelihood-support）は 2026-05 に廃止し、7688 番は個人層が使っています。
-
----
-
-## Skills の一覧（13スキル）
-
-| Skill | 用途 | Neo4j Port |
-|-------|------|------------|
-| `neo4j-support-db` | 障害福祉クライアント管理 | 7688（個人層） |
-| `provider-search` | 事業所検索・口コミ | 7687（共有層 `neo4j-shared`） |
-| `emergency-protocol` | 緊急時対応プロトコル | — |
-| `ecomap-generator` | エコマップ・インサイト生成 | — |
-| `html-to-pdf` | HTML → PDF 変換 | — |
-| `inheritance-calculator` | 法定相続計算 | — |
-| `wamnet-provider-sync` | WAM NET データ同期 | 7687（共有層。実体は neo4j-agno-agent） |
-| `narrative-extractor` | テキスト → 構造化データ抽出 | 7688 |
-| `data-quality-agent` | データ品質チェック・検証 | 7688 |
-| `onboarding-wizard` | 新規クライアント登録ウィザード | 7688 |
-| `resilience-checker` | 親なき後レジリエンス診断 | 7688 |
-| `visit-prep` | 訪問準備ブリーフィング | 7688 |
-| `insight-agent` | 予兆検知・インサイト分析 | 7688 |
-
----
-
-## トラブルシューティング
-
-### Skills が認識されない
-
-**macOS:**
-```bash
-ls -la ~/.claude/skills/
-./setup.sh --skills  # 再インストール
-```
-
-**Windows:**
-```powershell
-dir $env:USERPROFILE\.claude\skills\
-.\setup.ps1 -Skills  # 再インストール
-```
-
-### Neo4j に接続できない
-
-```bash
-docker ps | grep neo4j
-docker compose restart
-```
-
-ブラウザで http://localhost:7475 にアクセスして確認してください。
-
-### Claude Desktop で MCP が表示されない
-
-**macOS:**
-```bash
-cat ~/Library/Application\ Support/Claude/claude_desktop_config.json
-./installer/configure-claude.sh
-```
-
-**Windows:**
-```powershell
-Get-Content "$env:APPDATA\Claude\claude_desktop_config.json"
-.\installer\configure-claude.ps1
-```
-
-詳しくは [FAQ.md](./FAQ.md) を参照してください。
-
----
-
-## 次のステップ
-
-- [SETUP_GUIDE.md](./SETUP_GUIDE.md) — 初めての方向けの詳細セットアップガイド
-- [ADVANCED_USAGE.md](./ADVANCED_USAGE.md) — Skills の詳細な使い方とプロンプト例
-- [SCHEMA_CONVENTION.md](./SCHEMA_CONVENTION.md) — Neo4j 命名規則
-- [FAQ.md](./FAQ.md) — よくある質問とトラブルシューティング
-- [Neo4j Browser](http://localhost:7475) — データの直接確認・操作（個人層）
-
----
-
-## 現場UI (Field UI)
-
-スマホから支援記録の入力や感情サマリーの確認ができるモバイル向け PWA も利用できます。
-
-```bash
-uv run uvicorn field-ui.server:app --host 0.0.0.0 --port 8001
-```
-
-起動後、`http://localhost:8001` にアクセスしてください。詳細は [ADVANCED_USAGE.md](./ADVANCED_USAGE.md) の「現場UI」セクションを参照してください。
