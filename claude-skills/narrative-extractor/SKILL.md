@@ -1,337 +1,83 @@
 ---
 name: narrative-extractor
-description: 母親・支援者の語り（ナラティブ）や添付ファイルから、支援に必要な構造化データを抽出し Neo4j に登録するスキル。抽出は Claude 自身が行い、外部 LLM API は不要。「テキストから抽出」「情報を抽出して」「ナラティブから登録」「この文章を構造化して」「データベースに登録して」「面談記録を入力」「聞き取り内容を登録」などの発言時、および .docx/.xlsx/.pdf/.txt ファイル添付時に必ずこのスキルを使用すること。
+description: 母親・支援者の語り（ナラティブ）、自分の面談記録、他の機関からの情報提供の書面から、nest-support の「書き込みの案」（JSON）を作るスキル。案を作るだけで、DB には書かない（書くのはゲート）。「テキストから抽出」「情報を抽出して」「ナラティブから登録」「この文章を構造化して」「データベースに登録して」「面談記録を入力」「聞き取り内容を登録」などの発言時、および .docx/.xlsx/.pdf/.txt ファイル添付時に使う。
 ---
 
-# narrative-extractor: テキストから構造化データを抽出するスキル
+# narrative-extractor：語りから書き込みの案（JSON）を作る
 
 ## 概要
 
-母親・支援者の語り（ナラティブ）やファイルから、支援に必要な構造化データをJSON形式で抽出し、Neo4jデータベースに登録するためのスキル。
+語り・面談記録・情報提供の書面から、**書き込みの案（JSON）を作るだけ**のスキル（計画 N-25。ADR-001 D6）。
 
-構造化抽出は **Claude 自身がこの SKILL.md の指示に従って直接行う**（外部 LLM API は不要）。Claude が抽出した JSON を、neo4j MCP の `execute_query`（書き込みクエリ）で本スキルの Cypher テンプレートを使って登録する。
+- **DB には書かない。** 書くのはゲート（`nest/gate/intake.py` → `validate.py` → `write.py`）だけ。このスキルから Cypher を流さない
+- 案は、入口の点検（`nest.gate.intake.check`）が原文と突き合わせる。原文に無い引用、引用に無い数字、原文の印と違う確度、型に無い項目は、直さずに止まる
+- 通った案は、ゲートが AI 由来として **未確定（Pending）** で書き、職員が引用を見て承認する（D9）
+- 外部の API は使わない。案を作るのは Claude 自身
 
-## トリガーワード
+## 守ること
 
-- 「テキストから抽出」「情報を抽出して」「ナラティブから登録」
-- 「この文章を構造化して」「データベースに登録して」
-- 「面談記録を入力」「聞き取り内容を登録」
-- ファイル添付時（.docx, .xlsx, .pdf, .txt）
+1. **原文に無いことを書かない。** 推し量らない。分からない項目は書かない（null で埋めない）
+2. **引用（`quote`）は原文からそのまま写す。** 空白・改行の違いだけは点検が無視する。言い換えは `text` に書いてよいが、引用に無い数字（日付・回数・金額・年齢・体重など）を足さない
+3. **確度は原文の印で決める。** 引用の直後（同じ行）の【…】を読む：【確認済み】→ `Confirmed`、【本人の話】→ `SelfReport`、【伝聞】【未確認】→ `Hearsay`、【推測】→ `Inference`。印が無ければ `Unspecified`。重なったら弱いほう。上げも下げもしない
+4. **人を名前で結び付けない。** 既にいる人は ID（`PER-…`）、案の中の新しい人は名札（英小文字で始まる `ref`）、本人は `client` で指す。名前の似た人を同じ人と決めない（D8）
+5. **語りの中の人は役割の名前で書く**（母・主治医・担当の相談員）。新しい人の名札にも実名を入れない（SEMANTICS SEM-REC-01。台帳 G-42）
+6. **年のない日付に年を足さない。** 「10月2日」は引用のまま残し、`aboutDate` には年まで原文にあるときだけ書く
+7. **機関 ID を書かない。** 書面の提供元は原文の名前（`providerName`）だけを書く。職員が候補から選ぶ（N-24）。「区役所の窓口で」のような名前の無い言及は `involvements` に書き、機関は担当機関の推定の候補からだけ選ぶ（N-24a）
+8. 開発と試験では架空の文だけを使う
 
-## 使用方法
+## 案の形
 
-### Step 1: テキストの提供
+```text
+{"documentKind": "OwnCaseRecord"（自分の記録） | "ProvisionDocument"（他の機関からの書面）,
+ "providerName": 書面のときだけ。原文に書かれた提供元の名前,
+ "clientId": "CLI-…"（職員が選んだ本人）,
+ "receivedOn": "YYYY-MM-DD"（書面を受けた日。任意）,
+ "newPeople": [{"ref"}]（任意。役割の名前で呼ぶ人。実名は書かない）,
+ "facts": [{"quote", "text"?, "recordKind", "certainty", "providerCertainty"?（書面のとき）,
+            "informantKind", "aboutDate"?, "heardOn"?, "toldBy"?}],
+ "involvements": [{"quote", "kind", "orgId"?, "concerns"?}]（任意）}
+```
 
-ユーザーがテキストを直接入力するか、ファイルを添付する。
+- `recordKind`：`Observation`（職員が見た）・`Interview`（聞いた）・`Notification`・`MeetingMinutes`・`Plan`・`Document`
+- `informantKind`：`Self`（本人）・`Family`・`Agency`・`Neighbor`・`DocumentOnly`
+- 書面では確度を二段で持つ：`providerCertainty` は原文の印、`certainty` は受けた側から見た確度（点検が決まった値を求める）
+- 禁忌・推奨ケアにあたる話も、まず事実（`facts`）として引用で残す。禁忌のノード（`NgAction`）を作る道は、今の入口には無い。案を返すときに「禁忌の候補」として引用を並べ、職員に知らせる（禁忌には根拠の記録が要る。SEMANTICS SEM-REC-03）
 
-### Step 2: 構造化データの抽出
+## 手順
 
-以下のルールに従って、テキストからJSON形式のデータを抽出する。
+1. 原文を受け取る（貼り付け・添付）。本人の `clientId` は職員に選んでもらう（名前から探さない）
+2. 上の「守ること」に沿って案（JSON）を作る
+3. 案と、「禁忌の候補」（引用の一覧）を職員に返す。ここで止まる
+4. 職員が入口の点検とゲートに通す。止まったら、点検の理由のとおりに案を直す（点検の結果を自分で読み替えて通さない）
 
-#### 抽出ルール（厳守）
+## 例（架空）
 
-1. **絶対に入力テキストにない情報を創作・推測しない**
-   - テキストに明示的に書かれていない情報は出力しない
-   - 「一般的にこうだろう」という推測は禁止
-   - 不明な項目は null または空配列 [] とする
+<!-- example-original -->
+```text
+架空の面談記録（例）
+- 10月2日、母が電話で話した。後ろから急に声をかけるとパニックになる【伝聞】
+- 本人は、音楽を聴くと落ち着くと話した【本人の話】
+- 受給者証の更新のことで、区役所の窓口に行ったことがある【伝聞】
+```
 
-2. **暗黙知の抽出を優先する**
-   - 「〜すると落ち着く」「〜が好き」→ carePreferences
-   - 「〜は嫌がる」「〜するとパニック」→ ngActions（最重要）
-   - 「今日〜した」「〜の対応で効果があった」→ supportLogs
-
-3. **禁忌事項（NgAction）は最優先**
-   - 「絶対に〜しないで」「〜するとパニック」を漏らさない
-   - riskLevel を適切に判定：LifeThreatening / Panic / Discomfort
-
-4. **日付の変換**
-   - 元号（和暦）→ 西暦（YYYY-MM-DD）に変換
-   - 明治元年=1868, 大正=1912, 昭和=1926, 平成=1989, 令和=2019
-
-5. **Entity Resolution（同一対象の統合）**
-   - テキスト中の表記揺れは同一エンティティに統合すること
-   - 例:「健太」「けんた」「山田健太」「山田くん」→ 同一 Client
-   - 例:「お母さん」「母」「花子」→ 同一 KeyPerson
-   - 既存クライアントへの追記時は、Neo4j を検索して既存ノードと突合する
-   - 統合に確信が持てない場合はユーザーに確認すること
-
-#### JSONスキーマ
-
+<!-- example-proposal -->
 ```json
-{
-  "client": {
-    "name": "氏名（必須）",
-    "dob": "生年月日（YYYY-MM-DD形式、不明なら null）",
-    "bloodType": "血液型（不明なら null）",
-    "kana": "ふりがな（不明なら null）",
-    "aliases": ["通称やニックネーム"]
-  },
-  "conditions": [
-    { "name": "特性・診断名", "status": "Active" }
-  ],
-  "ngActions": [
-    {
-      "action": "絶対にしてはいけないこと",
-      "reason": "その理由（なぜ危険か）",
-      "riskLevel": "LifeThreatening | Panic | Discomfort",
-      "relatedCondition": "関連する特性名（あれば）"
-    }
-  ],
-  "carePreferences": [
-    {
-      "category": "食事/入浴/パニック時/移動/睡眠/服薬/コミュニケーション/その他",
-      "instruction": "具体的な手順・方法",
-      "priority": "High | Medium | Low",
-      "relatedCondition": "関連する特性名（あれば）"
-    }
-  ],
-  "supportLogs": [
-    {
-      "date": "記録日（YYYY-MM-DD形式）",
-      "supporter": "記録者・支援者名",
-      "situation": "状況",
-      "action": "実施した対応の具体的内容",
-      "effectiveness": "Effective | Neutral | Ineffective",
-      "note": "詳細メモ・気づき"
-    }
-  ],
-  "certificates": [
-    {
-      "type": "療育手帳/精神障害者保健福祉手帳/身体障害者手帳/障害福祉サービス受給者証/自立支援医療受給者証",
-      "grade": "等級",
-      "nextRenewalDate": "更新日（YYYY-MM-DD形式）"
-    }
-  ],
-  "keyPersons": [
-    {
-      "name": "氏名",
-      "relationship": "続柄（母, 叔父, 姉 など）",
-      "phone": "電話番号",
-      "role": "役割（緊急連絡先, 医療同意, 金銭管理 など）",
-      "rank": 1
-    }
-  ],
-  "guardians": [
-    {
-      "name": "氏名または法人名",
-      "type": "成年後見/保佐/補助/任意後見",
-      "phone": "連絡先",
-      "organization": "所属（法人の場合）"
-    }
-  ],
-  "hospitals": [
-    {
-      "name": "病院名",
-      "specialty": "診療科",
-      "phone": "電話番号",
-      "doctor": "担当医名"
-    }
-  ],
-  "lifeHistories": [
-    {
-      "era": "時期（幼少期/学齢期/青年期/成人後）",
-      "episode": "エピソード内容",
-      "emotion": "その時の感情・反応"
-    }
-  ],
-  "wishes": [
-    {
-      "content": "願いの内容",
-      "date": "記録日（YYYY-MM-DD形式）"
-    }
-  ]
-}
+{"documentKind": "OwnCaseRecord",
+ "clientId": "CLI-01HZZZZZZZZZZZZZZZZZZZZZZZ",
+ "newPeople": [{"ref": "mother"}],
+ "facts": [
+  {"quote": "10月2日、母が電話で話した。後ろから急に声をかけるとパニックになる",
+   "recordKind": "Interview", "certainty": "Hearsay", "informantKind": "Family", "toldBy": "mother"},
+  {"quote": "本人は、音楽を聴くと落ち着くと話した",
+   "recordKind": "Interview", "certainty": "SelfReport", "informantKind": "Self", "toldBy": "client"},
+  {"quote": "受給者証の更新のことで、区役所の窓口に行ったことがある",
+   "recordKind": "Interview", "certainty": "Hearsay", "informantKind": "Family", "toldBy": "mother"}],
+ "involvements": [
+  {"quote": "受給者証の更新のことで、区役所の窓口に行ったことがある", "kind": "Administrative"}]}
 ```
 
-### Step 3: ユーザー確認
+この例で職員に返す「禁忌の候補」：「後ろから急に声をかけるとパニックになる」（伝聞。母から）。
 
-抽出したJSONをユーザーに提示し、修正点がないか確認する。
-
-### Step 4: Neo4jへの登録
-
-確認後、neo4j MCP の `execute_query` を使って以下のCypherテンプレートで登録する（書き込みクエリも同じ `execute_query` ツールを使う）。
-
-#### Cypherテンプレート
-
-**クライアント基本情報:**
-```cypher
-MERGE (c:Client {name: $name})
-SET c.dob = CASE WHEN $dob IS NOT NULL THEN date($dob) ELSE c.dob END,
-    c.bloodType = COALESCE($blood, c.bloodType),
-    c.kana = COALESCE($kana, c.kana),
-    c.aliases = $aliases
-```
-
-**特性・診断:**
-```cypher
-MATCH (c:Client {name: $client})
-MERGE (con:Condition {name: $name})
-SET con.status = $status
-MERGE (c)-[:HAS_CONDITION]->(con)
-```
-
-**禁忌事項（NgAction）- 最重要:**
-
-クライアント配下のノードとしてリレーションごと MERGE する（再実行で重複せず、他クライアントとノードを共有しない）。
-
-```cypher
-MATCH (c:Client {name: $client})
-MERGE (c)-[:MUST_AVOID]->(ng:NgAction {action: $action})
-ON CREATE SET ng.reason = $reason, ng.riskLevel = $risk
-ON MATCH SET  ng.reason = COALESCE($reason, ng.reason),
-              ng.riskLevel = COALESCE($risk, ng.riskLevel)
-```
-
-**推奨ケア（CarePreference）:**
-```cypher
-MATCH (c:Client {name: $client})
-MERGE (c)-[:REQUIRES]->(cp:CarePreference {category: $cat, instruction: $inst})
-ON CREATE SET cp.priority = $pri
-ON MATCH SET  cp.priority = COALESCE($pri, cp.priority)
-```
-
-**手帳・受給者証（Certificate）:**
-
-手帳種別（type）×等級（grade）ごとに1ノード（SCHEMA_CONVENTION §10.3 の複合キー。
-等級未指定は「不明」）。更新期限はノード側を上書きする。
-発行日・状態はスキーマ規約どおりリレーション側（`HAS_CERTIFICATE {issuedDate, status}`）に持つ。
-
-```cypher
-MATCH (c:Client {name: $client})
-MERGE (c)-[r:HAS_CERTIFICATE]->(cert:Certificate {type: $type, grade: COALESCE($grade, '不明')})
-SET cert.nextRenewalDate = CASE WHEN $renewal IS NOT NULL THEN date($renewal) ELSE cert.nextRenewalDate END,
-    r.status = COALESCE(r.status, 'Active')
-```
-
-> 訂正（2026-07-12）: 旧テンプレートは `{type}` のみを MERGE キーとしていたが、
-> SCHEMA_CONVENTION §10.3 の複合キー `["type","grade"]` に合わせて修正した（DRIFT-08）。
-
-**キーパーソン（KeyPerson）:**
-```cypher
-MATCH (c:Client {name: $client})
-MERGE (c)-[r:HAS_KEY_PERSON]->(kp:KeyPerson {name: $name})
-SET kp.phone = COALESCE($phone, kp.phone),
-    kp.relationship = COALESCE($rel, kp.relationship),
-    kp.role = COALESCE($role, kp.role),
-    r.rank = COALESCE($rank, r.rank)
-```
-
-**後見人（Guardian）:**
-```cypher
-MATCH (c:Client {name: $client})
-MERGE (c)-[:HAS_LEGAL_REP]->(g:Guardian {name: $name})
-SET g.type = COALESCE($type, g.type),
-    g.phone = COALESCE($phone, g.phone),
-    g.organization = COALESCE($org, g.organization)
-```
-
-**医療機関（Hospital）:**
-```cypher
-MATCH (c:Client {name: $client})
-MERGE (h:Hospital {name: $name})
-SET h.specialty = $spec, h.phone = $phone
-MERGE (c)-[:TREATED_AT]->(h)
-// かかりつけ医は Doctor ノードで表現（Hospital.doctor プロパティは廃止）
-FOREACH (_ IN CASE WHEN $doc IS NULL OR $doc = '' THEN [] ELSE [1] END |
-    MERGE (d:Doctor {name: $doc})
-    MERGE (h)-[:HAS_DOCTOR]->(d))
-```
-
-**生育歴（LifeHistory）:**
-```cypher
-MATCH (c:Client {name: $client})
-CREATE (h:LifeHistory {era: $era, episode: $episode, emotion: $emotion})
-CREATE (c)-[:HAS_HISTORY]->(h)
-```
-
-**願い（Wish）:**
-```cypher
-MATCH (c:Client {name: $client})
-CREATE (w:Wish {content: $content, status: 'Active', date: date($date)})
-CREATE (c)-[:HAS_WISH]->(w)
-```
-
-**支援記録（SupportLog）:**
-```cypher
-MERGE (s:Supporter {name: $supporter})
-WITH s
-MATCH (c:Client {name: $client})
-CREATE (log:SupportLog {
-    date: date($date),
-    situation: $situation,
-    action: $action,
-    effectiveness: $effectiveness,
-    note: $note
-})
-CREATE (s)-[:LOGGED]->(log)-[:ABOUT]->(c)
-```
-
-### Step 5: 監査ログの記録（必須）
-
-**すべての書き込み操作の後**、AuditLog ノードを作成して監査証跡を残すこと。
-
-**監査ログ（AuditLog）:**
-```cypher
-CREATE (al:AuditLog {
-    timestamp: datetime(),
-    user: $user,
-    action: $action,
-    targetType: $targetType,
-    targetName: $targetName,
-    details: $details,
-    clientName: $clientName
-})
-RETURN al.timestamp AS 記録日時
-```
-
-**パラメータ**:
-- `$user`: 操作者名（不明なら "narrative-extractor"）
-- `$action`: "CREATE" または "UPDATE"
-- `$targetType`: ノード種別（例: "Client", "NgAction", "SupportLog"）
-- `$targetName`: 内容の要約
-- `$details`: 登録した主要フィールドの概要
-- `$clientName`: 対象クライアント名
-
-**運用ルール**: 1回の抽出・登録操作で複数ノードを作成した場合、クライアント単位で1件の AuditLog にまとめてよい（details に登録内容の一覧を記載）。
-
-## 命名規則（厳守）
-
-- ノード: PascalCase (`Client`, `NgAction`)
-- リレーション: UPPER_SNAKE_CASE (`MUST_AVOID`, `HAS_KEY_PERSON`)
-- プロパティ: camelCase (`riskLevel`, `nextRenewalDate`)
-- 廃止名 (`PROHIBITED`, `PREFERS`, `EMERGENCY_CONTACT`, `RELATES_TO`, `HAS_GUARDIAN`, `HOLDS`) は書き込み禁止
-
-## 使用例
-
-### 基本的な使い方
-```
-ユーザー: 以下の文章からクライアント情報を抽出してデータベースに登録してください。
-
-健太は1995年3月15日生まれです。血液型はA型。
-自閉スペクトラム症と診断されています。
-後ろから急に声をかけないでください。パニックになります。
-```
-
-### ファイルからの抽出
-```
-ユーザー: [ファイル添付] この面談記録から情報を抽出して登録してください。
-```
-
-### 追記モード
-```
-ユーザー: 山田健太さんの情報に以下を追加してください。
-かかりつけは産業医科大学病院の中村先生（精神科）です。
-```
-
-## 証拠・鮮度モデル（Track A Phase 1・2026-08-08 正典収載）
-
-SCHEMA_CONVENTION **v3.4 §7.9** / SEMANTIC_MODEL **v1.6 BRS-13**（河原氏承認 2026-08-08）で
-NgAction / CarePreference に `source`（ENU-17 語彙）/ `sourceDetail` / `status`（Active・Pending・
-Inactive の3値制限）/ `lastConfirmedAt` / `staleAfter` が、リレーション `CONTRADICTS`（矛盾の保留・
-追記専用）/ `CONFIRMS`（Review→事実の個別確認）が正典収載された。
-
-本スキルへの影響（挙動実装は Phase 1 ステップ3以降）:
-- AI抽出由来の NgAction / CarePreference は `status: Pending` で作成する（二段階承認 R2。
-  人間の承認で Active に昇格・AuditLog 必須）。
-- 既存事実と食い違う情報を抽出したら**上書きせず** CONTRADICTS（claim / raisedAt / source）で
-  保留する（R3。矛盾は未解決として保持し人間が裁定する）。
+- 「10月2日」には年が無いので、`aboutDate` を書かない
+- 母は名札 `mother` で指し、名前を書かない
+- 窓口の機関は推定の候補が渡されていないので `orgId` を書かない（機関未確定）
