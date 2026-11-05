@@ -6,6 +6,8 @@ tsunagu-net の tests/test_intake.py の例（両方向・架空）を写し、n
 - 情報提供の書面は確度を二段で持つ（提供元がどう知ったか＝原文の印、受けた側から見て＝他の機関からの情報）
 - 人は既にある ID か、案の中の新しい人（Pending）だけ。名前で既にいる人に結び付けない（N-16）
 - 原本の指紋は道具が原文から作る（案には書かせない）
+- 提供元の機関：案には原文の名前（providerName）だけを書き、機関 ID は職員が候補から選んで provider_org_id で渡す（N-24。
+  手本の tsunagu-net は案に providerOrgId を書く形。ここは手本と分かれる。台帳 G-56）
 """
 import copy
 import hashlib
@@ -19,6 +21,7 @@ OWN = (FIXTURES / "own_record.md").read_text(encoding="utf-8")
 
 CLIENT = "CLI-01HZZZZZZZZZZZZZZZZZZZZZZZ"
 PROVIDER = "ORG-01HPPPPPPPPPPPPPPPPPPPPPPP"
+PROVIDER_NAME = "デイサービス事業所"
 PER = "PER-01H11111111111111111111111"
 ACTOR = "STF-01HZZZZZZZZZZZZZZZZZZZZZZZ"
 BRUISE = "ハナの右上腕に、指の形に見えるあざ（2か所）を送迎時に確認し、写真を記録"
@@ -37,14 +40,17 @@ def _fact(quote, certainty="Hearsay", provider="Confirmed", **over):
 
 
 def _proposal(facts=None, **over):
-    p = {"documentKind": "ProvisionDocument", "providerOrgId": PROVIDER, "clientId": CLIENT, "receivedOn": "2026-09-15",
+    p = {"documentKind": "ProvisionDocument", "providerName": PROVIDER_NAME, "clientId": CLIENT, "receivedOn": "2026-09-15",
          "facts": facts if facts is not None else [_fact(BRUISE)]}
     p.update(over)
     return p
 
 
-def _check(proposal, original=ORIGINAL):
-    return _intake().check(proposal, original, actor_staff_id=ACTOR, request_id="req-intake")
+def _check(proposal, original=ORIGINAL, provider_org_id="default"):
+    """提供元の機関は、職員が候補から選んで別に渡す（N-24）。既定は、書面なら PROVIDER を選んだことにする。"""
+    if provider_org_id == "default":
+        provider_org_id = PROVIDER if proposal.get("documentKind") == "ProvisionDocument" else None
+    return _intake().check(proposal, original, actor_staff_id=ACTOR, request_id="req-intake", provider_org_id=provider_org_id)
 
 
 def _records(rep):
@@ -70,11 +76,12 @@ def test_quote_ignores_only_whitespace_differences():
 
 
 def test_document_kind_and_provider_rules():
-    assert not _check(_proposal(providerOrgId=None))["ok"]                 # 書面なのに提供元が無い
+    assert not _check(_proposal(), provider_org_id=None)["ok"]              # 書面なのに提供元を職員が選んでいない（N-24）
+    assert not _check(_proposal(providerName=None))["ok"]                   # 書面なのに原文の提供元の名前が無い
     assert not _check(_proposal(documentKind="Memo"))["ok"]
     assert not _check(_proposal(documentKind="OwnCaseRecord"))["ok"]        # 自分の記録に提供元を書かない
     assert not _check(_proposal(clientId="本人A"))["ok"]                    # 本人は ID で指す
-    assert not _check(_proposal(providerOrgId="CLI-01HZZZZZZZZZZZZZZZZZZZZZZZ"))["ok"]
+    assert not _check(_proposal(), provider_org_id="CLI-01HZZZZZZZZZZZZZZZZZZZZZZZ")["ok"]
 
 
 def test_facts_must_be_present():

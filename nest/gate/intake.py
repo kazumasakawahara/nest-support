@@ -5,7 +5,7 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
 
 案の形：
   {"documentKind": "ProvisionDocument" | "OwnCaseRecord",
-   "providerOrgId": "ORG-…"（情報提供の書面のときだけ）,
+   "providerName": "…"（情報提供の書面のときだけ。原文に書かれた提供元の名前。機関 ID は書かない。N-24）,
    "clientId": "CLI-…"（既にいる本人。職員が選ぶ）,
    "receivedOn": "YYYY-MM-DD"（書面を受けた日。任意）,
    "newPeople": [{"ref", "familyName"?, "givenName"?, "familyNameKana"?, "givenNameKana"?}]（任意）,
@@ -22,6 +22,8 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
   書面では providerCertainty がこれと同じで、certainty が受けた側の確度（receiver_certainty）と同じこと。上げも下げも止める（N-14）
 - 人は、既にいる人の ID（PER-…）か、案の中の新しい人の名札（英小文字で始まる、重複の無いもの）か、本人（client）だけで指す。
   名前で既にいる人に結び付けない。新しい人は AiExtracted（Pending）で作る（D8。N-16）
+- 提供元の機関は、案に機関 ID を書かせない（名前の一致だけで orgId を入れない）。原文の名前（providerName）から
+  org_candidates.by_name で候補を出し、職員が選んだ機関 ID を provider_org_id で渡す。渡すまでは未確定で、依頼を作らない（N-24。D3）
 - 案に、上の形に無い項目があれば止める。snake_case などの別の綴りも直さない（N-15）。ゲートの検証（validate.py）も同じ考え方
 """
 import copy
@@ -31,7 +33,7 @@ import re
 from nest import ids
 
 DOC_KINDS = ("ProvisionDocument", "OwnCaseRecord")
-TOP_KEYS = {"documentKind", "providerOrgId", "clientId", "receivedOn", "newPeople", "facts"}
+TOP_KEYS = {"documentKind", "providerName", "clientId", "receivedOn", "newPeople", "facts"}
 FACT_KEYS = {"quote", "text", "recordKind", "certainty", "providerCertainty", "informantKind", "aboutDate", "heardOn", "toldBy"}
 PERSON_KEYS = {"ref", "familyName", "givenName", "familyNameKana", "givenNameKana"}
 REF = re.compile(r"^[a-z][a-z0-9-]*$")
@@ -75,14 +77,18 @@ def receiver_certainty(provider):
     return provider if provider in ("Inference", "Unspecified") else "Hearsay"
 
 
-def check(proposal, original, actor_staff_id, request_id):
-    """返り値 {"ok", "errors", "warnings", "request"}。止めるときは request が None。"""
+def check(proposal, original, actor_staff_id, request_id, provider_org_id=None):
+    """返り値 {"ok", "errors", "warnings", "request"}。止めるときは request が None。
+    provider_org_id は、職員が候補から選んだ提供元の機関 ID（情報提供の書面のとき）。選んでいなければ needsProviderChoice を返す。"""
     p = copy.deepcopy(proposal)
     errors, warnings = [], []
     if not isinstance(p, dict) or not isinstance(original, str) or not original.strip():
         return {"ok": False, "errors": ["案はオブジェクト、原文は空でない文字列"], "warnings": [], "request": None}
     for k in sorted(set(p) - TOP_KEYS):
-        errors.append("案に %s という項目は無い（直さずに止める）" % k)
+        if k == "providerOrgId":
+            errors.append("案に機関 ID（providerOrgId）を書かない。原文の名前（providerName）を書き、候補から職員が選ぶ（N-24）")
+        else:
+            errors.append("案に %s という項目は無い（直さずに止める）" % k)
     refs = set()
     for person in p.get("newPeople") or []:
         for k in sorted(set(person) - PERSON_KEYS):
@@ -94,11 +100,20 @@ def check(proposal, original, actor_staff_id, request_id):
     kind = p.get("documentKind")
     if kind not in DOC_KINDS:
         errors.append("documentKind は %s のどれか（%r）" % ("／".join(DOC_KINDS), kind))
-    provider = p.get("providerOrgId")
-    if kind == "ProvisionDocument" and not ids.is_valid_org_id(provider):
-        errors.append("情報提供の書面には提供元の機関 ID（providerOrgId。ORG-…）が要る")
-    if kind == "OwnCaseRecord" and provider is not None:
-        errors.append("自分の記録に提供元（providerOrgId）を書かない")
+    name = p.get("providerName")
+    needs_choice = None
+    if kind == "ProvisionDocument":
+        if not isinstance(name, str) or not name.strip():
+            errors.append("情報提供の書面には、原文の提供元の名前（providerName）が要る")
+        elif not _in_original(name, original):
+            errors.append("提供元の名前が原文に無い（%s）" % name[:30])
+        if provider_org_id is None:
+            needs_choice = name
+            errors.append("提供元の機関が未確定。候補（org_candidates.by_name）から職員が選び、provider_org_id で渡す")
+        elif not ids.is_valid_org_id(provider_org_id):
+            errors.append("職員が選んだ提供元は機関 ID（ORG-…）でなければならない（%r）" % (provider_org_id,))
+    if kind == "OwnCaseRecord" and (name is not None or provider_org_id is not None):
+        errors.append("自分の記録に提供元（providerName・provider_org_id）を書かない")
     if not ids.is_valid_id(p.get("clientId"), "CLI"):
         errors.append("clientId は既にいる本人の ID（CLI-…）")
     facts = p.get("facts") or []
@@ -141,18 +156,21 @@ def check(proposal, original, actor_staff_id, request_id):
             if f.get("certainty") != marked:
                 errors.append("%s: 確度 %r が原文の印（%s）と違う（格上げも格下げもしない）" % (where, f.get("certainty"), marked))
     if errors:
-        return {"ok": False, "errors": errors, "warnings": warnings, "request": None}
+        out = {"ok": False, "errors": errors, "warnings": warnings, "request": None}
+        if needs_choice is not None:
+            out["needsProviderChoice"] = needs_choice
+        return out
     return {"ok": True, "errors": [], "warnings": warnings,
-            "request": _request(p, original, actor_staff_id, request_id)}
+            "request": _request(p, original, actor_staff_id, request_id, provider_org_id)}
 
 
-def _request(p, original, actor_staff_id, request_id):
+def _request(p, original, actor_staff_id, request_id, provider_org_id):
     doc_hash = hashlib.sha256(original.encode("utf-8")).hexdigest()
     client = {"label": "Client", "id": p["clientId"]}
     staff = {"label": "Staff", "id": actor_staff_id}
     nodes, rels = [], []
     if p["documentKind"] == "ProvisionDocument":
-        nodes.append({"ref": "provider", "label": "Organization", "origin": "Human", "properties": {"orgId": p["providerOrgId"]}})
+        nodes.append({"ref": "provider", "label": "Organization", "origin": "Human", "properties": {"orgId": provider_org_id}})
     for person in p.get("newPeople") or []:
         nodes.append({"ref": person["ref"], "label": "Person", "origin": "AiExtracted",
                       "properties": {k: v for k, v in person.items() if k != "ref"}})
