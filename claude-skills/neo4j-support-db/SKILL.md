@@ -203,6 +203,8 @@ ORDER BY raisedAt
 
 ### 15. 本人についての操作の記録
 
+拾う範囲は、本人のノードと、本人と直接つながるノード（禁忌・推奨ケア・記録・関わりなど）の操作まで。二つ先のノード（事実の根拠の記録の先など）の操作は拾わない（台帳 G-67）。
+
 ```cypher
 MATCH (c:Client {displayCode: $code})
 OPTIONAL MATCH (c)--(t) WHERE NOT t:AuditLog
