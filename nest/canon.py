@@ -9,11 +9,11 @@ import re
 from pathlib import Path
 
 BLOCK_RE = re.compile(r"^```json machine-check\n(.*?)^```", re.S | re.M)
-TOP_KEYS = ("version", "personal", "idPrefixes", "enums", "enumBindings")
+TOP_KEYS = ("version", "personal", "idPrefixes", "externalIds", "enums", "enumBindings")
 NODE_LISTS = ("required", "optional", "unique")
 REL_LISTS = ("from", "to", "required", "optional")
 ANY_LABEL = "*"
-RESERVED_PREFIX = "ORG"  # 資源の側の機関の ID。個人の側では使わない（ADR D3）
+RESERVED_PREFIX = "ORG"  # 資源の側の機関の ID。個人の側で発番しない（ADR D3）。externalIds でだけ使う
 
 
 class CanonError(Exception):
@@ -75,11 +75,15 @@ def validate(data):
                     raise CanonError("personal.relationships.%s の %s に無いラベル: %s" % (rel, end, label))
 
     prefixes = data["idPrefixes"]
-    if not isinstance(prefixes, dict):
-        raise CanonError("idPrefixes がオブジェクトではない")
+    external = data["externalIds"]
+    if not isinstance(prefixes, dict) or not isinstance(external, dict):
+        raise CanonError("idPrefixes・externalIds がオブジェクトではない")
     for label in nodes:
-        if label not in prefixes:
-            raise CanonError("idPrefixes に %s が無い" % label)
+        if (label in prefixes) == (label in external):
+            raise CanonError("%s は idPrefixes と externalIds のちょうど一方に要る" % label)
+    for label, prefix in external.items():
+        if prefix != RESERVED_PREFIX:
+            raise CanonError("externalIds の %s が %s ではない" % (label, RESERVED_PREFIX))
     if RESERVED_PREFIX in prefixes.values():
         raise CanonError("個人の側の接頭辞に %s を使っている" % RESERVED_PREFIX)
     values = list(prefixes.values())

@@ -17,12 +17,15 @@ MINIMAL = {
         "nodes": {
             "Client": {"required": ["clientId"], "optional": [], "unique": ["clientId"]},
             "Record": {"required": ["recordId", "certainty"], "optional": [], "unique": ["recordId"]},
+            "Organization": {"required": ["orgId", "linkedAt"], "optional": [], "unique": ["orgId"]},
         },
         "relationships": {
             "ABOUT": {"from": ["Record"], "to": ["Client"], "required": [], "optional": []},
+            "PROVIDED_BY": {"from": ["Record"], "to": ["Organization"], "required": [], "optional": []},
         },
     },
     "idPrefixes": {"Client": "CLI", "Record": "REC"},
+    "externalIds": {"Organization": "ORG"},
     "enums": {"status": ["Active"], "certainty": ["Confirmed"]},
     "enumBindings": {"*.status": "status", "Record.certainty": "certainty"},
 }
@@ -62,7 +65,7 @@ def test_broken_json_fails(tmp_path):
         canon.load(_write(tmp_path, raw='{"version": "0.0",'))
 
 
-@pytest.mark.parametrize("key", ["version", "personal", "idPrefixes", "enums", "enumBindings"])
+@pytest.mark.parametrize("key", ["version", "personal", "idPrefixes", "externalIds", "enums", "enumBindings"])
 def test_missing_top_key_fails(tmp_path, key):
     with pytest.raises(canon.CanonError):
         canon.load(_write(tmp_path, _broken(lambda d: d.pop(key))))
@@ -112,6 +115,21 @@ def test_duplicate_id_prefix_fails(tmp_path):
         canon.load(_write(tmp_path, _broken(m)))
 
 
+def test_label_in_both_prefix_tables_fails(tmp_path):
+    def m(d):
+        d["idPrefixes"]["Organization"] = "OGN"
+    with pytest.raises(canon.CanonError):
+        canon.load(_write(tmp_path, _broken(m)))
+
+
+def test_external_id_other_than_org_fails(tmp_path):
+    """個人の側の外から来る ID は資源の側の機関（ORG-）だけ（ADR D3 の改め 2026-11-05 2 回目）。"""
+    def m(d):
+        d["externalIds"]["Organization"] = "ORX"
+    with pytest.raises(canon.CanonError):
+        canon.load(_write(tmp_path, _broken(m)))
+
+
 def test_binding_to_unknown_enum_fails(tmp_path):
     def m(d):
         d["enumBindings"]["Record.certainty"] = "certainity"
@@ -130,7 +148,7 @@ def test_empty_enum_fails(tmp_path):
 
 def test_repository_canon_loads():
     data = canon.load(SCHEMA)
-    assert data["version"] == "0.2"
+    assert data["version"] == "0.3"
 
 
 def test_repository_canon_labels():
@@ -139,8 +157,21 @@ def test_repository_canon_labels():
         "Client", "Person", "Staff", "Involvement",
         "NgAction", "CarePreference", "Condition", "Wish", "LifeHistory", "CareRole",
         "Certificate", "PublicAssistance", "SupportLog",
-        "Record", "Review", "AuditLog",
+        "Record", "Review", "AuditLog", "Organization",
     }
+
+
+def test_repository_canon_organization_holds_id_only():
+    """G-38：機関のノードは orgId と linkedAt だけ。名前・住所・種類を持たない。"""
+    org = canon.load(SCHEMA)["personal"]["nodes"]["Organization"]
+    assert set(org["required"]) | set(org["optional"]) == {"orgId", "linkedAt"}
+
+
+def test_repository_canon_involvement_kinds_include_tsunagu():
+    """G-41：tsunagu-net v0.29 の 8 つをすべて持つ。"""
+    kinds = canon.load(SCHEMA)["enums"]["involvementKind"]
+    tsunagu = ["Consultation", "CaseManagement", "ServiceProvision", "Protection", "Education", "Medical", "Monitoring", "Guardianship"]
+    assert kinds[:8] == tsunagu
 
 
 def test_repository_canon_shared_enums_match_contract():
