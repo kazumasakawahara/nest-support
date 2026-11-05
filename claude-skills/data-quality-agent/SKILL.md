@@ -460,6 +460,8 @@ RETURN
 
 ### Check 8: 重み横断一貫性（Warning）— 類似事象間のブレ検出
 
+> **このチェックは使えない。** 下に書いた `scripts/check_weight_consistency.py` と `scripts/backfill_embeddings.py` は外した（2026-11-05 N-04。埋め込みをやめた ADR-001 D10）。実行も案内もしないこと。書き直しは N-27。
+
 同じ意味の NgAction や CarePreference が、別のクライアントで**異なる riskLevel / priority に分類**されていないかを検出する。embedding（Gemini Embedding 2）で意味的類似度を計算し、類似度 ≥ 0.85 のペアで重みが異なる場合に警告する。
 
 **実装**: 専用 Python スクリプト `scripts/check_weight_consistency.py` を使用（Cypher のみでは意味類似度を扱えないため）。
