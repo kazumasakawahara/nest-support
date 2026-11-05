@@ -1,0 +1,170 @@
+"""Pending の承認と却下（N-21。ADR-001 D9）。ゲートの一部。書き込み（write.submit）とは別の操作。
+
+- 承認・却下できるのは Active な職員。対象は Pending のノードだけ。承認で Active、却下で Inactive にする。変えるのは status だけ
+- 一人で使う人の自己承認を認める（tsunagu-net の「自分で登録したものは自分で承認できない」とは、ここで分かれる）。
+  自分で登録したもの（Create の AuditLog の ACTED_BY が自分）を承認したら、APPROVED と AuditLog に selfApproval: true を残す
+- AI 由来のものはまとめて承認しない。approve_many は、2 件以上で AI 由来が一つでもあれば、何も変えずに断る
+- 承認の出力には、事実ごとに原文の引用を並べる（review_items も同じ形。本人に直接つながるもの、本人について聞いた記録の話し手、
+  本人の事実の根拠の記録を並べる）。引用は、記録ならその記録、
+  事実なら根拠（EVIDENCED_BY）の記録、人ならその人から聞いた（TOLD_BY）記録から引く
+- 承認は Staff -[:APPROVED {at, selfApproval}]-> 対象 で残す。承認・却下とも AuditLog（Approve／Reject）を残す
+手本：tsunagu-net の tsunagu/gate/approve.py（読むだけ）。
+"""
+from datetime import datetime, timezone
+
+from nest import ids
+from nest.gate import validate as gv
+from nest.gate import write as gw
+
+DECIDABLE = set(ids.LABEL_PREFIX) - gv.GATE_ONLY_LABELS - {"Staff"}
+NEW_STATUS = {"Approve": "Active", "Reject": "Inactive"}
+QUOTES = """MATCH (n:%s {%s: $id})
+OPTIONAL MATCH (n)-[:EVIDENCED_BY]->(e:Record)
+OPTIONAL MATCH (t:Record)-[:TOLD_BY]->(n)
+WITH n, collect(DISTINCT e) + collect(DISTINCT t) + CASE WHEN n:Record THEN [n] ELSE [] END AS recs
+UNWIND recs AS r
+WITH DISTINCT r
+RETURN r.recordId AS recordId, r.quote AS quote, r.certainty AS certainty, r.informantKind AS informantKind
+ORDER BY recordId"""
+PENDING_AROUND = """MATCH (c:Client {clientId: $c})
+CALL (c) {
+  MATCH (c)--(n) WHERE n.status = 'Pending' RETURN n
+  UNION
+  MATCH (c)<-[:ABOUT]-(:Record)-[:TOLD_BY]->(n:Person) WHERE n.status = 'Pending' RETURN n
+  UNION
+  MATCH (c)--()-[:EVIDENCED_BY]->(n:Record) WHERE n.status = 'Pending' RETURN n
+}
+RETURN DISTINCT labels(n)[0] AS label, n AS node"""
+
+
+def _quotes(tx, label, key, target_id):
+    return [r.data() for r in tx.run(QUOTES % (label, key), id=target_id)]
+
+
+def _check(tx, action, actor, label, key, target_id):
+    rows = list(tx.run("MATCH (t:%s {%s: $id}) RETURN t.status AS status, t.origin AS origin" % (label, key), id=target_id))
+    if not rows or rows[0]["status"] != "Pending":
+        return ["%s %s は Pending でない（%s）" % (label, target_id, rows[0]["status"] if rows else "無い")], None
+    return [], rows[0]["origin"]
+
+
+def _self(tx, actor, label, target_id):
+    rows = list(tx.run("MATCH (a:AuditLog {action: 'Create', targetLabel: $label, targetId: $id})-[:ACTED_BY]->"
+                       "(:Staff {staffId: $actor}) RETURN count(a) AS n", label=label, id=target_id, actor=actor))
+    return bool(rows and rows[0]["n"])
+
+
+def _change(tx, action, actor, label, key, target_id, request_id, now, new_id):
+    done = list(tx.run("MATCH (t:%s {%s: $id}) WHERE t.status = 'Pending' SET t.status = '%s' RETURN count(t) AS n"
+                       % (label, key, NEW_STATUS[action]), id=target_id))
+    if not done or done[0]["n"] != 1:
+        raise gw.Rejected(["%s %s の状態を変えられなかった（同時に他の操作があった可能性）" % (label, target_id)])
+    props = gw.audit_props(new_id, now, action, label, target_id, request_id, "Human")
+    self_approval = None
+    if action == "Approve":
+        self_approval = _self(tx, actor, label, target_id)
+        tx.run("MATCH (s:Staff {staffId: $actor}) MATCH (t:%s {%s: $id}) CREATE (s)-[:APPROVED {at: $at, selfApproval: $selfApproval}]->(t)"
+               % (label, key), actor=actor, id=target_id, at=now, selfApproval=self_approval)
+        props["selfApproval"] = self_approval
+    tx.run(gw.AUDIT_QUERY % (label, key), id=target_id, actor=actor, props=props)
+    return self_approval
+
+
+def _decide_all(tx, action, actor, targets, request_id, now, new_id):
+    """全件を先に確かめ、一件でもだめなら何も変えない。"""
+    errors = []
+    gw.actor_role(tx, actor, errors)
+    origins = []
+    if not errors:
+        for label, key, target_id in targets:
+            errs, origin = _check(tx, action, actor, label, key, target_id)
+            errors.extend(errs)
+            origins.append(origin)
+    if not errors and len(targets) > 1 and "AiExtracted" in origins:
+        errors.append("AI 由来のものはまとめて承認・却下しない。一件ずつ、原文の引用と照らして決める（D9）")
+    if errors:
+        raise gw.Rejected(errors)
+    shown, selfs = [], []
+    for label, key, target_id in targets:
+        shown.extend(_quotes(tx, label, key, target_id))
+        selfs.append(_change(tx, action, actor, label, key, target_id, request_id, now, new_id))
+    return shown, selfs
+
+
+def _targets(raw, out):
+    targets, seen = [], set()
+    for t in raw:
+        if not isinstance(t, dict) or set(t) != {"label", "id"}:
+            out["errors"].append("対象は {label, id} だけで指す（%r）" % (t,))
+            continue
+        label, target_id = t["label"], t["id"]
+        if label not in DECIDABLE:
+            out["errors"].append("%r は承認・却下の対象にならない" % (label,))
+        elif not ids.is_valid_id(target_id, ids.LABEL_PREFIX[label]):
+            out["errors"].append("%s の ID %r が正しくない" % (label, target_id))
+        elif (label, target_id) in seen:
+            out["errors"].append("%s %s が重複している" % (label, target_id))
+        else:
+            seen.add((label, target_id))
+            targets.append((label, gw.key_of(label), target_id))
+    return targets
+
+
+def _run(action, driver, actor, raw_targets, request_id, now, new_id, database, out):
+    if not ids.is_valid_id(actor, "STF"):
+        out["errors"].append("actorStaffId %r は職員の ID（STF-…）でなければならない" % (actor,))
+    if not request_id:
+        out["errors"].append("requestId が無い")
+    if not raw_targets:
+        out["errors"].append("対象が無い")
+    targets = _targets(raw_targets or [], out)
+    if out["errors"]:
+        return out
+    try:
+        with driver.session(database=database) as s:
+            shown, selfs = s.execute_write(_decide_all, action, actor, targets, request_id,
+                                           now or datetime.now(timezone.utc), new_id)
+    except gw.Rejected as e:
+        out["errors"] = e.errors
+        return out
+    out.update(ok=True, shown=shown, count=len(targets))
+    if action == "Approve":
+        out["selfApproval"] = selfs[0] if len(selfs) == 1 else selfs
+    return out
+
+
+def approve(driver, actor_staff_id, target, request_id, now=None, new_id=ids.new_id, database="neo4j"):
+    """一件を承認する。出力の shown に、その事実の原文の引用を並べる。"""
+    out = {"ok": False, "errors": [], "requestId": request_id, "action": "Approve", "target": target}
+    if not isinstance(target, dict):
+        out["errors"].append("承認は一件ずつ（{label, id}）。一覧は渡せない")
+        return out
+    return _run("Approve", driver, actor_staff_id, [target], request_id, now, new_id, database, out)
+
+
+def reject(driver, actor_staff_id, target, request_id, now=None, new_id=ids.new_id, database="neo4j"):
+    out = {"ok": False, "errors": [], "requestId": request_id, "action": "Reject", "target": target}
+    if not isinstance(target, dict):
+        out["errors"].append("却下は一件ずつ（{label, id}）。一覧は渡せない")
+        return out
+    return _run("Reject", driver, actor_staff_id, [target], request_id, now, new_id, database, out)
+
+
+def approve_many(driver, actor_staff_id, targets, request_id, now=None, new_id=ids.new_id, database="neo4j"):
+    """まとめての承認。2 件以上で AI 由来が一つでもあれば、何も変えずに断る（D9）。"""
+    out = {"ok": False, "errors": [], "requestId": request_id, "action": "Approve", "count": 0}
+    return _run("Approve", driver, actor_staff_id, list(targets or []), request_id, now, new_id, database, out)
+
+
+def review_items(driver, client_id, database="neo4j"):
+    """本人のまわりの Pending を、事実ごとに原文の引用を添えて返す（読むだけ）。"""
+    items = []
+    with driver.session(database=database) as s:
+        for row in s.execute_read(lambda tx: list(tx.run(PENDING_AROUND, c=client_id))):
+            label, node = row["label"], row["node"]
+            if label not in DECIDABLE:
+                continue
+            key = gw.key_of(label)
+            quotes = s.execute_read(_quotes, label, key, node[key])
+            items.append({"label": label, "id": node[key], "origin": node.get("origin"), "quotes": quotes})
+    return items
