@@ -20,7 +20,7 @@
 | N-03 | Gemini を既定で止める：文字起こし（`transcribe_audio`・field-ui の音声）・OCR（`file_readers`・`ocr_with_gemini`）を N-02 の歯止めに通す | 鍵があっても、設定と記録が無ければ外部への呼び出しが 0 回（偽の送信先で数える） | ✅ 2026-11-05（`lib/embedding.py` の `get_genai_client(row)` が呼ぶたびに許可を確かめる。埋め込みは NEXT-06、`multi_importer` の構造化は NEXT-07 で常に不許可。送り先を固定。`tests/test_gemini_gate.py` 10 件。全体 267 passed。台帳 G-28・G-29） |
 | N-04 | 埋め込みを外す（ADR D10）：登録時の埋め込み、`backfill_embeddings.py`、ベクトル索引の作成、意味検索、似た本人の検索。関係する既存の試験を改める | コードの中に埋め込みの呼び出しとベクトル索引の作成が残っていない検査 | ✅ 2026-11-05（`lib/embedding.py`・`scripts/backfill_embeddings.py`・`scripts/check_weight_consistency.py` を外した。Gemini の入口・文字起こし・OCR は `lib/genai.py`、面談記録の登録は `lib/meeting_record.py`（埋め込みなし）へ移した。`tests/test_no_embedding.py` 3 件・`tests/test_gemini_gate.py` 13 件。google-genai を 1.66.0 に固定。全体 267 passed。台帳 G-30〜G-33） |
 | N-05 | `multi_importer.py` の Gemini による構造化を外す（ADR D11-1） | 構造化の経路が外部を呼ばない検査。`structurize_with_gemini` の記録の文言「GEMINI_API_KEY が未設定です」の消し忘れが無いことを確かめる（台帳 G-29）。外した後は `tests/test_no_embedding.py` の許す行から NEXT-07 を除く |  ✅ 2026-11-05（`structurize_with_gemini` と、構造化の結果を DB に書く経路を外した。`multi_importer` は文字を取り出して出力するだけ。field-ui の音声は文字起こしを返すだけで、構造化も登録もしない。文言「GEMINI_API_KEY が未設定です」は鍵を読む `lib/genai.py` だけに残ることを試験で確かめる。`tests/test_no_structurize.py` 4 件。全体 270 passed。台帳 G-34） |
-| N-05a | 前の DB の処分を決める：`neo4j_data/`・`neo4j_backup/`（埋め込みの値を含みうる。要配慮個人情報から派生した値として扱う。台帳 G-33）と `neo4j_logs/`・`neo4j_livelihood_*`・`.quarantine/`。消すか、新しい DB に移すときに落とすか。新しい DB への切り替え（段階 D）の前に、河原さんが中身を確かめてから決める。**~/Dev-Work の下で前の DB（7688）を指す 7 か所（台帳 G-36）も一緒に扱う** | — | |
+| N-05a | 前の DB の処分を決める：`neo4j_data/`・`neo4j_backup/`（埋め込みの値を含みうる。要配慮個人情報から派生した値として扱う。台帳 G-33）と `neo4j_logs/`・`neo4j_livelihood_*`・`.quarantine/`。消すか、新しい DB に移すときに落とすか。新しい DB への切り替え（段階 D）の前に、河原さんが中身を確かめてから決める。**~/Dev-Work の下で前の DB（7688）を指す 7 か所（台帳 G-36）も一緒に扱う**。**N-09 で `~/nest-support-hold/2026-11-05-n09-bak/` に移した `docs/*.bak-*` の 19 件の処分も、ここで一緒に決める**（台帳 G-45。2026-11-05 河原さん） | — | |
 | N-05b | 段階 A の締め（台帳 G-35 の手当て）：`.mcp.json` から Neo4j の MCP（`neo4j`・`neo4j-shared`）を外す（NEXT-11 の前倒し。N-22 の包みができたら入れ直す）。Claude Desktop の設定にある同じ項目の場所を河原さんに伝える。APOC は公式の文書だけで確かめ、「URL を読みに行ける」と仮定して扱う。~/Dev-Work の下で 7688・7687・`bolt://`・`neo4j://` を読み取りだけで探し、台帳に載せる | `.mcp.json` に Neo4j の MCP が無い（`tests/test_mcp_config.py`） | ✅ 2026-11-05（全体 271 passed。台帳 G-35・G-36） |
 
 ## 段階 B　正典（nest-support の中に持つ）
@@ -44,7 +44,7 @@
 | N-14 | 確度の点検：原文の印の読み方、重なったら弱いほう、印が無ければ記載なし、二段の確度。AI が上げても下げても止める | N-11 の該当の例 |  ✅ 2026-11-05（原文の印【…】の読み方（重なったら弱いほう、印が無ければ Unspecified、知らない印で止める）、書面の二段の確度（受けた側は提供元より強くしない）、自分の記録の一段。上げても下げても止める。試験 17 件が緑。ゲートの側の二段の決まりは N-15 で検証にも入れる） |
 | N-15 | 型の点検：型に無い項目・値は直さずに止めて理由を返す。直すのは大文字・小文字と確度の日本語名だけ | snake_case・旧い関係名・riskLevel の別名（「高」など）で止まる |  ✅ 2026-11-05（`nest/gate/validate.py`：正典の JSON で、ラベル・関係・項目・必須・列挙値・型・始点と終点・既にあるノードの ID・二段の確度・後見の類型を検証。直すのは大文字・小文字と確度の日本語名だけで、直したことを返す。snake_case・旧い関係名・riskLevel の別名・埋め込みの項目・ゲートが付ける項目で止まる。入口でも型に無い項目で止まる。`tests/test_gate_validate.py` 48 件。全体 432 passed。台帳 G-47） |
 | N-16 | AI 由来は未確定。人は名前で同定しない（参照は ID か候補） | 名前だけで既にある人を指す案で止まる |  ✅ 2026-11-05（入口：話した人は PER の ID・新しい人の名札・本人だけ。名札の形と重複。検証：既にあるノードは {label, id} だけで指し、名前を添えたら止める。AI 由来は Pending、ほかは Active を返す（書き込みは N-20）。N-11 で写した 20 件はすべて緑になり、xfail の印を外し終えた。全体 438 passed） |
-| N-17 | Guardian Layer（`lib/schema_validator.py`）の自動補正を外し、書き込みの経路をゲートに切り替える。`test_schema_validator.py` を改める | 自動補正が起きないこと | |
+| N-17 | Guardian Layer（`lib/schema_validator.py`）の自動補正を外し、書き込みの経路をゲートに切り替える。`test_schema_validator.py` を改める | 自動補正が起きないこと | ✅ 2026-11-05（N-20 を待たずに閉じた。2026-11-05 河原さん）。`register_to_database` は何も直さず書かずに断りを返す。`lib/schema_validator.py` は外した。field-ui の支援記録は 503 を返し、画面に「使わない」の注記。insight-engine の昇格にも同じ注記。N-20 まで書けない。台帳 G-49 |
 
 ## 段階 D　DB と書き込み・承認
 
@@ -67,7 +67,7 @@
 |---|---|---|---|
 | N-25 | narrative-extractor の書き直し：書き込みの案（JSON）を出すだけ。Cypher の書き込みと、名前の統合の指示を消す | 案の例がゲートを通る（架空） | |
 | N-26 | EXTRACTION_PROMPT の書き直し：原文に無い値で埋める指示を消す | — | |
-| N-27 | 読み取りのスキル（neo4j-support-db・visit-prep・emergency-protocol・data-quality-agent・resilience-checker・onboarding-wizard・ecomap-generator・insight-agent）の照会を新しい正典に合わせる。スキルごとに 1 行に分ける。列挙値の日本語の表示名は `docs/SEMANTICS.md`（新しく作る。正典 v0.2 §1）から引く | 照会のテンプレートを正典の JSON と突き合わせる検査 | |
+| N-27 | 読み取りのスキル（neo4j-support-db・visit-prep・emergency-protocol・data-quality-agent・resilience-checker・onboarding-wizard・ecomap-generator・insight-agent）の照会を新しい正典に合わせる。スキルごとに 1 行に分ける。列挙値の日本語の表示名は `docs/SEMANTICS.md`（新しく作る。正典 v0.2 §1）から引く。**`SEMANTICS.md` を作ったら、コードの中の日本語名（`nest/gate/validate.py` の `CERTAINTY_JA` など）もそこから読む形に変える**（台帳 G-47。2026-11-05 河原さん） | 照会のテンプレートを正典の JSON と突き合わせる検査 | |
 | N-28 | SOS の中身（D11-3）：LINE には SOS・誰のことか・位置・確かめる先だけ | 送る文に電話と禁忌が無い | |
 | N-29 | 文書を直す：PRIVACY_GUIDELINES（条番号は e-Gov で照合）・CLAUDE.md・README・QUICK_START・SETUP_GUIDE・manifesto の共有層と 7687 の記述（付録の表）。**面談の音声ファイルの置き場所と保存の期間**を運用の文書に書く（DB には持たない。正典 v0.2 §4.2） | — | |
 | N-30 | `doctor.sh` を新しい構成に合わせる | doctor.sh が新しい構成で全項目を通る | |
@@ -84,7 +84,7 @@
 | `scripts/check_semantic_drift.py` | shared-schema のマスター、agno の `/api/narrative/schema` | N-09（N-08 に置き換える） |
 | `docs/SCHEMA_CONVENTION.md`・`docs/SEMANTIC_MODEL.md`・`docs/*.bak-*`・`docs/semantic-model-instruction.md` | shared-schema の写し（同期の対象） | N-09 |
 | `claude-skills/` の neo4j-support-db・visit-prep・emergency-protocol・data-quality-agent・insight-agent | 「正は shared-schema の SEMANTIC_MODEL」の注記、「port 7687」の記述 | N-27 |
-| `lib/schema_validator.py` | `VALID_NODE_LABELS_7687` などの名前（中身は個人層） | N-17 |
+| `lib/schema_validator.py` | `VALID_NODE_LABELS_7687` などの名前（中身は個人層） | N-17（ファイルごと外した。台帳 G-49） |
 | `lib/embedding.py` | agno 由来のベクトル索引名の分岐 | ✅ N-04 でファイルごと外した |
 | `lib/db_operations.py`・`scripts/migrate_*.py`・`claude-skills/ecomap-generator/scripts/generate_mermaid.py` | 「`neo4j.env`（共有層 7687）より個人層を優先する」読み込みの順 | N-29（`migrate_*` は外す候補） |
 | `sos/.env.example` | `NEO4J_URI=bolt://localhost:7687` | N-28 |

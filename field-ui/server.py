@@ -174,6 +174,9 @@ async def api_create_support_log(data: SupportLogInput, user: str = Depends(requ
     }
     # 監査ログの操作者は認証済みアイデンティティ由来（自己申告の supporterName ではない）
     result = register_to_database(graph, user_name=f"field-ui:{user}")
+    if result.get("status") != "success":
+        # N-17：書き込みの道は閉じた（ゲートの書き込みは N-20）。画面が「登録完了」と出さないよう 503 で返す
+        raise HTTPException(status_code=503, detail=result.get("message", "登録できませんでした"))
     return result
 
 

@@ -41,47 +41,14 @@ def test_cascading_risk_unmasked_when_disabled(monkeypatch):
     assert r["client_name"] == "山田太郎"
 
 
-# --- R2-10: riskLevel の 高/中/低 別名と未知値の警告 --------------------------
+# --- R2-10 / R2-13 は N-17（2026-11-05）で書き換えた ------------------------------
+# R2-10（riskLevel の 高/中/低 を直す）と R2-13（_register_graph_tx の警告）は、Guardian Layer と
+# 名前で MERGE する書き込みを確かめていた。どちらも外した。いまは「直さずに止める」を
+# tests/test_gate_validate.py::test_risk_level_aliases_stop が、「書かない」を
+# tests/test_db_operations_integration.py が確かめる。
 
-def test_risk_level_aliases_high_mid_low():
-    from lib.schema_validator import normalize_risk_level
-    assert normalize_risk_level("高") == "LifeThreatening"
-    assert normalize_risk_level("中") == "Panic"
-    assert normalize_risk_level("低") == "Discomfort"
-    assert normalize_risk_level("high") == "LifeThreatening"
-    assert normalize_risk_level("medium") == "Panic"
-    assert normalize_risk_level("low") == "Discomfort"
-
-
-def test_unknown_risk_level_is_flagged():
-    from lib.schema_validator import validate_enum_value, normalize_risk_level
-    v = normalize_risk_level("なんとなく危険")  # 未知値は補正されない
-    assert v == "なんとなく危険"
-    ok, msg = validate_enum_value("riskLevel", v)
-    assert ok is False
-    assert "riskLevel" in msg
-
-
-# --- R2-13: tx 内 warnings が tx ローカルで累積しない ------------------------
-
-def test_register_graph_tx_warnings_are_tx_local():
-    from lib.db_operations import _register_graph_tx
-
-    class _Res:
-        def data(self):
-            return [{"id": "x"}]
-
-    class _Tx:
-        def run(self, q, p=None):
-            return _Res()
-
-    nodes = [{"temp_id": "n1", "label": "BogusLabel", "properties": {}}]
-    valid_labels = {"Client"}  # BogusLabel は不正
-    args = (nodes, [], {}, valid_labels, set())
-
-    _, _, _, w1 = _register_graph_tx(_Tx(), *args)
-    _, _, _, w2 = _register_graph_tx(_Tx(), *args)
-    # リトライ相当で2回呼んでも、毎回ちょうど1件（共有リストに累積しない）
-    assert len(w1) == 1
-    assert len(w2) == 1
-    assert "BogusLabel" in w1[0]
+def test_old_fixers_are_gone():
+    import lib.db_operations as dbops
+    assert not hasattr(dbops, "_register_graph_tx")
+    import importlib.util
+    assert importlib.util.find_spec("lib.schema_validator") is None

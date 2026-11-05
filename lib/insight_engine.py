@@ -412,6 +412,9 @@ def promote_to_care_preference(
     """
     効果的なケアパターンを CarePreference ノードとして正式登録する。
 
+    【使わない】N-20 まで書けない。register_to_database は N-17（2026-11-05）で閉じたので、
+    ここは断り（status "error"）を返すだけ。書き込みはゲート（nest/gate）を通す形に N-20 以降で作り直す。
+
     Returns:
         登録結果
     """

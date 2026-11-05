@@ -1,14 +1,12 @@
 """
 nest-support データベース操作モジュール
-汎用グラフ登録エンジン (LLM構造化データ対応) + 監査ログ + 仮名化対応
+接続・読み取り・仮名化の出力。
 
-このモジュールは、Gemini等で構造化された情報をNeo4jに登録する際の「守護神」として機能し、
-スキーマの整合性とデータの質を担保します。
+グラフの登録（register_to_database）は N-17 で閉じた。書き込みはゲート（nest/gate）だけを通る。
 """
 
 import os
 import sys
-from datetime import date
 from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
@@ -89,329 +87,24 @@ def execute_write(query, params=None):
         return [record.data() for record in result]
 
 # =============================================================================
-# 登録エンジン構成
+# 書き込み（閉じた。N-17）
 # =============================================================================
 
-# MERGE用の一致キー定義
-# 訂正（2026-07-13・DRIFT-12）: Certificate を正典 §10.3 の複合キー ["type","grade"] に
-# 修正（旧 ["type"] は同一人の療育手帳 A と B が1ノードに潰れる）。
-# Doctor / Relative / Identity を正典 §3 のキーで追加。
-MERGE_KEYS = {
-    "Client": ["name"],
-    "Supporter": ["name"],
-    "NgAction": ["action"],
-    "CarePreference": ["category", "instruction"],
-    "Condition": ["name"],
-    "KeyPerson": ["name"],
-    "Organization": ["name"],
-    "ServiceProvider": ["name"],
-    "Hospital": ["name"],
-    "Doctor": ["name"],
-    "Guardian": ["name"],
-    "Relative": ["name"],
-    "Identity": ["name", "dob"],
-    "Certificate": ["type", "grade"],
-    "Wish": ["content"],
-    "LifeHistory": ["episode"]
-}
-
-# 意図的に MERGE_KEYS へ入れないラベル（常時 CREATE）:
-# - CareRole: per-client スコープ則（ENT-16）。共有ノード化すると未カバーのタスクが
-#   「カバー済み」と誤診断される。親が Client でなく Relative のためスコープ機構にも乗せない
-# - Review: 確認記録は追記のみ（ENT-24）。MERGE は追記性を壊す
-# - ProviderFeedback: feedbackId が語り抽出に含まれない場合に登録ごと落ちるのを避ける
-
-# Client 配下の子ノードラベル。一致キーが弱い（action / type / name のみ等）ため、
-# グローバル MERGE では複数クライアントの同種ノードが 1 ノードに収斂し
-# `SET n += $props` で互いのプロパティを上書きし合う。これを防ぐため、
-# 登録時は Client とのリレーションを含むパターン MERGE にスコープする。
-# Relative は (Relative)-[:IS_PARENT_OF|FAMILY_OF]->(Client) と逆向き（node が source）
-# だが、_build_parent_link が両方向を解決するためスコープ対象にできる（DRIFT-12）。
-# Supporter / Hospital / Organization / ServiceProvider / Condition / Doctor は
-# 実体共有（名寄せ）が正しいためグローバル MERGE を維持する。
-CLIENT_SCOPED_LABELS = frozenset({
-    "NgAction", "CarePreference", "Certificate", "Wish", "LifeHistory",
-    "KeyPerson", "Guardian", "Relative",
-})
-
-# =============================================================================
-# 汎用グラフ登録メイン関数
-# =============================================================================
-
-import re as _re
-
-# ラベル/リレーション型は Cypher でパラメータ化できず f-string 埋め込みになるため、
-# 許可リスト＋識別子構文の二段で強制する（未知の任意文字列がクエリに到達するのを防ぐ）。
-_IDENT_RE = _re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-
-
-def _label_allowed(label, valid_labels) -> bool:
-    return bool(label) and label in valid_labels and bool(_IDENT_RE.match(label))
-
-
-def _reltype_allowed(rel_type, valid_types) -> bool:
-    return bool(rel_type) and rel_type in valid_types and bool(_IDENT_RE.match(rel_type))
+GATE_ONLY_MESSAGE = (
+    "この書き込みの道は閉じました。書き込みはゲート（nest/gate）だけを通ります（ゲートの書き込みは N-20）。"
+    "入力を直さず、データベースにも触れていません。"
+)
 
 
 def register_to_database(extracted_graph: dict, user_name: str = "system") -> dict:
+    """閉じた書き込みの道（N-17。2026-11-05）。何も直さず、何も書かず、断りを返す。
+
+    前は Guardian Layer（lib/schema_validator.py）で名前・列挙を直し、名前で MERGE して書いていた。
+    新しい DB では、ゲートを通らない書き込みの道を残さない（ADR-001 D6）。
+    呼び出し元（field-ui の支援記録・insight-engine の昇格）は N-20 まで書けない。
     """
-    LLMが抽出したグラフ構造を検証・登録し、監査ログを付与する。
-    Guardian Layer: スキーマバリデーション（camelCase変換・ラベル検証・廃止リレーション修正）を自動適用。
+    return {"status": "error", "message": GATE_ONLY_MESSAGE, "count": 0}
 
-    ノード＋リレーションの書き込みは単一の managed transaction で行い、途中失敗時は
-    全体をロールバックする（部分登録を残さない）。許可リストに無いラベル/リレーションは
-    書き込まずスキップする。監査ログは commit 後に execute_write で書き、失敗は返り値の
-    warnings で呼び出し側に伝える。
-    """
-    if 'nodes' not in extracted_graph:
-        log("無効なグラフ形式です。'nodes' キーが必要です。", "ERROR")
-        return {"status": "error", "message": "Invalid graph format"}
-
-    # Guardian Layer: スキーマバリデーション＆正規化
-    from lib.schema_validator import (
-        validate_and_normalize_graph, VALID_NODE_LABELS, VALID_RELATIONSHIP_TYPES,
-    )
-    extracted_graph, validation_warnings = validate_and_normalize_graph(extracted_graph)
-    warnings = list(validation_warnings)
-    if validation_warnings:
-        log(f"スキーマ検証警告 ({len(validation_warnings)}件): {'; '.join(validation_warnings[:3])}", "WARN")
-
-    nodes = extracted_graph.get("nodes", [])
-    relationships = extracted_graph.get("relationships", [])
-
-    # クライアント名の特定（コンテキスト把握）と Client temp_id の収集
-    client_name_context = "Unknown"
-    client_temp_ids = set()
-    for node in nodes:
-        if node.get("label") == "Client":
-            client_temp_ids.add(node.get("temp_id"))
-            if client_name_context == "Unknown":
-                client_name_context = node.get("properties", {}).get("name", "Unknown")
-
-    # Client を親とする子ノードの紐付けを relationships から先に解決する
-    # （CLIENT_SCOPED_LABELS のスコープ付きパターン MERGE 用）
-    parent_link = _build_parent_link(relationships, client_temp_ids)
-
-    driver = get_driver()
-    if driver is None:
-        return {"status": "error", "message": "Neo4j ドライバーを取得できません（接続失敗）",
-                "client_name": client_name_context, "partial_count": 0}
-
-    # 単一トランザクションでノード＋リレーションを原子的に書き込む
-    try:
-        with driver.session() as session:
-            temp_id_map, registered_labels, audited, tx_warnings = session.execute_write(
-                _register_graph_tx, nodes, relationships, parent_link,
-                VALID_NODE_LABELS, VALID_RELATIONSHIP_TYPES,
-            )
-        # tx で生じた警告は commit 成功後に一度だけマージする（リトライ重複を避ける）
-        warnings.extend(tx_warnings)
-    except Exception as e:
-        log(f"グラフ登録に失敗しました（ロールバック）: {e}", "ERROR")
-        return {
-            "status": "error",
-            "message": str(e),
-            "client_name": client_name_context,
-            "partial_count": 0,  # トランザクションはロールバック済み
-        }
-
-    # 3. 事後処理: 監査ログ（commit 後・execute_write・失敗は warnings へ）
-    for label, props, action_type in audited:
-        try:
-            _audit_node_creation(user_name, label, props, action_type, client_name_context)
-        except Exception as e:
-            warnings.append(f"監査ログ書き込み失敗（{label}）: {e}")
-            log(f"監査ログ書き込み失敗（{label}）: {e}", "WARN")
-
-    # チェーン構築（ベストエフォート）
-    if "SupportLog" in registered_labels:
-        _rebuild_support_log_chain(client_name_context)
-
-    return {
-        "status": "success",
-        "client_name": client_name_context,
-        "count": len(registered_labels),
-        "types": list(set(registered_labels)),
-        "warnings": warnings,
-    }
-
-
-def _build_parent_link(relationships, client_temp_ids):
-    """Client と直接つながる子ノードの紐付けを両方向で解決する。
-
-    戻り値: {子ノードの temp_id: rel}
-    (Client)-[r]->(node) の順方向に加え、(node)-[r]->(Client) の逆向き
-    （Relative の IS_PARENT_OF / FAMILY_OF 等）も対象にする（DRIFT-12）。
-    向きは _register_graph_tx 側で rel の source/target と temp_id の照合により復元する。
-    """
-    parent_link = {}
-    for rel in relationships:
-        if not rel.get("type"):
-            continue
-        if rel.get("source_temp_id") in client_temp_ids:
-            parent_link.setdefault(rel.get("target_temp_id"), rel)
-        elif rel.get("target_temp_id") in client_temp_ids:
-            parent_link.setdefault(rel.get("source_temp_id"), rel)
-    return parent_link
-
-
-def _register_graph_tx(tx, nodes, relationships, parent_link,
-                       valid_labels, valid_types):
-    """ノード＋リレーションを1トランザクション内で書き込む。
-
-    Returns: (temp_id_map, registered_labels, audited, tx_warnings)
-      audited: [(label, props, action_type), ...] — commit 後の監査用
-      tx_warnings: この tx で生じた警告。managed-transaction が transient 失敗で
-        本関数を再実行しても重複しないよう、外部の共有リストを mutate せず
-        tx ローカルに集めて返す（呼び出し側が commit 後に一度だけマージする）。
-    """
-    def run(query, params=None):
-        return tx.run(query, params or {}).data()
-
-    temp_id_map = {}
-    registered_labels = []
-    audited = []
-    tx_warnings = []
-    consumed_rel_ids = set()
-
-    # 1. ノードの処理（子ノードのスコープ解決のため Client を先に登録）
-    for node in sorted(nodes, key=lambda n: 0 if n.get("label") == "Client" else 1):
-        temp_id = node.get("temp_id")
-        label = node.get("label")
-        props = node.get("properties", {})
-
-        if not temp_id or not label:
-            continue
-        if not _label_allowed(label, valid_labels):
-            tx_warnings.append(f"未知/不正なラベルをスキップしました: {label!r}")
-            continue
-
-        internal_id = None
-        action_type = "CREATE"
-
-        if label == "Certificate" and not props.get("grade"):
-            props["grade"] = "不明"  # 正典 §10.3: 等級未指定は「不明」（複合キー欠落の防止）
-
-        if label in MERGE_KEYS:
-            match_props = {k: props[k] for k in MERGE_KEYS[label] if k in props}
-            if match_props:
-                match_clause = ", ".join([f"{k}: ${k}" for k in match_props.keys()])
-                if label in CLIENT_SCOPED_LABELS:
-                    link = parent_link.get(temp_id)
-                    if link and link.get("target_temp_id") == temp_id:
-                        # 順方向: (Client)-[r]->(node)
-                        parent_id, inbound = temp_id_map.get(link.get("source_temp_id")), False
-                    elif link:
-                        # 逆向き: (node)-[r]->(Client)。Relative 等（DRIFT-12）
-                        parent_id, inbound = temp_id_map.get(link.get("target_temp_id")), True
-                    else:
-                        parent_id, inbound = None, False
-                    if parent_id and _reltype_allowed(link.get("type"), valid_types):
-                        pattern = (
-                            f"(n:{label} {{{match_clause}}})-[r:{link['type']}]->(c)"
-                            if inbound else
-                            f"(c)-[r:{link['type']}]->(n:{label} {{{match_clause}}})"
-                        )
-                        cypher = f"""
-                            MATCH (c) WHERE elementId(c) = $parentId
-                            MERGE {pattern}
-                            SET n += $props, r += $relProps
-                            RETURN elementId(n) AS id
-                        """
-                        params = {**match_props, "parentId": parent_id,
-                                  "props": props,
-                                  "relProps": link.get("properties") or {}}
-                        result = run(cypher, params)
-                        if result:
-                            internal_id = result[0]['id']
-                            consumed_rel_ids.add(id(link))
-                        action_type = "MERGE/UPDATE"
-                    else:
-                        # Client への紐付きが無い子ノードはグローバル MERGE せず
-                        # CREATE へフォールバック（クライアント間の収斂を防ぐ）
-                        log(f"{label} に Client との紐付きが無いため CREATE 登録します", "WARN")
-                else:
-                    cypher = f"MERGE (n:{label} {{{match_clause}}}) SET n += $props RETURN elementId(n) AS id"
-                    params = {**match_props, "props": props}
-                    result = run(cypher, params)
-                    if result:
-                        internal_id = result[0]['id']
-                    action_type = "MERGE/UPDATE"
-
-        if not internal_id:
-            cypher = f"CREATE (n:{label}) SET n = $props RETURN elementId(n) AS id"
-            result = run(cypher, {"props": props})
-            if result:
-                internal_id = result[0]['id']
-
-        if internal_id:
-            temp_id_map[temp_id] = internal_id
-            registered_labels.append(label)
-            audited.append((label, props, action_type))
-
-    # 2. リレーションシップの処理
-    for rel in relationships:
-        if id(rel) in consumed_rel_ids:
-            continue
-        rel_type = rel.get("type")
-        if not _reltype_allowed(rel_type, valid_types):
-            tx_warnings.append(f"未知/不正なリレーションをスキップしました: {rel_type!r}")
-            continue
-        source_id = temp_id_map.get(rel.get("source_temp_id"))
-        target_id = temp_id_map.get(rel.get("target_temp_id"))
-        if source_id and target_id:
-            run(f"""
-                MATCH (s) WHERE elementId(s) = $sid
-                MATCH (t) WHERE elementId(t) = $tid
-                MERGE (s)-[r:{rel_type}]->(t)
-                SET r += $props
-            """, {"sid": source_id, "tid": target_id, "props": rel.get("properties", {})})
-
-    return temp_id_map, registered_labels, audited, tx_warnings
-
-# =============================================================================
-# 内部ユーティリティ
-# =============================================================================
-
-def _audit_node_creation(user, label, props, action, client):
-    """特定のラベルに対して重要な監査ログを生成"""
-    if label == "NgAction":
-        create_audit_log(user, action, label, props.get('action', ''), 
-                         f"Risk: {props.get('riskLevel')}", client)
-    elif label == "SupportLog":
-        create_audit_log(user, action, label, 
-                         f"{props.get('emotion', '不明')}-{props.get('triggerTag', '不明')}", 
-                         f"Context: {props.get('context', '')}", client)
-    elif label == "Client":
-        create_audit_log(user, action, label, props.get('name', ''), "Basic Info", client)
-
-def create_audit_log(user, action, target_type, target_name, details="", client_name=None):
-    # execute_write を使い失敗を握り潰さない（呼び出し側 register_to_database が
-    # 例外を捕捉して warnings に載せ、監査欠落を「成功」と誤報告しないため）。
-    execute_write("""
-        CREATE (al:AuditLog {
-            timestamp: datetime(), user: $user, action: $action,
-            targetType: $type, targetName: $name, details: $details, clientName: $client
-        })
-        WITH al OPTIONAL MATCH (c:Client {name: $client})
-        WHERE $client IS NOT NULL AND $client <> ''
-        FOREACH (_ IN CASE WHEN c IS NOT NULL THEN [1] ELSE [] END | CREATE (al)-[:AUDIT_FOR]->(c))
-    """, {"user": user, "action": action, "type": target_type, "name": target_name,
-          "details": details, "client": client_name or ""})
-
-def _rebuild_support_log_chain(client_name):
-    run_query("""
-        MATCH (log:SupportLog)-[:ABOUT]->(c:Client {name: $name})
-        WITH log ORDER BY log.date DESC
-        MATCH (current:SupportLog)-[:ABOUT]->(c:Client {name: $name})
-        WHERE NOT (current)-[:FOLLOWS]->()
-        OPTIONAL MATCH (prev:SupportLog)-[:ABOUT]->(c)
-        WHERE prev <> current AND prev.date <= current.date
-        WITH current, prev ORDER BY prev.date DESC
-        WITH current, collect(prev)[0] AS imm_prev
-        WHERE imm_prev IS NOT NULL
-        MERGE (current)-[:FOLLOWS]->(imm_prev)
-    """, {"name": client_name})
 
 # =============================================================================
 # 取得系（互換性維持）

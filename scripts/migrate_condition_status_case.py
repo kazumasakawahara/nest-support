@@ -7,7 +7,7 @@ Condition.status のケース正規化マイグレーション（C-1 / P2 2026-0
     検証を壊すため、正規の列挙値へ揃える。
 
 方針:
-    status 値を大小文字を無視して正規の列挙値（schema_validator.ENUM_VALUES
+    status 値を大小文字を無視して正規の列挙値（下の _CANONICAL。もとは schema_validator.ENUM_VALUES
     ["status"]）に照合し、一致すれば正規形へ補正する。照合できない未知の値は
     **変更せず報告のみ**（安全側。勝手に推測して上書きしない）。
 
@@ -27,9 +27,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from lib.db_operations import run_query, execute_write
-from lib.schema_validator import ENUM_VALUES
 
-_CANONICAL = ENUM_VALUES["status"]
+# lib/schema_validator.py の ENUM_VALUES["status"] の写し（N-17 で Guardian Layer を外したため、ここに置いた）
+_CANONICAL = {"Active", "Inactive", "Pending", "Completed", "Suspended", "Monitoring"}
 _LOWER_TO_CANONICAL = {v.lower(): v for v in _CANONICAL}
 
 

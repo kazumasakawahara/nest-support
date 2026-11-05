@@ -61,11 +61,15 @@ def test_support_log_rejects_unknown_client(app_mod, monkeypatch):
     assert called["register"] is False, "未登録クライアントなのに登録処理が走った"
 
 
-def test_support_log_accepts_known_client(app_mod, monkeypatch):
-    """既存クライアントなら通常どおり登録される。"""
+def test_support_log_cannot_write_until_the_gate(app_mod, monkeypatch):
+    """N-17（2026-11-05）で書き換えた：既にいるクライアントでも、N-20 までは書かずに 503 を返す。
+    前は「既存クライアントなら登録される（200）」を確かめていた。"""
     _set_clients(monkeypatch, app_mod, existing={"山田太郎"})
-    monkeypatch.setattr(app_mod, "register_to_database",
-                        lambda *a, **k: {"status": "success", "count": 3})
+
+    def _touch(*a, **k):
+        raise AssertionError("DB に書いた")
+    monkeypatch.setattr("lib.db_operations.get_driver", _touch)
+    monkeypatch.setattr("lib.db_operations.execute_write", _touch)
     client = TestClient(app_mod.app)
 
     payload = {
@@ -73,8 +77,8 @@ def test_support_log_accepts_known_client(app_mod, monkeypatch):
         "situation": "x", "action": "y", "effectiveness": "High", "emotion": "Calm",
     }
     r = client.post("/api/support-log", json=payload, headers=AUTH)
-    assert r.status_code == 200
-    assert r.json()["status"] == "success"
+    assert r.status_code == 503
+    assert "ゲート" in r.json()["detail"]
 
 
 def test_voice_upload_rejects_oversized(app_mod, monkeypatch):

@@ -1,13 +1,10 @@
-"""P2（2026-07）スキーマ拡張とマイグレーションのテスト。"""
+"""P2（2026-07）のマイグレーションのテスト。
 
-from lib import schema_validator as sv
-
-
-# --- B / C-1: status 列挙に Monitoring 追加、ケース正規化 ----------------------
-
-def test_monitoring_is_valid_status():
-    ok, _ = sv.validate_enum_value("status", "Monitoring")
-    assert ok is True
+N-17（2026-11-05）で書き換えた：lib/schema_validator.py（Guardian Layer）を外したので、
+その列挙・ラベル・リレーションの許可（Monitoring・Doctor・HAS_DOCTOR、'active' を違反と見る）を
+確かめていた 4 本を外した。新しい規範の名前は tests/test_canon.py と tests/test_gate_validate.py が確かめる。
+ゲートは列挙の大小文字だけを直して報告する（tests/test_gate_validate.py::test_case_of_enum_value_is_fixed_and_reported）。
+"""
 
 
 def test_status_case_normalization():
@@ -18,23 +15,3 @@ def test_status_case_normalization():
     # 未知値は変更しない
     val, changed = normalize_status_case("なんとなく")
     assert val == "なんとなく" and changed is False
-
-
-def test_lowercase_active_is_flagged_before_migration():
-    # 移行前の 'active' は列挙違反として検出される（だから移行が要る）
-    ok, msg = sv.validate_enum_value("status", "active")
-    assert ok is False
-    assert "status" in msg
-
-
-# --- C-2: Doctor ラベル / HAS_DOCTOR リレーション ----------------------------
-
-def test_doctor_label_is_valid():
-    ok, _ = sv.validate_node_label("Doctor")
-    assert ok is True
-
-
-def test_has_doctor_relationship_is_valid():
-    ok, _, corrected = sv.validate_relationship_type("HAS_DOCTOR")
-    assert ok is True
-    assert corrected == "HAS_DOCTOR"
