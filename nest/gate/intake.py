@@ -10,7 +10,10 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
    "receivedOn": "YYYY-MM-DD"（書面を受けた日。任意）,
    "newPeople": [{"ref", "familyName"?, "givenName"?, "familyNameKana"?, "givenNameKana"?}]（任意）,
    "facts": [{"quote", "text"?, "recordKind", "certainty", "providerCertainty"?, "informantKind",
-              "aboutDate"?, "heardOn"?, "toldBy"?}]}
+              "aboutDate"?, "heardOn"?, "toldBy"?}],
+   "involvements": [...]（任意。下の N-24a）,
+   "ngActions": [{"quote", "action", "riskLevel", "reason"?}]（任意。禁忌の候補。G-63）,
+   "carePreferences": [{"quote", "category", "instruction", "priority"?}]（任意。推奨ケアの候補。G-63）}
 
 点検：
 - quote は原文にそのまま有ること（空白・改行の違いだけは無視する）（N-12）
@@ -27,6 +30,9 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
 - 機関の名前が無い言及（「区役所の窓口で」）は involvements [{"quote", "kind", "orgId"?, "concerns"?}] に書く（N-24a）。quote は事実の引用のどれか
   （その記録を根拠に結ぶ）。orgId は担当機関の推定（org_estimate.estimate。estimate で渡す）の候補の中からだけ。無ければ機関未確定。
   確度は書かせず、いつも Inference・終わり方 Unknown・AI 由来（Pending）。候補から選んだら、推定の根拠（inferenceBasis）を推定の結果から付ける（案には書かせない）。後見は推定で作らない。推定の注記は結果の notes に載せる
+- 禁忌・推奨ケアの候補（G-63。正典 v0.9）：quote は案の事実の引用のどれかで、その記録を根拠に結ぶ（EVIDENCED_BY）。
+  根拠が同じ案の中に無い候補は作らない。確度は書かせない（根拠の記録の確度を引き継ぐ。§6）。本文に引用に無い数字を足さない。
+  いつも AI 由来（Pending）。本人から MUST_AVOID・REQUIRES で結ぶ
 - 案に、上の形に無い項目があれば止める。snake_case などの別の綴りも直さない（N-15）。ゲートの検証（validate.py）も同じ考え方
 """
 import copy
@@ -37,7 +43,12 @@ from pathlib import Path
 from nest import canon, ids
 
 DOC_KINDS = ("ProvisionDocument", "OwnCaseRecord")
-TOP_KEYS = {"documentKind", "providerName", "clientId", "receivedOn", "newPeople", "facts", "involvements"}
+TOP_KEYS = {"documentKind", "providerName", "clientId", "receivedOn", "newPeople", "facts", "involvements",
+            "ngActions", "carePreferences"}
+# 禁忌・推奨ケアの候補（G-63）：案の欄 → (ラベル, 本人からの関係, 項目, 本文として数字を確かめる項目)
+CANDIDATES = {"ngActions": ("NgAction", "MUST_AVOID", {"quote", "action", "riskLevel", "reason"}, ("action", "reason")),
+              "carePreferences": ("CarePreference", "REQUIRES", {"quote", "category", "instruction", "priority"},
+                                  ("category", "instruction"))}
 INVOLVEMENT_KEYS = {"quote", "kind", "orgId", "concerns"}
 SCHEMA = Path(__file__).resolve().parents[2] / "docs" / "SCHEMA.md"
 # 推定の結果の basis → 関わりの inferenceBasis（正典 v0.6。台帳 G-57）。住所も区のコードも持たない
@@ -114,6 +125,27 @@ def _check_involvements(p, estimate, errors):
             errors.append("%s: 住所からの推定で選んだ機関では、本人以外の人の関わりを作らない（住所が本人と違うことがある）" % where)
         if org is not None and org in offered and offered[org] == "GuardianshipCenter" and inv.get("kind") != "Consultation":
             errors.append("%s: 成年後見センターを推定で選んだ関わりは Consultation だけ（後見制度の相談の窓口。%r は作らない）" % (where, inv.get("kind")))
+
+
+def _check_candidates(p, errors):
+    """G-63。禁忌・推奨ケアの候補は、同じ案の事実の引用を根拠に指す。確度を持たせない。引用に無い数字を足さない。"""
+    quotes = {_norm(f.get("quote")): f.get("quote") for f in p.get("facts") or [] if isinstance(f.get("quote"), str)}
+    for key, (label, _, keys, texts) in CANDIDATES.items():
+        for n, cand in enumerate(p.get(key) or [], start=1):
+            where = "%s %d" % (key, n)
+            if not isinstance(cand, dict):
+                errors.append("%s: オブジェクトでなければならない" % where)
+                continue
+            for k in sorted(set(cand) - keys):
+                note = "確度は根拠の事実のものを引き継ぐ" if k == "certainty" else "直さずに止める"
+                errors.append("%s: %s という項目は無い（%s）" % (where, k, note))
+            quote = quotes.get(_norm(cand.get("quote")))
+            if quote is None:
+                errors.append("%s: quote は案の事実の引用のどれか（根拠の記録に結ぶ。根拠が案に無ければ候補にしない）" % where)
+                continue
+            extra = sorted(set().union(*(_digits(cand.get(t)) for t in texts)) - _digits(quote))
+            if extra:
+                errors.append("%s: 原文の引用に無い数字 %s がある（補わない）" % (where, "・".join(extra)))
 
 
 def check(proposal, original, actor_staff_id, request_id, provider_org_id=None, estimate=None):
@@ -195,6 +227,7 @@ def check(proposal, original, actor_staff_id, request_id, provider_org_id=None, 
             if f.get("certainty") != marked:
                 errors.append("%s: 確度 %r が原文の印（%s）と違う（格上げも格下げもしない）" % (where, f.get("certainty"), marked))
     _check_involvements(p, estimate, errors)
+    _check_candidates(p, errors)
     notes = list((estimate or {}).get("notes", [])) if p.get("involvements") else []
     if errors:
         out = {"ok": False, "errors": errors, "warnings": warnings, "request": None, "notes": notes}
@@ -254,4 +287,11 @@ def _request(p, original, actor_staff_id, request_id, provider_org_id, estimate=
                 nodes.append({"ref": orgs[inv["orgId"]], "label": "Organization", "origin": "AiExtracted",
                               "properties": {"orgId": inv["orgId"]}})
             rels.append({"type": "HAS_INVOLVEMENT", "from": orgs[inv["orgId"]], "to": ref})
+    for key, (label, rel, _, _) in CANDIDATES.items():
+        for n, cand in enumerate(p.get(key) or [], start=1):
+            ref = "%s-%d" % (label[0].lower() + label[1:], n)
+            nodes.append({"ref": ref, "label": label, "origin": "AiExtracted",
+                          "properties": {k: v for k, v in cand.items() if k != "quote"}})
+            rels.append({"type": rel, "from": client, "to": ref})
+            rels.append({"type": "EVIDENCED_BY", "from": ref, "to": fact_refs[_norm(cand["quote"])]})
     return {"requestId": request_id, "actorStaffId": actor_staff_id, "nodes": nodes, "relationships": rels}

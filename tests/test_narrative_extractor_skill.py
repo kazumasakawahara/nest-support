@@ -47,6 +47,21 @@ def test_example_passes_intake_and_the_gate():
     assert {n["status"] for n in out["nodes"]} == {"Pending"}
 
 
+def test_example_has_an_ngaction_candidate_that_enters_pending():
+    """G-63：架空の例に禁忌の候補を一つ。入口の点検とゲートを通って Pending。"""
+    original = _block("example-original", "text")
+    proposal = json.loads(_block("example-proposal", "json"))
+    assert len(proposal.get("ngActions") or []) == 1
+    rep = intake.check(proposal, original, actor_staff_id=ACTOR, request_id="req-n25")
+    out = gv.validate(rep["request"])
+    assert [n["status"] for n in out["nodes"] if n["label"] == "NgAction"] == ["Pending"]
+
+
+def test_skill_states_the_two_stages():
+    for words in (("ngActions", "carePreferences"), ("同じ案", "根拠"), ("禁忌の候補", "事実として残")):
+        assert all(w in SKILL for w in words), words
+
+
 def test_example_has_no_real_names():
     proposal = json.loads(_block("example-proposal", "json"))
     for person in proposal.get("newPeople") or []:

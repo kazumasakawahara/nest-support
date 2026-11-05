@@ -35,19 +35,28 @@ description: 母親・支援者の語り（ナラティブ）、自分の面談�
  "newPeople": [{"ref"}]（任意。役割の名前で呼ぶ人。実名は書かない）,
  "facts": [{"quote", "text"?, "recordKind", "certainty", "providerCertainty"?（書面のとき）,
             "informantKind", "aboutDate"?, "heardOn"?, "toldBy"?}],
- "involvements": [{"quote", "kind", "orgId"?, "concerns"?}]（任意）}
+ "involvements": [{"quote", "kind", "orgId"?, "concerns"?}]（任意）,
+ "ngActions": [{"quote", "action", "riskLevel", "reason"?}]（任意。禁忌の候補）,
+ "carePreferences": [{"quote", "category", "instruction", "priority"?}]（任意。推奨ケアの候補）}
 ```
 
 - `recordKind`：`Observation`（職員が見た）・`Interview`（聞いた）・`Notification`・`MeetingMinutes`・`Plan`・`Document`
 - `informantKind`：`Self`（本人）・`Family`・`Agency`・`Neighbor`・`DocumentOnly`
 - 書面では確度を二段で持つ：`providerCertainty` は原文の印、`certainty` は受けた側から見た確度（点検が決まった値を求める）
-- 禁忌・推奨ケアにあたる話も、まず事実（`facts`）として引用で残す。禁忌のノード（`NgAction`）を作る道は、今の入口には無い。案を返すときに「禁忌の候補」として引用を並べ、職員に知らせる（禁忌には根拠の記録が要る。SEMANTICS SEM-REC-03）
+- `riskLevel`：`LifeThreatening`（生命に関わる）・`Panic`（パニック誘発）・`Discomfort`（不快）。`priority`：`High`・`Medium`・`Low`
+
+## 禁忌・推奨ケアは二段で扱う（台帳 G-63。正典 v0.9 §6）
+
+1. **根拠が同じ案の中にあるとき**：その話をまず事実（`facts`）として引用で残し、`ngActions`・`carePreferences` の候補の `quote` に、その事実の引用をそのまま書く。ゲートが根拠（`EVIDENCED_BY`）で結び、`Pending` で入れる。承認は一つずつ
+   - 候補に確度を書かない（根拠の事実の確度を引き継ぐ）
+   - `action`・`instruction` などに、引用に無い数字を足さない
+2. **根拠が同じ案の中に無いとき**（前に聞いた話・職員の記憶など）：候補にしない。分かっている範囲を事実として残し、「禁忌の候補」として引用を並べて職員に知らせる（禁忌には根拠の記録が要る。SEMANTICS SEM-REC-03）
 
 ## 手順
 
 1. 原文を受け取る（貼り付け・添付）。本人の `clientId` は職員に選んでもらう（名前から探さない）
 2. 上の「守ること」に沿って案（JSON）を作る
-3. 案と、「禁忌の候補」（引用の一覧）を職員に返す。ここで止まる
+3. 案と、候補にできなかった「禁忌の候補」（引用の一覧。二段の 2）を職員に返す。ここで止まる
 4. 職員が入口の点検とゲートに通す。止まったら、点検の理由のとおりに案を直す（点検の結果を自分で読み替えて通さない）
 
 ## 例（架空）
@@ -73,10 +82,14 @@ description: 母親・支援者の語り（ナラティブ）、自分の面談�
   {"quote": "受給者証の更新のことで、区役所の窓口に行ったことがある",
    "recordKind": "Interview", "certainty": "Hearsay", "informantKind": "Family", "toldBy": "mother"}],
  "involvements": [
-  {"quote": "受給者証の更新のことで、区役所の窓口に行ったことがある", "kind": "Administrative"}]}
+  {"quote": "受給者証の更新のことで、区役所の窓口に行ったことがある", "kind": "Administrative"}],
+ "ngActions": [
+  {"quote": "10月2日、母が電話で話した。後ろから急に声をかけるとパニックになる",
+   "action": "後ろから急に声をかける", "riskLevel": "Panic"}]}
 ```
 
-この例で職員に返す「禁忌の候補」：「後ろから急に声をかけるとパニックになる」（伝聞。母から）。
+- 禁忌の候補は、母の話の事実を根拠に指す。確度は根拠の事実の `Hearsay` を引き継ぐので、候補には書かない
+- 「音楽を聴くと落ち着く」は推奨ケアの候補にもできるが、どう支えるか（`instruction`）が原文に無いので、事実として残すだけにした
 
 - 「10月2日」には年が無いので、`aboutDate` を書かない
 - 母は名札 `mother` で指し、名前を書かない
