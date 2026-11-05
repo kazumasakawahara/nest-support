@@ -1,7 +1,7 @@
 # nest-support 意味の文書（SEMANTICS）
 
 正典 `docs/SCHEMA.md` が扱わない、業務上の意味・運用の規則・列挙値の日本語の表示名を置く（正典 §1、ADR-001 D1）。
-列挙値の日本語の表示名は計画 N-27 で足す。今あるのは担当機関の推定（計画 N-24a）、任意後見・任意代理（台帳 G-62）、記録の書き方と読み取り（台帳 G-42・G-52）の節。
+列挙値の日本語の表示名は末尾の節（N-27）。ほかに担当機関の推定（計画 N-24a）、任意後見・任意代理（台帳 G-62）、記録の書き方と読み取り（台帳 G-42・G-52）の節。
 
 ## 担当機関の推定（N-24a。2026-11-05 河原さんの指示）
 
@@ -101,3 +101,130 @@ tsunagu-net の SEMANTICS v0.32 の BRS-49 と ENU-05・10・20 に合わせた�
 - 新しい禁忌（`NgAction`）には、根拠の記録（`EVIDENCED_BY` → `Record`）が一つは要る。無ければゲートが止める（ADR D5。台帳 G-52 (7)）
 - 職員が直接知った禁忌は、先に職員の記録（`Record`、`kind: Observation`）を作り、それを根拠にする
 - 取り込みの案の禁忌・推奨ケアの候補は、同じ案の事実を根拠に指す。指していない候補はゲートが止める。新しい推奨ケア（`CarePreference`）にも、由来によらず根拠の記録が要る。職員が直接知ったことは、禁忌と同じく先に職員の記録（`kind: Observation`）を作る（台帳 G-63。正典 v0.9 §6）
+
+## 列挙値の表示名（計画 N-27。台帳 G-47）
+
+正典 §4.5 の列挙値の日本語の表示名。コード（`nest/semantics.py`）はこの表から読む。コードに日本語名の対応表を直に書かない。
+tsunagu-net と同じ列挙（`status`・`origin`・`certainty`・`informantKind`・`recordKind`・`howEnded`・`guardianshipType`・`staffRole`、`involvementKind` の 9 つ、`clientRelationKind` の親族の 8 つ）は、tsunagu-net の SEMANTICS §3（ENU-01〜ENU-20）の日本語に合わせた。ほかは nest-support で付けた（2026-11-06。止まる点 E-1 で見ていただく）。
+`certificateType`・`publicAssistanceType` の根拠の条番号は、まだ書いていない【未照合】（正典 §4.5。e-Gov で照合してから足す）。
+
+### SEM-ENUM-01 表示名
+
+| 列挙 | 値 | 表示名 |
+|---|---|---|
+| `status` | `Active` | 有効 |
+| `status` | `Pending` | 未確定 |
+| `status` | `Inactive` | 無効 |
+| `origin` | `Human` | 人が入力 |
+| `origin` | `AiExtracted` | AI が抽出 |
+| `origin` | `Imported` | 他のシステムから移した |
+| `certainty` | `Confirmed` | 確認済み |
+| `certainty` | `Hearsay` | 伝聞 |
+| `certainty` | `SelfReport` | 本人の話 |
+| `certainty` | `Inference` | 推測 |
+| `certainty` | `Unspecified` | 確度の記載なし |
+| `informantKind` | `Self` | 本人 |
+| `informantKind` | `Family` | 家族・親族 |
+| `informantKind` | `Agency` | 機関 |
+| `informantKind` | `Neighbor` | 近隣・知人 |
+| `informantKind` | `DocumentOnly` | 記録を見ただけ |
+| `recordKind` | `Observation` | 観察 |
+| `recordKind` | `Interview` | 聞き取り |
+| `recordKind` | `Notification` | 通告・通報 |
+| `recordKind` | `MeetingMinutes` | 会議録 |
+| `recordKind` | `Plan` | 支援の計画 |
+| `recordKind` | `Document` | 文書の要旨 |
+| `riskLevel` | `LifeThreatening` | 生命に関わる |
+| `riskLevel` | `Panic` | パニックを招く |
+| `riskLevel` | `Discomfort` | 不快・ストレス |
+| `clientRelationKind` | `Parent` | 親 |
+| `clientRelationKind` | `Child` | 子 |
+| `clientRelationKind` | `Spouse` | 配偶者 |
+| `clientRelationKind` | `Partner` | 内縁など |
+| `clientRelationKind` | `Sibling` | きょうだい |
+| `clientRelationKind` | `Grandparent` | 祖父母 |
+| `clientRelationKind` | `Grandchild` | 孫 |
+| `clientRelationKind` | `OtherRelative` | その他の親族 |
+| `clientRelationKind` | `KeyPerson` | キーパーソン |
+| `clientRelationKind` | `PrimaryDoctor` | 主治医 |
+| `clientRelationKind` | `Neighbor` | 近隣・知人 |
+| `clientRelationKind` | `Helper` | 手伝ってくれる人 |
+| `clientRelationKind` | `OtherSupporter` | その他の支える人 |
+| `involvementKind` | `Consultation` | 相談 |
+| `involvementKind` | `CaseManagement` | 計画・調整 |
+| `involvementKind` | `ServiceProvision` | サービスの提供 |
+| `involvementKind` | `Protection` | 保護・措置 |
+| `involvementKind` | `Education` | 教育・保育 |
+| `involvementKind` | `Medical` | 医療 |
+| `involvementKind` | `Monitoring` | 見守り |
+| `involvementKind` | `Guardianship` | 成年後見等 |
+| `involvementKind` | `AgencyContract` | 任意代理（委任契約） |
+| `involvementKind` | `Employment` | 勤め先 |
+| `involvementKind` | `Administrative` | 申請・更新の手続き |
+| `howEnded` | `Ongoing` | 続いている |
+| `howEnded` | `Lapsed` | 途切れた |
+| `howEnded` | `DeclinedByPerson` | 本人・家族が断った |
+| `howEnded` | `EndedByAgency` | 機関が終えた |
+| `howEnded` | `Unknown` | 未確認 |
+| `howEnded` | `Transitioned` | 任意後見に移った |
+| `guardianshipType` | `Guardianship` | 後見 |
+| `guardianshipType` | `Curatorship` | 保佐 |
+| `guardianshipType` | `Assistance` | 補助 |
+| `guardianshipType` | `VoluntaryGuardianship` | 任意後見 |
+| `guardianshipType` | `VoluntaryGuardianshipContracted` | 任意後見受任者 |
+| `birthDatePrecision` | `Day` | 日まで |
+| `birthDatePrecision` | `Month` | 月まで |
+| `birthDatePrecision` | `Year` | 年まで |
+| `birthDatePrecision` | `Unknown` | 不明 |
+| `staffRole` | `Staff` | 職員 |
+| `staffRole` | `Administrator` | 管理者 |
+| `reviewDomain` | `NgAction` | 禁忌 |
+| `reviewDomain` | `CarePreference` | 推奨ケア |
+| `reviewDomain` | `KeyPerson` | キーパーソン |
+| `reviewDomain` | `Guardianship` | 後見 |
+| `reviewDomain` | `Certificate` | 手帳・受給者証 |
+| `reviewDomain` | `CareRole` | 親が担ってきた役割 |
+| `auditAction` | `Create` | 作成 |
+| `auditAction` | `Approve` | 承認 |
+| `auditAction` | `Reject` | 却下 |
+| `auditAction` | `Inactivate` | 無効にした |
+| `auditAction` | `LinkEvidence` | 根拠を結んだ |
+| `auditAction` | `RaiseContradiction` | 食い違いを挙げた |
+| `auditAction` | `ResolveContradiction` | 食い違いを裁定した |
+| `auditAction` | `Read` | 読んだ |
+| `linkedBy` | `Gate` | 取り込みで結んだ |
+| `linkedBy` | `Human` | 人が結んだ |
+| `effectiveness` | `Effective` | 効果があった |
+| `effectiveness` | `Ineffective` | 効果がなかった |
+| `effectiveness` | `Neutral` | どちらとも言えない |
+| `effectiveness` | `Unknown` | 分からない |
+| `priority` | `High` | 高 |
+| `priority` | `Medium` | 中 |
+| `priority` | `Low` | 低 |
+| `certificateType` | `IntellectualDisabilityHandbook` | 療育手帳 |
+| `certificateType` | `PhysicalDisabilityHandbook` | 身体障害者手帳 |
+| `certificateType` | `MentalDisabilityHandbook` | 精神障害者保健福祉手帳 |
+| `certificateType` | `DisabilityServiceRecipientCertificate` | 障害福祉サービス受給者証 |
+| `certificateType` | `ChildDayServiceRecipientCertificate` | 通所受給者証（障害児通所支援） |
+| `certificateType` | `SupportiveMedicalCareCertificate` | 自立支援医療受給者証 |
+| `certificateType` | `Other` | その他 |
+| `publicAssistanceType` | `PublicAssistance` | 生活保護 |
+| `publicAssistanceType` | `DisabilityBasicPension` | 障害基礎年金 |
+| `publicAssistanceType` | `DisabilityEmployeesPension` | 障害厚生年金 |
+| `publicAssistanceType` | `SpecialDisabilityAllowance` | 特別障害者手当 |
+| `publicAssistanceType` | `SpecialChildRearingAllowance` | 特別児童扶養手当 |
+| `publicAssistanceType` | `Other` | その他 |
+| `inferenceBasis` | `ResidenceAreaAtTheTime` | 当時の住所の区から推定 |
+| `inferenceBasis` | `CurrentResidenceArea` | 今の住所の区から推定 |
+
+### SEM-ENUM-02 原文の確度の印
+
+取り込みの案の点検（`nest/gate/intake.py`）が、引用の直後（同じ行）の【…】から確度を決める表。上から弱い順に並べる。印に二つ以上の語が入っていたら、上にある（弱い）ほうを採る。
+
+| 印 | 確度 |
+|---|---|
+| 推測 | `Inference` |
+| 伝聞 | `Hearsay` |
+| 未確認 | `Hearsay` |
+| 本人の話 | `SelfReport` |
+| 確認済み | `Confirmed` |

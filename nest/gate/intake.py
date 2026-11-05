@@ -40,7 +40,7 @@ import hashlib
 import re
 from pathlib import Path
 
-from nest import canon, ids
+from nest import canon, ids, semantics
 
 DOC_KINDS = ("ProvisionDocument", "OwnCaseRecord")
 TOP_KEYS = {"documentKind", "providerName", "clientId", "receivedOn", "newPeople", "facts", "involvements",
@@ -59,7 +59,8 @@ REF = re.compile(r"^[a-z][a-z0-9-]*$")
 DIGITS = re.compile(r"[0-9０-９]+")
 WIDE = str.maketrans("０１２３４５６７８９", "0123456789")
 MARK = re.compile(r"^\s*【([^】]+)】")
-WEAKEST_FIRST = (("推測", "Inference"), ("伝聞", "Hearsay"), ("未確認", "Hearsay"), ("本人の話", "SelfReport"), ("確認済み", "Confirmed"))
+# 原文の確度の印。弱い順。docs/SEMANTICS.md SEM-ENUM-02 から読む（台帳 G-47）
+WEAKEST_FIRST = tuple(semantics.certainty_marks())
 
 
 def _norm(text):

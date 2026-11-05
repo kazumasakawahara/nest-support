@@ -27,7 +27,7 @@ import datetime as dt
 import re
 from pathlib import Path
 
-from nest import canon, ids
+from nest import canon, ids, semantics
 from nest.gate.intake import receiver_certainty
 
 REPO = Path(__file__).resolve().parents[2]
@@ -42,7 +42,8 @@ GATE_MANAGED_BY_LABEL = {"Organization": {"linkedAt"}}
 # 確度の日本語名（tsunagu-net の SEMANTICS ENU-03 と同じ。nest-support の SEMANTICS ができたらそちらから読む。N-27）
 # 住所からの推定で作れる関わりの種類（2026-11-05 河原さん。台帳 G-62）
 INFERABLE_KINDS = ("Consultation", "Administrative")
-CERTAINTY_JA = {"確認済み": "Confirmed", "伝聞": "Hearsay", "本人の話": "SelfReport", "推測": "Inference", "確度の記載なし": "Unspecified"}
+# 確度の日本語の表示名 → 値。表示名は docs/SEMANTICS.md SEM-ENUM-01 から読む（台帳 G-47）
+CERTAINTY_JA = {name: value for value, name in semantics.enum_names()["certainty"].items()}
 EMBEDDING = re.compile(r"^embedding|embedding$", re.I)
 FULL_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DOCUMENT_HASH = re.compile(r"^[0-9a-f]{64}$")
