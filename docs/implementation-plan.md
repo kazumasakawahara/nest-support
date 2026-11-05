@@ -69,9 +69,12 @@
 | N-25 | narrative-extractor の書き直し：書き込みの案（JSON）を出すだけ。Cypher の書き込みと、名前の統合の指示を消す | 案の例がゲートを通る（架空） | ✅ 2026-11-06 SKILL.md を書き直し、架空の例が入口の点検とゲートを通る（全部 Pending）。試験 `tests/test_narrative_extractor_skill.py`。禁忌・推奨ケアの案の道は無い（G-63） |
 | N-26 | EXTRACTION_PROMPT の書き直し：原文に無い値で埋める指示を消す | — | ✅ 2026-11-06 埋める指示と前の正典の形を消し、案の形は narrative-extractor の SKILL.md に一本化した。試験 `tests/test_extraction_prompt_doc.py`（計画では試験なしだったが足した） |
 | N-27 | 読み取りのスキル（neo4j-support-db・visit-prep・emergency-protocol・data-quality-agent・resilience-checker・onboarding-wizard・ecomap-generator・insight-agent）の照会を新しい正典に合わせる。スキルごとに 1 行に分ける。列挙値の日本語の表示名は `docs/SEMANTICS.md`（N-24a で担当機関の推定の節だけを持って作った。列挙値の節をここで足す。正典 v0.2 §1）から引く。**`SEMANTICS.md` を作ったら、コードの中の日本語名（`nest/gate/validate.py` の `CERTAINTY_JA` など）もそこから読む形に変える**（台帳 G-47。2026-11-05 河原さん） | 照会のテンプレートを正典の JSON と突き合わせる検査 | |
+| **止まる点 E-1** | N-27 の後（2026-11-06 河原さん）。スキル 8 本それぞれの「何を消し、何を足したか」を 1 行ずつ報告し、河原さんが全部見る。DB の試験を一度流し（N-18 の条件。終わったら down）、G-63 の候補が Pending で書かれることを確かめる | | |
 | N-28 | SOS の中身（D11-3）：LINE には SOS・誰のことか・位置・確かめる先だけ | 送る文に電話と禁忌が無い | |
+| **止まる点 E-2** | N-28 の後。LINE の SOS で送る文の形（架空の例）と external-api の NEXT-05 の直しを見ていただく | | |
 | N-29 | 文書を直す：PRIVACY_GUIDELINES（条番号は e-Gov で照合）・CLAUDE.md・README・QUICK_START・SETUP_GUIDE・manifesto の共有層と 7687 の記述（付録の表）。**面談の音声ファイルの置き場所と保存の期間**を運用の文書に書く（DB には持たない。正典 v0.2 §4.2） | — | |
 | N-30 | `doctor.sh` を新しい構成に合わせる | doctor.sh が新しい構成で全項目を通る | |
+| **止まる点 E-3** | 段階 E の終わり | | |
 
 ## 付録　neo4j-agno-agent の共有層（7687）・shared-schema に頼っている箇所（2026-11-05 時点）
 

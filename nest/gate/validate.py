@@ -14,7 +14,7 @@
 - 埋め込みの項目（名前が embedding で始まる・終わる）は止める（D10）
 - 日付は正典の types のとおり。形の違うもの・時差の無い日時は補わずに止める
 - 後見の類型は kind が Guardianship の関わりにだけ書ける
-- 新しい禁忌（NgAction）には根拠の記録（EVIDENCED_BY → Record）が一つは要る（台帳 G-52 (7)）。AI 由来の推奨ケア（CarePreference）も同じ（台帳 G-63）
+- 新しい禁忌（NgAction）には根拠の記録（EVIDENCED_BY → Record）が一つは要る（台帳 G-52 (7)）。推奨ケア（CarePreference）も由来によらず同じ（台帳 G-63）
 - 終わり方 Transitioned は、任意後見受任者（guardianshipType VoluntaryGuardianshipContracted）と任意代理（kind AgencyContract）の関わりにだけ書ける（正典 v0.8。台帳 G-62）
 - 住所からの推定（inferenceBasis を持つ関わり）で作れる種類は Consultation と Administrative だけ。契約や選任で決まる関わりは住所から推し量れない（台帳 G-62・G-57）
 - AI 由来（origin AiExtracted）のノードは Pending で作る。ほかは Active。機関の写し（Organization。公開 ID への参照）だけは AI 由来でも Active（止まる点 4。台帳 G-59）。返す nodes に status を添え、書き込み（N-20）がそれを使う（約束 4-5。N-16）
@@ -224,15 +224,13 @@ def _check_guardianship(ck, nodes):
 def _check_ngaction_evidence(ck, nodes, rels):
     """新しい禁忌には、根拠の記録（EVIDENCED_BY → Record）が一つは要る（ADR D5。2026-11-06 河原さん。台帳 G-52 (7)）。
     職員が直接知った禁忌は、先に職員の記録（Record kind Observation）を作り、それを根拠にする。
-    AI 由来の推奨ケア（取り込みの候補）にも同じ規則を当てる（台帳 G-63）。"""
+    推奨ケアにも、由来によらず同じ規則を当てる（台帳 G-63。2026-11-06 河原さん）。"""
     labels = {n["ref"]: n["label"] for n in nodes}
     for n in nodes:
-        if n["label"] == "NgAction":
-            what, hint = "新しい禁忌", "。職員が直接知った禁忌は、先に職員の記録（kind Observation）を作って結ぶ"
-        elif n["label"] == "CarePreference" and n.get("origin") == "AiExtracted":
-            what, hint = "AI 由来の推奨ケア", "（取り込みの候補は同じ案の事実を指す）"
-        else:
+        what = {"NgAction": "新しい禁忌", "CarePreference": "新しい推奨ケア"}.get(n["label"])
+        if what is None:
             continue
+        hint = "。職員が直接知ったことは、先に職員の記録（kind Observation）を作って結ぶ"
         if not any(r["type"] == "EVIDENCED_BY" and r["from"] == n["ref"]
                    and (r["to"].get("label") if isinstance(r["to"], dict) else labels.get(r["to"])) == "Record" for r in rels):
             ck.errors.append("ノード %s: %sには根拠の記録（EVIDENCED_BY → Record）が要る%s" % (n["ref"], what, hint))

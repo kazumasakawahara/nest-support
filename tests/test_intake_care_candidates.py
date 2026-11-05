@@ -107,3 +107,22 @@ def test_canon_is_raised_and_says_candidates_carry_no_certainty():
     assert text.startswith("# nest-support スキーマ正典 — v0.9")
     assert "G-63" in text
     assert canon.load(REPO / "docs" / "SCHEMA.md")["personal"]["nodes"]["NgAction"]["required"] == ["ngActionId", "action", "riskLevel"]
+
+
+def test_gate_refuses_human_carepreference_without_evidence():
+    """2026-11-06 河原さん：推奨ケアは人が直接入れるものにも根拠の記録が要る（SEM-REC-03 をそのまま当てる）。"""
+    cp = {"ref": "cp", "label": "CarePreference", "origin": "Human",
+          "properties": {"category": "落ち着く方法（架空）", "instruction": "音楽（架空）"}}
+    rep = gv.validate({"requestId": "req-cp", "actorStaffId": ACTOR, "nodes": [cp], "relationships": []})
+    assert not rep["ok"] and any("推奨ケア" in e and "根拠" in e for e in rep["errors"]), rep["errors"]
+
+
+def test_gate_accepts_human_carepreference_with_a_staff_observation():
+    cp = {"ref": "cp", "label": "CarePreference", "origin": "Human",
+          "properties": {"category": "落ち着く方法（架空）", "instruction": "音楽（架空）"}}
+    rec = {"ref": "rec", "label": "Record", "origin": "Human",
+           "properties": {"kind": "Observation", "text": "職員が見た（架空）", "quote": "職員が見た（架空）",
+                          "certainty": "Confirmed", "informantKind": "Agency"}}
+    rep = gv.validate({"requestId": "req-cp", "actorStaffId": ACTOR, "nodes": [cp, rec],
+                       "relationships": [{"type": "EVIDENCED_BY", "from": "cp", "to": "rec"}]})
+    assert not any("推奨ケア" in e and "根拠" in e for e in rep["errors"]), rep["errors"]
