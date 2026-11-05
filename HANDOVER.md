@@ -3,11 +3,11 @@
 > 前の HANDOVER（2026-08-03 main。WAM NET スキル整合）は git 履歴（ce627d9）にある。そこに書かれた
 > `~/.config/nest/neo4j.env`・ポート 7687・`nest-support-neo4j` は**前の構成**で、この枝では使わない。
 
-## 再開コマンド（2026-11-06 06:10 に 3 つとも確かめた）
+## 再開コマンド（DB なしは 2026-11-06 e5fbe4f、DB つきは 06:10 に 34f2577 で確かめた）
 
 ```bash
 cd ~/Dev-Work/project/nest-support && git switch redesign/adr-001
-uv run pytest -q                       # 709 passed, 75 skipped（DB を使う試験は skip）
+uv run pytest -q                       # 737 passed, 75 skipped（DB を使う試験は skip）
 uv run python scripts/check_drift.py   # ずれ 0 件
 ```
 
@@ -41,15 +41,16 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 - 目標：nest-support を、ADR-001（`docs/adr/ADR-001-redesign-and-shared-contract.md`。承認 2026-11-05）と約束 v1.1 に沿って作り直す。計画は `docs/implementation-plan.md`（1 タスク＝1 行）
 - 進捗：
   - [x] 段階 A（送らない・埋め込まない）：N-00〜N-05・N-05b・N-18a
-  - [x] 段階 B（正典）：N-06〜N-09。正典は `docs/SCHEMA.md` **v0.8**、意味の文書は `docs/SEMANTICS.md`
+  - [x] 段階 B（正典）：N-06〜N-09。正典は `docs/SCHEMA.md` **v0.9**（G-63）、意味の文書は `docs/SEMANTICS.md`
   - [x] 段階 C（ゲート）：N-10〜N-17
   - [x] 段階 D（DB と書き込み・承認）：N-18〜N-24a。止まる点 4 の承認済み
   - [x] N-24b：任意後見・任意代理を BRS-49 に合わせた（0270cd3・de2737b。台帳 G-62）
   - [x] 台帳の承認欄が空だった 20 件に河原さんの判断を書き、直しを入れた（f0e49c0）。前の DB を指す script を git から外した（14d1b18。G-49）
   - [x] N-25：narrative-extractor を「書き込みの案（JSON）を出すだけ」に書き直した（34f2577）
-  - [ ] **G-63**（2026-11-06 河原さん：欄を足す）：正典を上げ、入口の形に NgAction・CarePreference の候補の欄を足す。条件は台帳 G-63 の承認欄
-  - [ ] 前の DB を指す残り 7 か所が新しい DB（37xxx・38xxx）を指さないことを試験で固定する（N-27〜N-30 で置き換えるまで）
-  - [ ] N-26〜N-30
+  - [x] G-63：入口に禁忌・推奨ケアの候補の欄（`ngActions`・`carePreferences`）。正典 v0.9（855b06e）
+  - [x] 前の DB を指す残り 7 か所が新しい DB を指さないことを試験で固定した（2d6635a。`tests/test_old_db_code_isolated.py`）
+  - [x] N-26：EXTRACTION_PROMPT から埋める指示を消し、案の形を SKILL.md に一本化した（e5fbe4f）
+  - [ ] N-27〜N-30
   - [ ] N-05a 前の DB の処分（河原さんが中身を確かめるまで手を付けない）
 
 ## グレーな判断
@@ -71,11 +72,11 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 - 条番号は e-Gov で照合してから書く。照合できないものは【未照合】
 - rtk の hook が Bash の出力を切り詰める。長い出力・JSON・日本語を含む処理は Python のスクリプトにして流す
 - 前の DB を指すコードの残り（G-49）：`lib/db_operations.py`・`sos/api_server.py`・`scripts/doctor.sh`・`scripts/rotate_password.py`・`setup.sh`・`installer/*`・`claude-skills/ecomap-generator/scripts/generate_mermaid.py`。消した script の名前を書いた文書（`CLAUDE.md`・`docs/PRIVACY_GUIDELINES.md`）は N-29
-- 試験の数の目安：DB なし 709 passed・75 skipped、DB つき 784 passed（どちらも 2026-11-06、34f2577）
+- 試験の数の目安：DB なし 737 passed・75 skipped（e5fbe4f）、DB つき 784 passed（34f2577。その後に DB なしの試験が 28 件増えた）
+- 段階 E には止まる点が置かれていない。G-63・N-26 の後で止めて見ていただいた（2026-11-06）
 
 ## 次タスク（優先度順）
 
-- A：G-63 を入れる（試験を先に書いて赤を確かめる）
-- A：前の DB を指す残り 7 か所が新しい DB を指さないことの試験
-- B：N-26 EXTRACTION_PROMPT の書き直し
-- C：N-27〜N-30（読み取りのスキル、SOS の中身、文書、`doctor.sh`）
+- A：N-27 読み取りのスキルの照会を新しい正典に合わせる（スキルごとに 1 行）
+- B：N-28 SOS の中身、N-29 文書、N-30 `doctor.sh`
+- C：G-63 の候補を DB つきで書く試験（今は入口とゲートの検証まで。書き込みの部品は種類を問わない作り）
