@@ -24,16 +24,22 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
   名前で既にいる人に結び付けない。新しい人は AiExtracted（Pending）で作る（D8。N-16）
 - 提供元の機関は、案に機関 ID を書かせない（名前の一致だけで orgId を入れない）。原文の名前（providerName）から
   org_candidates.by_name で候補を出し、職員が選んだ機関 ID を provider_org_id で渡す。渡すまでは未確定で、依頼を作らない（N-24。D3）
+- 機関の名前が無い言及（「区役所の窓口で」）は involvements [{"quote", "kind", "orgId"?}] に書く（N-24a）。quote は事実の引用のどれか
+  （その記録を根拠に結ぶ）。orgId は担当機関の推定（org_estimate.estimate。estimate で渡す）の候補の中からだけ。無ければ機関未確定。
+  確度は書かせず、いつも Inference・終わり方 Unknown・AI 由来（Pending）。後見は推定で作らない。推定の注記は結果の notes に載せる
 - 案に、上の形に無い項目があれば止める。snake_case などの別の綴りも直さない（N-15）。ゲートの検証（validate.py）も同じ考え方
 """
 import copy
 import hashlib
 import re
+from pathlib import Path
 
-from nest import ids
+from nest import canon, ids
 
 DOC_KINDS = ("ProvisionDocument", "OwnCaseRecord")
-TOP_KEYS = {"documentKind", "providerName", "clientId", "receivedOn", "newPeople", "facts"}
+TOP_KEYS = {"documentKind", "providerName", "clientId", "receivedOn", "newPeople", "facts", "involvements"}
+INVOLVEMENT_KEYS = {"quote", "kind", "orgId"}
+SCHEMA = Path(__file__).resolve().parents[2] / "docs" / "SCHEMA.md"
 FACT_KEYS = {"quote", "text", "recordKind", "certainty", "providerCertainty", "informantKind", "aboutDate", "heardOn", "toldBy"}
 PERSON_KEYS = {"ref", "familyName", "givenName", "familyNameKana", "givenNameKana"}
 REF = re.compile(r"^[a-z][a-z0-9-]*$")
@@ -77,7 +83,30 @@ def receiver_certainty(provider):
     return provider if provider in ("Inference", "Unspecified") else "Hearsay"
 
 
-def check(proposal, original, actor_staff_id, request_id, provider_org_id=None):
+def _check_involvements(p, estimate, errors):
+    """N-24a。関わりの案の点検。"""
+    quotes = {_norm(f.get("quote")) for f in p.get("facts") or [] if isinstance(f.get("quote"), str)}
+    offered = {c["orgId"] for c in (estimate or {}).get("candidates", [])}
+    kinds = canon.load(SCHEMA)["enums"]["involvementKind"]
+    for n, inv in enumerate(p.get("involvements") or [], start=1):
+        where = "関わり %d" % n
+        if not isinstance(inv, dict):
+            errors.append("%s: オブジェクトでなければならない" % where)
+            continue
+        for k in sorted(set(inv) - INVOLVEMENT_KEYS):
+            errors.append("%s: %s という項目は無い（確度は Inference に決まっている。窓口までは絞らない）" % (where, k))
+        if _norm(inv.get("quote")) not in quotes:
+            errors.append("%s: quote は案の事実の引用のどれか（根拠の記録に結ぶ）" % where)
+        if inv.get("kind") not in kinds:
+            errors.append("%s: kind %r は involvementKind のどれか" % (where, inv.get("kind")))
+        elif inv["kind"] == "Guardianship":
+            errors.append("%s: 後見（Guardianship）は推定で作らない" % where)
+        org = inv.get("orgId")
+        if org is not None and org not in offered:
+            errors.append("%s: orgId %r は担当機関の推定の候補に無い（候補の中から選ぶ。選べなければ書かない）" % (where, org))
+
+
+def check(proposal, original, actor_staff_id, request_id, provider_org_id=None, estimate=None):
     """返り値 {"ok", "errors", "warnings", "request"}。止めるときは request が None。
     provider_org_id は、職員が候補から選んだ提供元の機関 ID（情報提供の書面のとき）。選んでいなければ needsProviderChoice を返す。"""
     p = copy.deepcopy(proposal)
@@ -155,12 +184,14 @@ def check(proposal, original, actor_staff_id, request_id, provider_org_id=None):
                 errors.append("%s: 自分の記録に提供元の確度を書かない" % where)
             if f.get("certainty") != marked:
                 errors.append("%s: 確度 %r が原文の印（%s）と違う（格上げも格下げもしない）" % (where, f.get("certainty"), marked))
+    _check_involvements(p, estimate, errors)
+    notes = list((estimate or {}).get("notes", [])) if p.get("involvements") else []
     if errors:
-        out = {"ok": False, "errors": errors, "warnings": warnings, "request": None}
+        out = {"ok": False, "errors": errors, "warnings": warnings, "request": None, "notes": notes}
         if needs_choice is not None:
             out["needsProviderChoice"] = needs_choice
         return out
-    return {"ok": True, "errors": [], "warnings": warnings,
+    return {"ok": True, "errors": [], "warnings": warnings, "notes": notes,
             "request": _request(p, original, actor_staff_id, request_id, provider_org_id)}
 
 
@@ -194,4 +225,18 @@ def _request(p, original, actor_staff_id, request_id, provider_org_id):
             rels.append({"type": "TOLD_BY", "from": ref, "to": client})
         elif told:
             rels.append({"type": "TOLD_BY", "from": ref, "to": {"label": "Person", "id": told} if told.startswith("PER-") else told})
+    fact_refs = {_norm(f["quote"]): "fact-%d" % n for n, f in enumerate(p["facts"], start=1)}
+    orgs = {provider_org_id: "provider"} if p["documentKind"] == "ProvisionDocument" else {}
+    for n, inv in enumerate(p.get("involvements") or [], start=1):
+        ref = "involvement-%d" % n
+        nodes.append({"ref": ref, "label": "Involvement", "origin": "AiExtracted",
+                      "properties": {"kind": inv["kind"], "howEnded": "Unknown", "certainty": "Inference"}})
+        rels.append({"type": "CONCERNS", "from": ref, "to": client})
+        rels.append({"type": "EVIDENCED_BY", "from": ref, "to": fact_refs[_norm(inv["quote"])]})
+        if inv.get("orgId"):
+            if inv["orgId"] not in orgs:
+                orgs[inv["orgId"]] = "estimated-org-%d" % n
+                nodes.append({"ref": orgs[inv["orgId"]], "label": "Organization", "origin": "AiExtracted",
+                              "properties": {"orgId": inv["orgId"]}})
+            rels.append({"type": "HAS_INVOLVEMENT", "from": orgs[inv["orgId"]], "to": ref})
     return {"requestId": request_id, "actorStaffId": actor_staff_id, "nodes": nodes, "relationships": rels}

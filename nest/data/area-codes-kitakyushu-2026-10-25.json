@@ -1,0 +1,373 @@
+{
+ "source": "総務省「都道府県コード及び市区町村コード」令和6年1月1日現在（https://www.soumu.go.jp/main_content/000925835.xlsx、ページ https://www.soumu.go.jp/denshijiti/code.html）",
+ "retrieved_at": "2026-10-25T21:13:06",
+ "compared_with": "neo4j-agno-agent/WAM-NET/wamnet_downloader.py KITAKYUSHU_AREA_CODES（2026-01-11版）",
+ "check_digit": "6桁目＝(11 − (上5桁×6,5,4,3,2 の和 mod 11)) の1の位。総務省表の全1965件（全国）で表の6桁目と計算が一致（不一致 0 件）",
+ "summary": {
+  "total": 40,
+  "match": 8,
+  "mismatch": 32
+ },
+ "rows": [
+  {
+   "name": "北九州市",
+   "wamnet_code5": "40100",
+   "official_code5": "40100",
+   "official_code6": "401005",
+   "official_name": "北九州市",
+   "check_digit_calc": 5,
+   "match": true
+  },
+  {
+   "name": "北九州市門司区",
+   "wamnet_code5": "40101",
+   "official_code5": "40101",
+   "official_code6": "401013",
+   "official_name": "北九州市門司区",
+   "check_digit_calc": 3,
+   "match": true
+  },
+  {
+   "name": "北九州市若松区",
+   "wamnet_code5": "40103",
+   "official_code5": "40103",
+   "official_code6": "401030",
+   "official_name": "北九州市若松区",
+   "check_digit_calc": 0,
+   "match": true
+  },
+  {
+   "name": "北九州市戸畑区",
+   "wamnet_code5": "40105",
+   "official_code5": "40105",
+   "official_code6": "401056",
+   "official_name": "北九州市戸畑区",
+   "check_digit_calc": 6,
+   "match": true
+  },
+  {
+   "name": "北九州市小倉北区",
+   "wamnet_code5": "40106",
+   "official_code5": "40106",
+   "official_code6": "401064",
+   "official_name": "北九州市小倉北区",
+   "check_digit_calc": 4,
+   "match": true
+  },
+  {
+   "name": "北九州市小倉南区",
+   "wamnet_code5": "40107",
+   "official_code5": "40107",
+   "official_code6": "401072",
+   "official_name": "北九州市小倉南区",
+   "check_digit_calc": 2,
+   "match": true
+  },
+  {
+   "name": "北九州市八幡東区",
+   "wamnet_code5": "40108",
+   "official_code5": "40108",
+   "official_code6": "401081",
+   "official_name": "北九州市八幡東区",
+   "check_digit_calc": 1,
+   "match": true
+  },
+  {
+   "name": "北九州市八幡西区",
+   "wamnet_code5": "40109",
+   "official_code5": "40109",
+   "official_code6": "401099",
+   "official_name": "北九州市八幡西区",
+   "check_digit_calc": 9,
+   "match": true
+  },
+  {
+   "name": "直方市",
+   "wamnet_code5": "40202",
+   "official_code5": "40204",
+   "official_code6": "402044",
+   "official_name": "直方市",
+   "check_digit_calc": 4,
+   "match": false
+  },
+  {
+   "name": "飯塚市",
+   "wamnet_code5": "40203",
+   "official_code5": "40205",
+   "official_code6": "402052",
+   "official_name": "飯塚市",
+   "check_digit_calc": 2,
+   "match": false
+  },
+  {
+   "name": "田川市",
+   "wamnet_code5": "40204",
+   "official_code5": "40206",
+   "official_code6": "402061",
+   "official_name": "田川市",
+   "check_digit_calc": 1,
+   "match": false
+  },
+  {
+   "name": "柳川市",
+   "wamnet_code5": "40205",
+   "official_code5": "40207",
+   "official_code6": "402079",
+   "official_name": "柳川市",
+   "check_digit_calc": 9,
+   "match": false
+  },
+  {
+   "name": "八女市",
+   "wamnet_code5": "40206",
+   "official_code5": "40210",
+   "official_code6": "402109",
+   "official_name": "八女市",
+   "check_digit_calc": 9,
+   "match": false
+  },
+  {
+   "name": "筑後市",
+   "wamnet_code5": "40207",
+   "official_code5": "40211",
+   "official_code6": "402117",
+   "official_name": "筑後市",
+   "check_digit_calc": 7,
+   "match": false
+  },
+  {
+   "name": "行橋市",
+   "wamnet_code5": "40210",
+   "official_code5": "40213",
+   "official_code6": "402133",
+   "official_name": "行橋市",
+   "check_digit_calc": 3,
+   "match": false
+  },
+  {
+   "name": "豊前市",
+   "wamnet_code5": "40211",
+   "official_code5": "40214",
+   "official_code6": "402141",
+   "official_name": "豊前市",
+   "check_digit_calc": 1,
+   "match": false
+  },
+  {
+   "name": "中間市",
+   "wamnet_code5": "40212",
+   "official_code5": "40215",
+   "official_code6": "402150",
+   "official_name": "中間市",
+   "check_digit_calc": 0,
+   "match": false
+  },
+  {
+   "name": "小郡市",
+   "wamnet_code5": "40213",
+   "official_code5": "40216",
+   "official_code6": "402168",
+   "official_name": "小郡市",
+   "check_digit_calc": 8,
+   "match": false
+  },
+  {
+   "name": "宮若市",
+   "wamnet_code5": "40220",
+   "official_code5": "40226",
+   "official_code6": "402265",
+   "official_name": "宮若市",
+   "check_digit_calc": 5,
+   "match": false
+  },
+  {
+   "name": "嘉麻市",
+   "wamnet_code5": "40221",
+   "official_code5": "40227",
+   "official_code6": "402273",
+   "official_name": "嘉麻市",
+   "check_digit_calc": 3,
+   "match": false
+  },
+  {
+   "name": "朝倉市",
+   "wamnet_code5": "40231",
+   "official_code5": "40228",
+   "official_code6": "402281",
+   "official_name": "朝倉市",
+   "check_digit_calc": 1,
+   "match": false
+  },
+  {
+   "name": "遠賀郡芦屋町",
+   "wamnet_code5": "40341",
+   "official_code5": "40381",
+   "official_code6": "403814",
+   "official_name": "芦屋町",
+   "check_digit_calc": 4,
+   "match": false
+  },
+  {
+   "name": "遠賀郡水巻町",
+   "wamnet_code5": "40342",
+   "official_code5": "40382",
+   "official_code6": "403822",
+   "official_name": "水巻町",
+   "check_digit_calc": 2,
+   "match": false
+  },
+  {
+   "name": "遠賀郡岡垣町",
+   "wamnet_code5": "40343",
+   "official_code5": "40383",
+   "official_code6": "403831",
+   "official_name": "岡垣町",
+   "check_digit_calc": 1,
+   "match": false
+  },
+  {
+   "name": "遠賀郡遠賀町",
+   "wamnet_code5": "40344",
+   "official_code5": "40384",
+   "official_code6": "403849",
+   "official_name": "遠賀町",
+   "check_digit_calc": 9,
+   "match": false
+  },
+  {
+   "name": "鞍手郡小竹町",
+   "wamnet_code5": "40381",
+   "official_code5": "40401",
+   "official_code6": "404012",
+   "official_name": "小竹町",
+   "check_digit_calc": 2,
+   "match": false
+  },
+  {
+   "name": "鞍手郡鞍手町",
+   "wamnet_code5": "40382",
+   "official_code5": "40402",
+   "official_code6": "404021",
+   "official_name": "鞍手町",
+   "check_digit_calc": 1,
+   "match": false
+  },
+  {
+   "name": "嘉穂郡桂川町",
+   "wamnet_code5": "40401",
+   "official_code5": "40421",
+   "official_code6": "404217",
+   "official_name": "桂川町",
+   "check_digit_calc": 7,
+   "match": false
+  },
+  {
+   "name": "田川郡香春町",
+   "wamnet_code5": "40421",
+   "official_code5": "40601",
+   "official_code6": "406015",
+   "official_name": "香春町",
+   "check_digit_calc": 5,
+   "match": false
+  },
+  {
+   "name": "田川郡添田町",
+   "wamnet_code5": "40422",
+   "official_code5": "40602",
+   "official_code6": "406023",
+   "official_name": "添田町",
+   "check_digit_calc": 3,
+   "match": false
+  },
+  {
+   "name": "田川郡糸田町",
+   "wamnet_code5": "40423",
+   "official_code5": "40604",
+   "official_code6": "406040",
+   "official_name": "糸田町",
+   "check_digit_calc": 0,
+   "match": false
+  },
+  {
+   "name": "田川郡川崎町",
+   "wamnet_code5": "40424",
+   "official_code5": "40605",
+   "official_code6": "406058",
+   "official_name": "川崎町",
+   "check_digit_calc": 8,
+   "match": false
+  },
+  {
+   "name": "田川郡大任町",
+   "wamnet_code5": "40425",
+   "official_code5": "40608",
+   "official_code6": "406082",
+   "official_name": "大任町",
+   "check_digit_calc": 2,
+   "match": false
+  },
+  {
+   "name": "田川郡赤村",
+   "wamnet_code5": "40426",
+   "official_code5": "40609",
+   "official_code6": "406091",
+   "official_name": "赤村",
+   "check_digit_calc": 1,
+   "match": false
+  },
+  {
+   "name": "田川郡福智町",
+   "wamnet_code5": "40427",
+   "official_code5": "40610",
+   "official_code6": "406104",
+   "official_name": "福智町",
+   "check_digit_calc": 4,
+   "match": false
+  },
+  {
+   "name": "京都郡苅田町",
+   "wamnet_code5": "40601",
+   "official_code5": "40621",
+   "official_code6": "406210",
+   "official_name": "苅田町",
+   "check_digit_calc": 0,
+   "match": false
+  },
+  {
+   "name": "京都郡みやこ町",
+   "wamnet_code5": "40602",
+   "official_code5": "40625",
+   "official_code6": "406252",
+   "official_name": "みやこ町",
+   "check_digit_calc": 2,
+   "match": false
+  },
+  {
+   "name": "築上郡吉富町",
+   "wamnet_code5": "40604",
+   "official_code5": "40642",
+   "official_code6": "406422",
+   "official_name": "吉富町",
+   "check_digit_calc": 2,
+   "match": false
+  },
+  {
+   "name": "築上郡上毛町",
+   "wamnet_code5": "40605",
+   "official_code5": "40646",
+   "official_code6": "406465",
+   "official_name": "上毛町",
+   "check_digit_calc": 5,
+   "match": false
+  },
+  {
+   "name": "築上郡築上町",
+   "wamnet_code5": "40606",
+   "official_code5": "40647",
+   "official_code6": "406473",
+   "official_name": "築上町",
+   "check_digit_calc": 3,
+   "match": false
+  }
+ ]
+}

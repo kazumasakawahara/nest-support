@@ -166,3 +166,37 @@ def test_writes_only_create():
     assert "MERGE" not in src
     assert not re.search(r"SET\s+\w+\s*\+=", src)  # 既にあるノードに項目を足し書きしない
     assert not re.search(r"MATCH[^\n]*SET\s+\w+\.", src)  # MATCH したノードの項目を書き換えない
+
+
+# ---- N-24a：Residence の areaCode はゲートが住所から出す ----
+
+def _residence(**props):
+    base = {"address": "福岡県北九州市小倉北区架空町1-2-3", "certainty": "Confirmed", "since": "2023-04-01"}
+    base.update(props)
+    return _req([{"ref": "r", "label": "Residence", "origin": "Human", "properties": base}],
+                [{"type": "RESIDES_AT", "from": {"label": "Client", "id": CLIENT}, "to": "r", "properties": {}}])
+
+
+def test_gate_derives_area_code_from_the_address():
+    plan = _plan(_residence())
+    assert plan["errors"] == []
+    assert plan["nodes"][0]["props"]["areaCode"] == "401064"
+
+
+def test_gate_accepts_a_matching_area_code():
+    assert _plan(_residence(areaCode="401064"))["errors"] == []
+
+
+def test_gate_refuses_an_area_code_that_disagrees_with_the_address():
+    plan = _plan(_residence(areaCode="401099"))
+    assert any("areaCode" in e for e in plan["errors"])
+
+
+def test_unmatched_address_leaves_area_code_empty():
+    plan = _plan(_residence(address="架空県架空市1-2-3"))
+    assert plan["errors"] == [] and "areaCode" not in plan["nodes"][0]["props"]
+
+
+def test_unmatched_address_with_a_given_area_code_is_refused():
+    plan = _plan(_residence(address="架空県架空市1-2-3", areaCode="401064"))
+    assert any("areaCode" in e for e in plan["errors"])

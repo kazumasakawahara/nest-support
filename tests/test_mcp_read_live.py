@@ -75,7 +75,7 @@ def test_personal_results_do_not_carry_names_address_or_birth_date(driver, admin
                      "nodes": [{"ref": "c", "label": "Client", "origin": "Human",
                                 "properties": {"familyName": "架空" + mark, "givenName": "太郎", "birthDate": "2000-01-02"}},
                                {"ref": "r", "label": "Residence", "origin": "Human",
-                                "properties": {"address": "架空県架空市1-2-3 " + mark, "areaCode": "999999", "certainty": "Confirmed",
+                                "properties": {"address": "福岡県北九州市小倉北区架空町1-2-3 " + mark, "certainty": "Confirmed",
                                                "since": "2020-04-01"}}],
                      "relationships": [{"type": "RESIDES_AT", "from": "c", "to": "r", "properties": {}}]}, driver)
     assert out["ok"], out["errors"]
@@ -84,7 +84,7 @@ def test_personal_results_do_not_carry_names_address_or_birth_date(driver, admin
     text = repr(rows)
     assert mark not in text and "太郎" not in text and "2000-01-02" not in text
     assert rows[0]["code"].startswith("C-")
-    assert rows[0]["r"]["areaCode"] == "999999" and rows[0]["r"]["since"] == "2020-04-01"
+    assert rows[0]["r"]["areaCode"] == "401064" and rows[0]["r"]["since"] == "2020-04-01"
     for bad in ("MATCH (c:Client {clientId: $id}) RETURN toUpper(c.familyName) AS x",
                 "MATCH (c:Client {clientId: $id}) RETURN c['family' + 'Name'] AS x",
                 "MATCH (c:Client {clientId: $id}) RETURN properties(c) AS x"):

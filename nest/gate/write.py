@@ -21,7 +21,7 @@ import secrets
 import unicodedata
 from datetime import datetime, timezone
 
-from nest import ids
+from nest import area_code, ids
 from nest.gate import validate as gv
 
 HASHED = ("kind", "aboutDate", "heardOn", "text", "quote", "certainty", "informantKind",
@@ -77,6 +77,13 @@ def build_plan(rep, req, now, new_id, new_code):
             props[key] = new_id(ids.LABEL_PREFIX[label])
         if label == "Client":
             props["displayCode"] = new_code()
+        if label == "Residence":  # 区はゲートが手元の表で住所から出す（N-24a）。依頼の値が食い違えば止める
+            derived = area_code.from_address(props.get("address"))
+            if props.get("areaCode", derived) != derived:
+                errors.append("%s: areaCode %r が住所から出した値（%r）と違う" % (node["ref"], props["areaCode"], derived or "一致なし"))
+            props.pop("areaCode", None)
+            if derived:
+                props["areaCode"] = derived
         props.update(registeredAt=now, origin=node["origin"], status=node["status"])
         if label == "Staff" and node["origin"] != "Human":
             errors.append("職員は人が登録する（origin は Human。%s は %s）" % (node["ref"], node["origin"]))
