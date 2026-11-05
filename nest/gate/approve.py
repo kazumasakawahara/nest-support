@@ -5,7 +5,7 @@
   自分で登録したもの（Create の AuditLog の ACTED_BY が自分）を承認したら、APPROVED と AuditLog に selfApproval: true を残す
 - AI 由来のものはまとめて承認しない。approve_many は、2 件以上で AI 由来が一つでもあれば、何も変えずに断る
 - 承認の出力には、事実ごとに原文の引用を並べる（review_items も同じ形。本人に直接つながるもの、本人について聞いた記録の話し手、
-  本人の事実の根拠の記録を並べる）。関わりには中身（種類・確度・終わり方・推定の根拠・注記・機関）も添える（止まる点 4。台帳 G-59）。引用は、記録ならその記録、
+  本人の事実の根拠の記録、本人についての記録を根拠にした関わり（親など本人以外の人に向けたものを含む。正典 v0.7）を並べる）。関わりには中身（種類・確度・終わり方・推定の根拠・注記・機関）も添える（止まる点 4。台帳 G-59）。引用は、記録ならその記録、
   事実なら根拠（EVIDENCED_BY）の記録、人ならその人から聞いた（TOLD_BY）記録から引く
 - 承認は Staff -[:APPROVED {at, selfApproval}]-> 対象 で残す。承認・却下とも AuditLog（Approve／Reject）を残す
 手本：tsunagu-net の tsunagu/gate/approve.py（読むだけ）。
@@ -33,6 +33,8 @@ CALL (c) {
   MATCH (c)<-[:ABOUT]-(:Record)-[:TOLD_BY]->(n:Person) WHERE n.status = 'Pending' RETURN n
   UNION
   MATCH (c)--()-[:EVIDENCED_BY]->(n:Record) WHERE n.status = 'Pending' RETURN n
+  UNION
+  MATCH (c)<-[:ABOUT]-(:Record)<-[:EVIDENCED_BY]-(n:Involvement) WHERE n.status = 'Pending' RETURN n
 }
 RETURN DISTINCT labels(n)[0] AS label, n AS node"""
 

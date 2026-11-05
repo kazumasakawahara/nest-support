@@ -24,7 +24,7 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
   名前で既にいる人に結び付けない。新しい人は AiExtracted（Pending）で作る（D8。N-16）
 - 提供元の機関は、案に機関 ID を書かせない（名前の一致だけで orgId を入れない）。原文の名前（providerName）から
   org_candidates.by_name で候補を出し、職員が選んだ機関 ID を provider_org_id で渡す。渡すまでは未確定で、依頼を作らない（N-24。D3）
-- 機関の名前が無い言及（「区役所の窓口で」）は involvements [{"quote", "kind", "orgId"?}] に書く（N-24a）。quote は事実の引用のどれか
+- 機関の名前が無い言及（「区役所の窓口で」）は involvements [{"quote", "kind", "orgId"?, "concerns"?}] に書く（N-24a）。quote は事実の引用のどれか
   （その記録を根拠に結ぶ）。orgId は担当機関の推定（org_estimate.estimate。estimate で渡す）の候補の中からだけ。無ければ機関未確定。
   確度は書かせず、いつも Inference・終わり方 Unknown・AI 由来（Pending）。候補から選んだら、推定の根拠（inferenceBasis）を推定の結果から付ける（案には書かせない）。後見は推定で作らない。推定の注記は結果の notes に載せる
 - 案に、上の形に無い項目があれば止める。snake_case などの別の綴りも直さない（N-15）。ゲートの検証（validate.py）も同じ考え方
@@ -38,7 +38,7 @@ from nest import canon, ids
 
 DOC_KINDS = ("ProvisionDocument", "OwnCaseRecord")
 TOP_KEYS = {"documentKind", "providerName", "clientId", "receivedOn", "newPeople", "facts", "involvements"}
-INVOLVEMENT_KEYS = {"quote", "kind", "orgId"}
+INVOLVEMENT_KEYS = {"quote", "kind", "orgId", "concerns"}
 SCHEMA = Path(__file__).resolve().parents[2] / "docs" / "SCHEMA.md"
 # 推定の結果の basis → 関わりの inferenceBasis（正典 v0.6。台帳 G-57）。住所も区のコードも持たない
 INFERENCE_BASIS = {"AtTheTime": "ResidenceAreaAtTheTime", "CurrentFallback": "CurrentResidenceArea"}
@@ -86,7 +86,8 @@ def receiver_certainty(provider):
 
 
 def _check_involvements(p, estimate, errors):
-    """N-24a。関わりの案の点検。"""
+    """N-24a。関わりの案の点検。concerns は誰の関わりか（既定は本人。既にいる人の PER-… か newPeople の ref。正典 v0.7。台帳 G-60）。"""
+    people = {x.get("ref") for x in p.get("newPeople") or []}
     quotes = {_norm(f.get("quote")) for f in p.get("facts") or [] if isinstance(f.get("quote"), str)}
     offered = {c["orgId"]: c.get("kind") for c in (estimate or {}).get("candidates", [])}
     kinds = canon.load(SCHEMA)["enums"]["involvementKind"]
@@ -106,7 +107,12 @@ def _check_involvements(p, estimate, errors):
         org = inv.get("orgId")
         if org is not None and org not in offered:
             errors.append("%s: orgId %r は担当機関の推定の候補に無い（候補の中から選ぶ。選べなければ書かない）" % (where, org))
-        elif org is not None and offered[org] == "GuardianshipCenter" and inv.get("kind") != "Consultation":
+        target = inv.get("concerns")
+        if target is not None and not (ids.is_valid_id(target, "PER") or target in people):
+            errors.append("%s: concerns %r は既にいる人の ID（PER-…）か newPeople の ref（名前で結び付けない）" % (where, target))
+        elif target is not None and org is not None:
+            errors.append("%s: 住所からの推定で選んだ機関では、本人以外の人の関わりを作らない（住所が本人と違うことがある）" % where)
+        if org is not None and org in offered and offered[org] == "GuardianshipCenter" and inv.get("kind") != "Consultation":
             errors.append("%s: 成年後見センターを推定で選んだ関わりは Consultation だけ（後見制度の相談の窓口。%r は作らない）" % (where, inv.get("kind")))
 
 
@@ -235,7 +241,9 @@ def _request(p, original, actor_staff_id, request_id, provider_org_id, estimate=
         ref = "involvement-%d" % n
         nodes.append({"ref": ref, "label": "Involvement", "origin": "AiExtracted",
                       "properties": {"kind": inv["kind"], "howEnded": "Unknown", "certainty": "Inference"}})
-        rels.append({"type": "CONCERNS", "from": ref, "to": client})
+        target = inv.get("concerns")
+        rels.append({"type": "CONCERNS", "from": ref,
+                     "to": client if target is None else {"label": "Person", "id": target} if target.startswith("PER-") else target})
         rels.append({"type": "EVIDENCED_BY", "from": ref, "to": fact_refs[_norm(inv["quote"])]})
         if inv.get("orgId"):
             basis = INFERENCE_BASIS.get((estimate or {}).get("basis"))

@@ -194,6 +194,7 @@ def validate(req):
         rels_out.append({"type": rtype, "from": rel.get("from"), "to": rel.get("to"), "properties": props})
 
     _check_guardianship(ck, nodes_out)
+    _check_concerns_person(ck, nodes_out, rels_out)
     _check_provided(ck, nodes_out, rels_out)
     return {"ok": not ck.errors, "errors": ck.errors, "corrections": ck.corrections,
             "nodes": nodes_out, "relationships": rels_out, "requestId": req.get("requestId")}
@@ -206,6 +207,26 @@ def _check_guardianship(ck, nodes):
             ck.errors.append("ノード %s: guardianshipType は kind が Guardianship の関わりにだけ書ける（kind %r）" % (n["ref"], p.get("kind")))
         if n["label"] == "Involvement" and "inferenceBasis" in p and p.get("certainty") != "Inference":
             ck.errors.append("ノード %s: inferenceBasis は確度が Inference の関わりにだけ書ける（certainty %r）" % (n["ref"], p.get("certainty")))
+
+
+def _check_concerns_person(ck, nodes, rels):
+    """本人以外の人（Person）に向けた関わり（正典 v0.7。台帳 G-60）：根拠の記録が要る、住所からの推定では作らない、いつも Pending。"""
+    labels = {n["ref"]: n["label"] for n in nodes}
+
+    def label_of(end):
+        return end.get("label") if isinstance(end, dict) else labels.get(end)
+    for n in nodes:
+        if n["label"] != "Involvement":
+            continue
+        ref = n["ref"]
+        to_person = any(r["type"] == "CONCERNS" and r["from"] == ref and label_of(r["to"]) == "Person" for r in rels)
+        if not to_person:
+            continue
+        if not any(r["type"] == "EVIDENCED_BY" and r["from"] == ref for r in rels):
+            ck.errors.append("ノード %s: 本人以外の人に向けた関わりには、原文の引用の根拠（EVIDENCED_BY → Record）が要る" % ref)
+        if "inferenceBasis" in n["properties"]:
+            ck.errors.append("ノード %s: 住所からの推定（inferenceBasis）では、本人以外の人の関わりを作らない（住所が本人と違うことがある）" % ref)
+        n["status"] = "Pending"
 
 
 def _check_provided(ck, nodes, rels):

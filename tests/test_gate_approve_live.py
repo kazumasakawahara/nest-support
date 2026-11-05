@@ -120,3 +120,26 @@ def test_estimated_org_reference_is_active_and_review_shows_the_involvement(driv
                               "inferenceBasis": "CurrentResidenceArea", "note": None,
                               "organizations": [{"orgId": org["orgId"], "name": org["name"]}], "organizationUndecided": False}
     assert [q["quote"] for q in inv["quotes"]] == ["架空の相談 %s" % mark]
+
+
+def test_involvement_of_a_parent_shows_up_for_review_with_its_quote(driver, admin, client):
+    """正典 v0.7（台帳 G-60）。親（新しい人）に向けた関わりも、本人の承認待ちに引用つきで出る。"""
+    from nest.gate import approve as ga
+    from nest.gate import write as gw
+    mark = uuid.uuid4().hex
+    out = gw.submit({"requestId": _rid(), "actorStaffId": admin,
+                     "nodes": [{"ref": "mother", "label": "Person", "origin": "AiExtracted", "properties": {}},
+                               {"ref": "i", "label": "Involvement", "origin": "Human",
+                                "properties": {"kind": "Consultation", "howEnded": "Unknown", "certainty": "SelfReport"}},
+                               {"ref": "r0", "label": "Record", "origin": "AiExtracted",
+                                "properties": {"kind": "Interview", "text": "母が相談した %s" % mark, "quote": "母が相談した %s" % mark,
+                                               "certainty": "SelfReport", "informantKind": "Family"}}],
+                     "relationships": [{"type": "CONCERNS", "from": "i", "to": "mother", "properties": {}},
+                                       {"type": "EVIDENCED_BY", "from": "i", "to": "r0", "properties": {}},
+                                       {"type": "ABOUT", "from": "r0", "to": {"label": "Client", "id": client}, "properties": {}}]}, driver)
+    assert out["ok"], out["errors"]
+    assert _one(driver, "MATCH (i:Involvement {involvementId: $id}) RETURN i.status AS s", id=out["ids"]["i"]) == [{"s": "Pending"}]
+    items = {i["id"]: i for i in ga.review_items(driver, client)}
+    inv = items[out["ids"]["i"]]
+    assert [q["quote"] for q in inv["quotes"]] == ["母が相談した %s" % mark]
+    assert inv["content"]["kind"] == "Consultation"

@@ -1,6 +1,6 @@
-# nest-support スキーマ正典 — v0.6
+# nest-support スキーマ正典 — v0.7
 
-- 状態：v0.6（2026-11-05。関わりの種類の定義と推定の根拠を足した（§4.5、台帳 G-40・G-57）。それより前は 止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43・G-44 の判断（§9 の 10〜13）を反映した）
+- 状態：v0.7（2026-11-05。関わりを本人以外の人にも向けられるようにした（§4.3、台帳 G-60）。v0.6 で関わりの種類の定義と推定の根拠を足した（§4.5、台帳 G-40・G-57）。それより前は 止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43・G-44 の判断（§9 の 10〜13）を反映した）
 - 根拠：ADR-001（承認 2026-11-05。D1〜D11。D3 は 2026-11-05 に 2 回改めた）、約束 v1.1（`~/Dev-Work/tsunagu-net/docs/contracts/nest-support-shared.md`。2026-11-05 改め。v1 は 2026-11-04 確定）
 - 扱う範囲：個人の側の DB の、ラベル・リレーション・プロパティ・列挙値の**名前と構造**、ID の形、制約。資源の側は tsunagu-net の正典を参照するだけ
 - 扱わない範囲：業務上の意味・運用の規則・列挙値の日本語の表示名（nest-support の意味の文書 `docs/SEMANTICS.md` に置く。まだ無い。ADR D1）。機械が読む JSON は N-07 で §11 に置き、この表と一致させる（N-08 の乖離の検査）
@@ -128,7 +128,9 @@
 |---|---|---|
 | `RELATED_TO` | Person → Client | `kind`✅(enum `clientRelationKind`), `certainty`✅, `evidenceRecordIds`✅(List), `status`✅, `rank`(Integer。kind が KeyPerson のときは必須), `since`(Date), `until`(Date) |
 | `HAS_INVOLVEMENT` | Organization / Person → Involvement | — |
-| `CONCERNS` | Involvement → Client | — |
+| `CONCERNS` | Involvement → Client / Person | — |
+
+- `CONCERNS` の終点が `Person`（親など、本人以外の人）の関わりは、その人が相談した・その人に関わったと原文にはっきり書かれているときだけ作る（2026-11-05 河原さん。台帳 G-60）。根拠の記録（`EVIDENCED_BY` → `Record`）を必ず付け、由来にかかわらず `Pending` で入れ、人が承認する。住所からの推定（`inferenceBasis` を持つ関わり）では作らない（住所が本人と違うことがある）。どれもゲートが強制する
 | `RESIDES_AT` | Client → Residence | — |
 | `MUST_AVOID` | Client → NgAction | — |
 | `REQUIRES` | Client → CarePreference | — |
@@ -291,7 +293,7 @@
 | `WORKS_AT`（Staff → Organization） | ある | 持たない | 同じ理由。nest-support の `Staff` は DB を置く一つの事業所の職員だけ。複数の事業所で一つの DB を使うことになったら足す |
 | `CONTRADICTS` の終点 | Record | 事実のノードと Involvement | D5：食い違いは事実に対して挙げる。聞いた記録どうしは上書きしない |
 | `HAS_INVOLVEMENT` の始点 | Organization / Supporter | Organization / Person | 個人の支援者は `Supporter` に分けず `Person` に持つ（§9 の 2） |
-| `CONCERNS` の終点 | Person / Household | Client | 本人一人が中心（ADR-001 背景）。世帯を持たない |
+| `CONCERNS` の終点 | Person / Household | Client / Person | 本人一人が中心（ADR-001 背景）。世帯を持たない。親など本人以外の人の関わり（親の介護の相談など）は Person に向ける（v0.7。台帳 G-60） |
 | `RELATED_TO` | Person → Person、`kind`（親族 8 つ）・`certainty` | Person → Client、`kind`（`clientRelationKind`）・`certainty`・`evidenceRecordIds`・`status`・`rank`・`since`・`until` | §9 の 2・6 |
 | `involvementKind` の値 | 8 つ | 8 つ ＋ `Employment`・`Administrative` | nest-support だけに置く（2026-11-05 河原さん。台帳 G-40）。定義は §4.5 |
 | `Involvement.inferenceBasis`・`Involvement.note` | 無い | 任意 | 担当機関の推定の根拠を後で人が確かめられるように（台帳 G-57）。注記は雇用契約など（§4.5） |
@@ -337,7 +339,7 @@
     "relationships": {
       "RELATED_TO":          {"from": ["Person"], "to": ["Client"], "required": ["kind", "certainty", "evidenceRecordIds", "status"], "optional": ["rank", "since", "until"]},
       "HAS_INVOLVEMENT":     {"from": ["Organization", "Person"], "to": ["Involvement"], "required": [], "optional": []},
-      "CONCERNS":            {"from": ["Involvement"], "to": ["Client"], "required": [], "optional": []},
+      "CONCERNS":            {"from": ["Involvement"], "to": ["Client", "Person"], "required": [], "optional": []},
       "RESIDES_AT":          {"from": ["Client"], "to": ["Residence"], "required": [], "optional": []},
       "MUST_AVOID":          {"from": ["Client"], "to": ["NgAction"], "required": [], "optional": []},
       "REQUIRES":            {"from": ["Client"], "to": ["CarePreference"], "required": [], "optional": []},
@@ -428,6 +430,7 @@
 
 ## 変更履歴
 
+- v0.7（2026-11-05）：河原さんの決定（台帳 G-60 の案 (a)）。`CONCERNS` の終点に `Person` を足した（tsunagu-net と同じ向き）。本人以外の人の関わりは根拠の記録を必ず付けて `Pending`、住所からの推定では作らない（§4.3）
 - v0.6（2026-11-05）：河原さんの決定。`involvementKind` の `Employment`・`Administrative` を nest-support だけに置き、定義と境界を §4.5 に書いた（台帳 G-40 のこの部分を閉じた）。`Involvement` に `inferenceBasis`（列挙 `inferenceBasis`。Inference のときだけ）と `note` を足した（台帳 G-57・G-58）
 - v0.5（2026-11-05 追記）：参照する約束を v1.1 に改めた（2026-11-05 河原さん承認。この正典の項目は変わらない。`docs/journal/2026-11-05-contract-v1.1.md`）
 - v0.5（2026-11-05）：G-44 の河原さんの判断。`Residence.from` を `since` に改めた（tsunagu-net の `MEMBER_OF` と同じ `since`・`until`）。`since` は任意のまま
