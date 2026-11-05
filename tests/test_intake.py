@@ -209,7 +209,6 @@ def test_told_by_must_be_existing_id_or_new_person_ref():
 # N-11：写した直後は赤。各タスクで緑にしたら、そのタスクの印を外す
 # 通すべき入力の試験（良い案が通る）は、入口が依頼を作った時点（N-12）で緑になる。各タスクの印は止めるべき入力の試験に残す（台帳 G-46）
 _PENDING = {
-    "N-15": ["test_unknown_keys_stop_without_fixing", "test_snake_case_key_stops"],
     "N-16": ["test_told_by_must_be_existing_id_or_new_person_ref"],
 }
 for _task, _names in _PENDING.items():

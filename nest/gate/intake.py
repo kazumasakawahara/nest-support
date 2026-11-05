@@ -20,6 +20,7 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
 - 確度は原文の印で決める：quote の直後（同じ行）の【…】。推測＞伝聞・未確認＞本人の話＞確認済み の順で弱いほうを採る。
   印が無ければ Unspecified。知らない印は推測で読み替えずに止める。自分の記録では certainty がこれと同じこと。
   書面では providerCertainty がこれと同じで、certainty が受けた側の確度（receiver_certainty）と同じこと。上げも下げも止める（N-14）
+- 案に、上の形に無い項目があれば止める。snake_case などの別の綴りも直さない（N-15）。ゲートの検証（validate.py）も同じ考え方
 """
 import copy
 import hashlib
@@ -28,6 +29,9 @@ import re
 from nest import ids
 
 DOC_KINDS = ("ProvisionDocument", "OwnCaseRecord")
+TOP_KEYS = {"documentKind", "providerOrgId", "clientId", "receivedOn", "newPeople", "facts"}
+FACT_KEYS = {"quote", "text", "recordKind", "certainty", "providerCertainty", "informantKind", "aboutDate", "heardOn", "toldBy"}
+PERSON_KEYS = {"ref", "familyName", "givenName", "familyNameKana", "givenNameKana"}
 DIGITS = re.compile(r"[0-9０-９]+")
 WIDE = str.maketrans("０１２３４５６７８９", "0123456789")
 MARK = re.compile(r"^\s*【([^】]+)】")
@@ -74,6 +78,11 @@ def check(proposal, original, actor_staff_id, request_id):
     errors, warnings = [], []
     if not isinstance(p, dict) or not isinstance(original, str) or not original.strip():
         return {"ok": False, "errors": ["案はオブジェクト、原文は空でない文字列"], "warnings": [], "request": None}
+    for k in sorted(set(p) - TOP_KEYS):
+        errors.append("案に %s という項目は無い（直さずに止める）" % k)
+    for person in p.get("newPeople") or []:
+        for k in sorted(set(person) - PERSON_KEYS):
+            errors.append("newPeople に %s という項目は無い（直さずに止める）" % k)
     kind = p.get("documentKind")
     if kind not in DOC_KINDS:
         errors.append("documentKind は %s のどれか（%r）" % ("／".join(DOC_KINDS), kind))
@@ -89,6 +98,8 @@ def check(proposal, original, actor_staff_id, request_id):
         errors.append("事実（facts）が無い")
     for n, f in enumerate(facts, start=1):
         where = "事実 %d" % n
+        for k in sorted(set(f) - FACT_KEYS):
+            errors.append("%s: %s という項目は無い（直さずに止める）" % (where, k))
         quote = f.get("quote")
         if not isinstance(quote, str) or not quote.strip():
             errors.append("%s: 原文の該当箇所（引用 quote）が要る" % where)
