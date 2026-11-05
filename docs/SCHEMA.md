@@ -271,7 +271,122 @@
 
 ## 11. 機械検証ブロック
 
-N-07 で置く。
+`nest/canon.py`（N-07）が読む。乖離の検査（`scripts/check_drift.py`。N-08）は、この JSON を正として本書の表と突き合わせ、のちにゲートの許す一覧とも突き合わせる。`"*"` は「個人の側の任意のラベル」。条件つきの必須（§4.4）はゲートで強制し、ここには書かない。
+
+```json machine-check
+{
+  "version": "0.2",
+  "personal": {
+    "commonRequired": ["registeredAt", "status", "origin"],
+    "immutable": ["registeredAt"],
+    "immutableByLabel": {"Record": ["certainty", "text", "quote", "informantKind", "documentHash", "providerCertainty"], "Involvement": ["certainty"]},
+    "immutableByRelationship": {"RELATED_TO": ["certainty"]},
+    "appendOnlyByRelationship": {"RELATED_TO": ["evidenceRecordIds"]},
+    "nodes": {
+      "Client":           {"required": ["clientId", "displayCode"], "optional": ["familyName", "givenName", "familyNameKana", "givenNameKana", "birthDate", "birthDatePrecision", "bloodType"], "unique": ["clientId", "displayCode"]},
+      "Person":           {"required": ["personId"], "optional": ["familyName", "givenName", "familyNameKana", "givenNameKana", "phone", "note"], "unique": ["personId"]},
+      "Staff":            {"required": ["staffId", "displayName", "role"], "optional": [], "unique": ["staffId"]},
+      "Involvement":      {"required": ["involvementId", "kind", "howEnded", "certainty"], "optional": ["orgId", "startDate", "endDate", "guardianshipType", "serviceTypeName"], "unique": ["involvementId"]},
+      "NgAction":         {"required": ["ngActionId", "action", "riskLevel"], "optional": ["reason", "validFrom", "validTo"], "unique": ["ngActionId"]},
+      "CarePreference":   {"required": ["carePreferenceId", "category", "instruction"], "optional": ["priority", "validFrom", "validTo"], "unique": ["carePreferenceId"]},
+      "Condition":        {"required": ["conditionId", "name"], "optional": ["diagnosisDate"], "unique": ["conditionId"]},
+      "Wish":             {"required": ["wishId", "content"], "optional": [], "unique": ["wishId"]},
+      "LifeHistory":      {"required": ["lifeHistoryId", "episode"], "optional": ["era"], "unique": ["lifeHistoryId"]},
+      "CareRole":         {"required": ["careRoleId", "name"], "optional": ["frequency", "priority", "note"], "unique": ["careRoleId"]},
+      "Certificate":      {"required": ["certificateId", "type"], "optional": ["grade", "issuedDate", "nextRenewalDate"], "unique": ["certificateId"]},
+      "PublicAssistance": {"required": ["publicAssistanceId", "type"], "optional": ["startDate", "endDate"], "unique": ["publicAssistanceId"]},
+      "SupportLog":       {"required": ["supportLogId", "date", "situation"], "optional": ["action", "effectiveness", "note", "nextAction"], "unique": ["supportLogId"]},
+      "Record":           {"required": ["recordId", "kind", "text", "quote", "certainty", "informantKind", "sourceHash"], "optional": ["aboutDate", "heardOn", "documentHash", "providerCertainty", "receivedOn"], "unique": ["recordId"]},
+      "Review":           {"required": ["reviewId", "domain", "reviewedAt", "informantKind"], "optional": ["note"], "unique": ["reviewId"]},
+      "AuditLog":         {"required": ["auditId", "at", "action", "targetLabel", "targetId", "requestId"], "optional": ["selfApproval"], "unique": ["auditId"]}
+    },
+    "relationships": {
+      "RELATED_TO":          {"from": ["Person"], "to": ["Client"], "required": ["kind", "certainty", "evidenceRecordIds", "status"], "optional": ["rank", "since", "until"]},
+      "HAS_INVOLVEMENT":     {"from": ["Person"], "to": ["Involvement"], "required": [], "optional": []},
+      "CONCERNS":            {"from": ["Involvement"], "to": ["Client"], "required": [], "optional": []},
+      "MUST_AVOID":          {"from": ["Client"], "to": ["NgAction"], "required": [], "optional": []},
+      "REQUIRES":            {"from": ["Client"], "to": ["CarePreference"], "required": [], "optional": []},
+      "HAS_CONDITION":       {"from": ["Client"], "to": ["Condition"], "required": [], "optional": []},
+      "IN_CONTEXT":          {"from": ["NgAction"], "to": ["Condition"], "required": [], "optional": []},
+      "ADDRESSES":           {"from": ["CarePreference"], "to": ["Condition"], "required": [], "optional": []},
+      "HAS_WISH":            {"from": ["Client"], "to": ["Wish"], "required": [], "optional": []},
+      "HAS_HISTORY":         {"from": ["Client"], "to": ["LifeHistory"], "required": [], "optional": []},
+      "HAS_CERTIFICATE":     {"from": ["Client"], "to": ["Certificate"], "required": [], "optional": []},
+      "RECEIVES":            {"from": ["Client"], "to": ["PublicAssistance"], "required": [], "optional": []},
+      "PERFORMS":            {"from": ["Person"], "to": ["CareRole"], "required": [], "optional": ["since", "until"]},
+      "ROLE_FOR":            {"from": ["CareRole"], "to": ["Client"], "required": [], "optional": []},
+      "CAN_BE_PERFORMED_BY": {"from": ["CareRole"], "to": ["Person", "Involvement"], "required": [], "optional": []},
+      "EVIDENCED_BY":        {"from": ["NgAction", "CarePreference", "Condition", "Wish", "LifeHistory", "CareRole", "Certificate", "PublicAssistance", "SupportLog", "Involvement"], "to": ["Record"], "required": ["linkedBy", "at"], "optional": []},
+      "CONTRADICTS":         {"from": ["Record"], "to": ["NgAction", "CarePreference", "Condition", "Wish", "LifeHistory", "CareRole", "Certificate", "PublicAssistance", "SupportLog", "Involvement"], "required": ["claim", "raisedAt"], "optional": ["resolvedAt", "resolution", "resolvedBy"]},
+      "CONFIRMS":            {"from": ["Review"], "to": ["Record"], "required": [], "optional": []},
+      "ABOUT":               {"from": ["Record", "Review", "SupportLog"], "to": ["Client"], "required": [], "optional": []},
+      "TOLD_BY":             {"from": ["Record"], "to": ["Person", "Client"], "required": [], "optional": []},
+      "AUTHORED_BY":         {"from": ["Record", "SupportLog"], "to": ["Staff"], "required": [], "optional": []},
+      "REVIEWED":            {"from": ["Staff"], "to": ["Review"], "required": [], "optional": []},
+      "APPROVED":            {"from": ["Staff"], "to": ["*"], "required": ["at", "selfApproval"], "optional": []},
+      "AUDIT_FOR":           {"from": ["AuditLog"], "to": ["*"], "required": [], "optional": []},
+      "ACTED_BY":            {"from": ["AuditLog"], "to": ["Staff"], "required": [], "optional": []}
+    }
+  },
+  "idPrefixes": {
+    "Client": "CLI", "Person": "PER", "Staff": "STF", "Involvement": "INV", "Record": "REC",
+    "NgAction": "NGA", "CarePreference": "CPF", "Condition": "CND", "Wish": "WSH", "LifeHistory": "LHS",
+    "CareRole": "CRL", "Certificate": "CRT", "PublicAssistance": "PAS", "SupportLog": "SLG",
+    "Review": "REV", "AuditLog": "AUD"
+  },
+  "enums": {
+    "status": ["Active", "Pending", "Inactive"],
+    "origin": ["Human", "AiExtracted", "Imported"],
+    "certainty": ["Confirmed", "Hearsay", "SelfReport", "Inference", "Unspecified"],
+    "informantKind": ["Self", "Family", "Agency", "Neighbor", "DocumentOnly"],
+    "recordKind": ["Observation", "Interview", "Notification", "MeetingMinutes", "Plan", "Document"],
+    "riskLevel": ["LifeThreatening", "Panic", "Discomfort"],
+    "clientRelationKind": ["Parent", "Child", "Spouse", "Partner", "Sibling", "Grandparent", "Grandchild", "OtherRelative", "KeyPerson", "PrimaryDoctor", "Neighbor", "Helper", "OtherSupporter"],
+    "involvementKind": ["Medical", "ServiceProvision", "CaseManagement", "Consultation", "Guardianship", "Education", "Employment", "Administrative"],
+    "howEnded": ["Ongoing", "Lapsed", "DeclinedByPerson", "EndedByAgency", "Unknown"],
+    "guardianshipType": ["Guardianship", "Curatorship", "Assistance", "VoluntaryGuardianship"],
+    "birthDatePrecision": ["Day", "Month", "Year", "Unknown"],
+    "staffRole": ["Staff", "Administrator"],
+    "reviewDomain": ["NgAction", "CarePreference", "KeyPerson", "Guardianship", "Certificate", "CareRole"],
+    "auditAction": ["Create", "Approve", "Reject", "Inactivate", "LinkEvidence", "RaiseContradiction", "ResolveContradiction", "Read"],
+    "linkedBy": ["Gate", "Human"],
+    "effectiveness": ["Effective", "Ineffective", "Neutral", "Unknown"],
+    "priority": ["High", "Medium", "Low"],
+    "certificateType": ["IntellectualDisabilityHandbook", "PhysicalDisabilityHandbook", "MentalDisabilityHandbook", "DisabilityServiceRecipientCertificate", "ChildDayServiceRecipientCertificate", "SupportiveMedicalCareCertificate", "Other"],
+    "publicAssistanceType": ["PublicAssistance", "DisabilityBasicPension", "DisabilityEmployeesPension", "SpecialDisabilityAllowance", "SpecialChildRearingAllowance", "Other"]
+  },
+  "enumBindings": {
+    "*.status": "status", "*.origin": "origin",
+    "Client.birthDatePrecision": "birthDatePrecision", "Staff.role": "staffRole",
+    "Involvement.kind": "involvementKind", "Involvement.howEnded": "howEnded", "Involvement.certainty": "certainty", "Involvement.guardianshipType": "guardianshipType",
+    "NgAction.riskLevel": "riskLevel", "CarePreference.priority": "priority", "CareRole.priority": "priority",
+    "Certificate.type": "certificateType", "PublicAssistance.type": "publicAssistanceType", "SupportLog.effectiveness": "effectiveness",
+    "Record.kind": "recordKind", "Record.certainty": "certainty", "Record.providerCertainty": "certainty", "Record.informantKind": "informantKind",
+    "Review.domain": "reviewDomain", "Review.informantKind": "informantKind", "AuditLog.action": "auditAction",
+    "RELATED_TO.kind": "clientRelationKind", "RELATED_TO.certainty": "certainty", "RELATED_TO.status": "status",
+    "EVIDENCED_BY.linkedBy": "linkedBy"
+  },
+  "types": {
+    "*.registeredAt": "DateTime",
+    "Client.birthDate": "Date", "Involvement.startDate": "Date", "Involvement.endDate": "Date",
+    "NgAction.validFrom": "Date", "NgAction.validTo": "Date", "CarePreference.validFrom": "Date", "CarePreference.validTo": "Date",
+    "Condition.diagnosisDate": "Date", "Certificate.issuedDate": "Date", "Certificate.nextRenewalDate": "Date",
+    "PublicAssistance.startDate": "Date", "PublicAssistance.endDate": "Date", "SupportLog.date": "Date",
+    "Record.aboutDate": "Date", "Record.heardOn": "Date", "Record.receivedOn": "Date",
+    "Review.reviewedAt": "DateTime", "AuditLog.at": "DateTime", "AuditLog.selfApproval": "Boolean",
+    "RELATED_TO.evidenceRecordIds": "List", "RELATED_TO.rank": "Integer", "RELATED_TO.since": "Date", "RELATED_TO.until": "Date",
+    "PERFORMS.since": "Date", "PERFORMS.until": "Date",
+    "EVIDENCED_BY.at": "DateTime", "CONTRADICTS.raisedAt": "DateTime", "CONTRADICTS.resolvedAt": "DateTime",
+    "APPROVED.at": "DateTime", "APPROVED.selfApproval": "Boolean"
+  },
+  "indexes": [
+    {"label": "Record", "property": "sourceHash", "kind": "RANGE"},
+    {"label": "Client", "property": "familyNameKana", "kind": "RANGE"},
+    {"label": "Person", "property": "familyNameKana", "kind": "RANGE"},
+    {"label": "Client", "property": "birthDate", "kind": "RANGE"}
+  ]
+}
+```
 
 ## 変更履歴
 
