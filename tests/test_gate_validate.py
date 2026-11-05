@@ -213,3 +213,33 @@ def test_gate_constants_refer_to_canon_names():
         assert prop in nodes[label]["required"] and label in data["externalIds"]
     for label, props in validate.GATE_MANAGED_BY_LABEL.items():
         assert props <= set(nodes[label]["required"]) | set(nodes[label]["optional"])
+
+
+# ---- N-16：AI 由来は未確定。人は名前で同定しない ----
+
+def test_ai_extracted_nodes_are_planned_as_pending():
+    human = {"ref": "c", "label": "CareRole", "origin": "Human", "properties": {"name": "通院の付き添い"}}
+    rep = _validate(_req([_ng(), human]))
+    assert rep["ok"], rep["errors"]
+    status = {n["ref"]: n["status"] for n in rep["nodes"]}
+    assert status == {"ng": "Pending", "c": "Active"}
+
+
+@pytest.mark.parametrize("end", [
+    {"label": "Person", "name": "ハナ"},                        # 名前で既にいる人を指す
+    {"label": "Person", "id": "ハナ"},
+    {"label": "Person", "id": "PER-01H11111111111111111111111", "name": "ハナ"},   # ID に名前を添えても止める
+])
+def test_existing_person_cannot_be_pointed_by_name(end):
+    rec = {"ref": "r", "label": "Record", "origin": "AiExtracted", "properties": {
+        "kind": "Interview", "text": "架空", "quote": "架空", "certainty": "Hearsay", "informantKind": "Family"}}
+    rep = _validate(_req([rec], [{"type": "TOLD_BY", "from": "r", "to": end}]))
+    assert not rep["ok"]
+
+
+def test_new_person_ref_format_is_checked_at_intake():
+    from tests.test_intake import _check, _proposal, _fact
+    quote = "ハナに尋ねると「転んだ」と言うが、転倒の具体的な状況は話せない"
+    for refs in ([{"ref": "ハナ", "givenName": "ハナ"}], [{"ref": "p-a"}, {"ref": "p-a"}]):
+        rep = _check(_proposal([_fact(quote, toldBy=refs[0]["ref"])], newPeople=refs))
+        assert not rep["ok"], refs

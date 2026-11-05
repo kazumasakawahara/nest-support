@@ -20,6 +20,8 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
 - 確度は原文の印で決める：quote の直後（同じ行）の【…】。推測＞伝聞・未確認＞本人の話＞確認済み の順で弱いほうを採る。
   印が無ければ Unspecified。知らない印は推測で読み替えずに止める。自分の記録では certainty がこれと同じこと。
   書面では providerCertainty がこれと同じで、certainty が受けた側の確度（receiver_certainty）と同じこと。上げも下げも止める（N-14）
+- 人は、既にいる人の ID（PER-…）か、案の中の新しい人の名札（英小文字で始まる、重複の無いもの）か、本人（client）だけで指す。
+  名前で既にいる人に結び付けない。新しい人は AiExtracted（Pending）で作る（D8。N-16）
 - 案に、上の形に無い項目があれば止める。snake_case などの別の綴りも直さない（N-15）。ゲートの検証（validate.py）も同じ考え方
 """
 import copy
@@ -32,6 +34,7 @@ DOC_KINDS = ("ProvisionDocument", "OwnCaseRecord")
 TOP_KEYS = {"documentKind", "providerOrgId", "clientId", "receivedOn", "newPeople", "facts"}
 FACT_KEYS = {"quote", "text", "recordKind", "certainty", "providerCertainty", "informantKind", "aboutDate", "heardOn", "toldBy"}
 PERSON_KEYS = {"ref", "familyName", "givenName", "familyNameKana", "givenNameKana"}
+REF = re.compile(r"^[a-z][a-z0-9-]*$")
 DIGITS = re.compile(r"[0-9０-９]+")
 WIDE = str.maketrans("０１２３４５６７８９", "0123456789")
 MARK = re.compile(r"^\s*【([^】]+)】")
@@ -80,9 +83,14 @@ def check(proposal, original, actor_staff_id, request_id):
         return {"ok": False, "errors": ["案はオブジェクト、原文は空でない文字列"], "warnings": [], "request": None}
     for k in sorted(set(p) - TOP_KEYS):
         errors.append("案に %s という項目は無い（直さずに止める）" % k)
+    refs = set()
     for person in p.get("newPeople") or []:
         for k in sorted(set(person) - PERSON_KEYS):
             errors.append("newPeople に %s という項目は無い（直さずに止める）" % k)
+        ref = person.get("ref")
+        if not isinstance(ref, str) or not REF.match(ref) or ref in refs or ref == "client":
+            errors.append("newPeople の ref は英小文字で始まる重複の無い名札（%r）" % ref)
+        refs.add(ref)
     kind = p.get("documentKind")
     if kind not in DOC_KINDS:
         errors.append("documentKind は %s のどれか（%r）" % ("／".join(DOC_KINDS), kind))
@@ -114,6 +122,9 @@ def check(proposal, original, actor_staff_id, request_id):
                 errors.append("%s: 本文に原文の引用に無い数字 %s がある（補わない）" % (where, "・".join(extra)))
             else:
                 warnings.append("%s: 本文は引用の言い換え。承認の前に原文と見比べる" % where)
+        told = f.get("toldBy")
+        if told is not None and not (told == "client" or ids.is_valid_id(told, "PER") or told in refs):
+            errors.append("%s: toldBy の %r は既にいる人の ID（PER-…）・newPeople の ref・client のどれでもない（名前で結び付けない）" % (where, told))
         marked = mark_of(quote, original)
         if marked is None:
             errors.append("%s: 原文の印を読めない（知らない印）。推測で読み替えない" % where)

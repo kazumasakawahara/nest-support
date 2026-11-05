@@ -204,13 +204,3 @@ def test_told_by_must_be_existing_id_or_new_person_ref():
     assert not _check(_proposal([_fact(quote, toldBy="p-x")]))["ok"]       # 案に無い名札
     assert _check(_proposal([_fact(quote, toldBy=PER)]))["ok"]
     assert _check(_proposal([_fact(quote, toldBy="client")]))["ok"]        # 本人が話した
-
-
-# N-11：写した直後は赤。各タスクで緑にしたら、そのタスクの印を外す
-# 通すべき入力の試験（良い案が通る）は、入口が依頼を作った時点（N-12）で緑になる。各タスクの印は止めるべき入力の試験に残す（台帳 G-46）
-_PENDING = {
-    "N-16": ["test_told_by_must_be_existing_id_or_new_person_ref"],
-}
-for _task, _names in _PENDING.items():
-    for _name in _names:
-        globals()[_name] = pytest.mark.xfail(strict=True, reason="%s で緑にする" % _task)(globals()[_name])

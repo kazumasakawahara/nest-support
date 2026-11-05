@@ -14,6 +14,8 @@
 - 埋め込みの項目（名前が embedding で始まる・終わる）は止める（D10）
 - 日付は正典の types のとおり。形の違うもの・時差の無い日時は補わずに止める
 - 後見の類型は kind が Guardianship の関わりにだけ書ける
+- AI 由来（origin AiExtracted）のノードは Pending で作る。ほかは Active。返す nodes に status を添え、書き込み（N-20）がそれを使う（約束 4-5。N-16）
+- 既にあるノードは {"label", "id"} だけで指す。名前を添えたり名前で指したりしたら止める（D8。N-16）
 - 情報提供の書面の記録：PROVIDED_BY を持つ記録は providerCertainty を持ち、certainty は receiver_certainty の値に限る。
   PROVIDED_BY の無い記録は providerCertainty を持たない。documentHash は SHA-256 の 16 進 64 字
 手本：tsunagu-net の tsunagu/gate/validate.py（読むだけ）。
@@ -154,7 +156,8 @@ def validate(req):
             managed |= set(spec["unique"])
         props = ck.check_props(where, label, spec, node.get("properties"), managed)
         labels_by_ref[ref] = label
-        nodes_out.append({"ref": ref, "label": label, "origin": node.get("origin"), "properties": props})
+        status = "Pending" if node.get("origin") == "AiExtracted" else "Active"
+        nodes_out.append({"ref": ref, "label": label, "origin": node.get("origin"), "status": status, "properties": props})
 
     rels_out = []
     for n, rel in enumerate(req.get("relationships", []), start=1):
@@ -171,7 +174,7 @@ def validate(req):
         for side in ("from", "to"):
             end = rel.get(side)
             if isinstance(end, dict):
-                if not existing_id_ok(end.get("label"), end.get("id")):
+                if set(end) != {"label", "id"} or not existing_id_ok(end.get("label"), end.get("id")):
                     ck.errors.append("%s: %s 側の既にあるノードの ID が正しくない（%r）" % (where, side, end))
                     ends.append(None)
                 else:
