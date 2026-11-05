@@ -131,3 +131,19 @@ def test_guardianship_center_only_as_consultation(kind, ok):
     assert rep["ok"] is ok, rep["errors"]
     if not ok:
         assert any("成年後見センター" in e for e in rep["errors"])
+
+
+# ---- 年齢の数え方：河原さんの jp-normalize の age_at(..., legal=True) と同じ答え（2026-11-05 河原さん） ----
+
+def test_born_on_april_1st_reaches_18_on_march_31st():
+    assert oe._reached(18, D(2008, 4, 1), D(2026, 3, 31))
+    assert not oe._reached(18, D(2008, 4, 1), D(2026, 3, 30))
+    assert set(oe.kinds_for("2008-04-01", "Day", D(2026, 3, 31))[0]) == ALWAYS
+    assert set(oe.kinds_for("2008-04-01", "Day", D(2026, 3, 30))[0]) == ALWAYS | CHILD
+
+
+def test_born_on_february_29th_ages_on_february_28th_in_a_common_year():
+    assert oe._reached(18, D(2008, 2, 29), D(2026, 2, 28))
+    assert not oe._reached(18, D(2008, 2, 29), D(2026, 2, 27))
+    assert oe._reached(16, D(2008, 2, 29), D(2024, 2, 28))      # うるう年は 2 月 28 日（29 日の前日）
+    assert not oe._reached(16, D(2008, 2, 29), D(2024, 2, 27))
