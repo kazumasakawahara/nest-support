@@ -184,7 +184,7 @@ def test_personal_side_refuses_sensitive_or_dynamic_access(query):
     "MATCH (c:Client) RETURN c.displayCode, c.clientId",
     "RETURN [1, 2, 3][0]",
     "WITH [1, 2, 3] AS xs RETURN xs[1..2], xs[-1]",
-    "MATCH (r:Record) RETURN [x IN collect(r.quote) | x] AS qs",
+    # 引用（quote）を自由な Cypher で読む例は、台帳 G-42 で拒否する側に移した（tests/test_mcp_personal_gate.py）
     "UNWIND [1, 2] AS i RETURN i",
     "MATCH (c:Client) WHERE c.clientId IN ['CLI-1'] RETURN c",
 ])
@@ -213,7 +213,7 @@ def test_redaction_of_nodes_maps_and_lists():
 
 def test_exact_sensitive_values_are_masked_wherever_they_appear():
     out = mcp_guard.to_plain({"x": "架空", "q": "架空の人が言った"}, personal=True, sensitive_values={"架空"})
-    assert out == {"x": mcp_guard.MASK, "q": "架空の人が言った"}  # 引用の中の伏せ字は台帳 G-42 で決める（今はしない）
+    assert out == {"x": mcp_guard.MASK, "q": "架空の人が言った"}  # 文の中の部分一致は伏せない。引用は read_quote でだけ返す（台帳 G-42）
 
 
 def test_resource_side_returns_nodes_as_they_are():

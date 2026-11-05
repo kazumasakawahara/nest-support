@@ -104,12 +104,16 @@ def test_same_record_twice_is_rejected_and_nothing_is_written(driver, admin, cli
 def test_same_ng_action_text_is_not_merged(driver, admin, client):
     from nest.gate import write as gw
     action = "架空の禁忌 %s" % uuid.uuid4().hex
-    for _ in range(2):
+    for n in range(2):  # 新しい禁忌には根拠の記録が要る（台帳 G-52 (7)）
         out = gw.submit({"requestId": "req-" + uuid.uuid4().hex, "actorStaffId": admin,
                          "nodes": [{"ref": "ng", "label": "NgAction", "origin": "AiExtracted",
-                                    "properties": {"action": action, "riskLevel": "Panic"}}],
+                                    "properties": {"action": action, "riskLevel": "Panic"}},
+                                   {"ref": "r0", "label": "Record", "origin": "AiExtracted",
+                                    "properties": _record("根拠 %s %d" % (action, n))}],
                          "relationships": [{"type": "MUST_AVOID", "from": {"label": "Client", "id": client}, "to": "ng",
-                                            "properties": {}}]}, driver)
+                                            "properties": {}},
+                                           {"type": "ABOUT", "from": "r0", "to": {"label": "Client", "id": client}, "properties": {}},
+                                           {"type": "EVIDENCED_BY", "from": "ng", "to": "r0", "properties": {}}]}, driver)
         assert out["ok"], out["errors"]
     assert _count(driver, "MATCH (n:NgAction {action: $a, status: 'Pending'}) RETURN count(n) AS n", a=action) == 2
 
@@ -160,8 +164,10 @@ def test_contradiction_is_held_without_changing_the_ng_action(driver, admin, cli
     mark = uuid.uuid4().hex
     first = gw.submit({"requestId": "req-" + uuid.uuid4().hex, "actorStaffId": admin,
                        "nodes": [{"ref": "ng", "label": "NgAction", "origin": "Human",
-                                  "properties": {"action": "架空の禁忌 %s" % mark, "riskLevel": "Panic"}}],
-                       "relationships": []}, driver)
+                                  "properties": {"action": "架空の禁忌 %s" % mark, "riskLevel": "Panic"}},
+                                 {"ref": "r0", "label": "Record", "origin": "Human", "properties": _record("職員が見た %s" % mark)}],
+                       "relationships": [{"type": "ABOUT", "from": "r0", "to": {"label": "Client", "id": client}, "properties": {}},
+                                         {"type": "EVIDENCED_BY", "from": "ng", "to": "r0", "properties": {}}]}, driver)
     ng = first["ids"]["ng"]
     before = _one(driver, "MATCH (n:NgAction {ngActionId: $id}) RETURN properties(n) AS p", id=ng)[0]["p"]
     out = gw.submit({"requestId": "req-" + uuid.uuid4().hex, "actorStaffId": admin,

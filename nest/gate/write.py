@@ -40,7 +40,7 @@ class Rejected(Exception):
 
 def new_display_code():
     """表示用の仮名。乱数で作り、名前・生年月日・連番から作らない（D8。連番は実名を引き出す手がかりになる）。"""
-    return "C-" + "".join(secrets.choice(ids.CROCKFORD) for _ in range(DISPLAY_CODE_LENGTH))
+    return "C-" + "".join(secrets.choice(ids.DISPLAY_ALPHABET) for _ in range(DISPLAY_CODE_LENGTH))
 
 
 def key_of(label):

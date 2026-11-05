@@ -30,8 +30,12 @@ def _must_avoid():
     return {"type": "MUST_AVOID", "from": {"label": "Client", "id": CLIENT}, "to": "ng"}
 
 
+# 新しい禁忌には根拠の記録が要る（台帳 G-52 (7)）。既にある記録を根拠にする
+EVIDENCE = {"type": "EVIDENCED_BY", "from": "ng", "to": {"label": "Record", "id": "REC-01HZZZZZZZZZZZZZZZZZZZZZZZ"}}
+
+
 def test_good_request_passes():
-    rep = _validate(_req([_ng()], [_must_avoid()]))
+    rep = _validate(_req([_ng()], [_must_avoid(), EVIDENCE]))
     assert rep["ok"], rep["errors"]
     assert rep["corrections"] == []
 
@@ -66,7 +70,7 @@ def test_risk_level_aliases_stop(value):
 
 
 def test_case_of_enum_value_is_fixed_and_reported():
-    rep = _validate(_req([_ng(riskLevel="panic")]))
+    rep = _validate(_req([_ng(riskLevel="panic")], [EVIDENCE]))
     assert rep["ok"], rep["errors"]
     assert rep["nodes"][0]["properties"]["riskLevel"] == "Panic"
     assert any("panic" in c for c in rep["corrections"])
@@ -147,7 +151,7 @@ def test_guardianship_type_only_for_guardianship():
 
 @pytest.mark.parametrize("value, ok", [("2026-09-15", True), ("2026/09/15", False), ("2026-02-30", False), ("9月15日", False)])
 def test_dates_are_checked_not_guessed(value, ok):
-    rep = _validate(_req([_ng(validFrom=value)]))
+    rep = _validate(_req([_ng(validFrom=value)], [EVIDENCE]))
     assert rep["ok"] is ok
 
 
@@ -219,7 +223,7 @@ def test_gate_constants_refer_to_canon_names():
 
 def test_ai_extracted_nodes_are_planned_as_pending():
     human = {"ref": "c", "label": "CareRole", "origin": "Human", "properties": {"name": "通院の付き添い"}}
-    rep = _validate(_req([_ng(), human]))
+    rep = _validate(_req([_ng(), human], [EVIDENCE]))
     assert rep["ok"], rep["errors"]
     status = {n["ref"]: n["status"] for n in rep["nodes"]}
     assert status == {"ng": "Pending", "c": "Active"}

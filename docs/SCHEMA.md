@@ -37,7 +37,7 @@
 |---|---|---|
 | 個人の側のノード | 接頭辞 ＋ `-` ＋ ULID | `^(CLI|PER|STF|INV|RES|REC|NGA|CPF|CND|WSH|LHS|CRL|CRT|PAS|SLG|REV|AUD)-[0-9A-HJKMNP-TV-Z]{26}$` |
 | Organization（資源の側の ID。個人の側では発番しない） | `ORG-` ＋ ULID | `^ORG-[0-9A-HJKMNP-TV-Z]{26}$` |
-| 表示用の仮名 | `displayCode` | 形は N-10 で決める。実名から作らない |
+| 表示用の仮名 | `displayCode` | `C-` ＋ 乱数の 6 字。字は紛れやすいもの（0・O・1・I・l）を除いた 30 字（`23456789ABCDEFGHJKMNPQRSTVWXYZ`）。ゲートが付ける。名前・生年月日・連番から導かない。一意制約（§4.4）（2026-11-06 河原さん。台帳 G-52） |
 
 - ID はゲートが発番する（N-10）。名前から作らない。名前で MERGE しない（D8）
 - 個人の側で発番する ID に `ORG-` を使わない。`Organization.orgId` は資源の側の ID をそのまま持つ。資源 DB に無い機関は `Organization` を作らず、関わり（§4.2 `Involvement`）だけを持つ（機関未確定）。個人の医師などは `Person`
@@ -437,6 +437,7 @@
 
 ## 変更履歴
 
+- v0.8 追記（2026-11-06）：河原さんの判断（台帳 G-52 (1)）。§3 の `displayCode` の形を書いた（`C-` ＋ 乱数 6 字、紛れやすい字を除いた 30 字、一意制約）
 - v0.8（2026-11-06）：河原さんの決定（台帳 G-62）。任意後見・任意代理を tsunagu-net の正典 v0.31（BRS-49）に合わせた：`guardianshipType` に `VoluntaryGuardianshipContracted`、`involvementKind` に `AgencyContract`、`howEnded` に `Transitioned` を足し、`VoluntaryGuardianship` の始まりを定めた（§4.5）。`Transitioned` の書ける先をゲートで確かめる
 - v0.7（2026-11-05）：河原さんの決定（台帳 G-60 の案 (a)）。`CONCERNS` の終点に `Person` を足した（tsunagu-net と同じ向き）。本人以外の人の関わりは根拠の記録を必ず付けて `Pending`、住所からの推定では作らない（§4.3）
 - v0.6（2026-11-05）：河原さんの決定。`involvementKind` の `Employment`・`Administrative` を nest-support だけに置き、定義と境界を §4.5 に書いた（台帳 G-40 のこの部分を閉じた）。`Involvement` に `inferenceBasis`（列挙 `inferenceBasis`。Inference のときだけ）と `note` を足した（台帳 G-57・G-58）

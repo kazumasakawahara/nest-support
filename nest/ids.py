@@ -11,6 +11,8 @@ import secrets
 import time
 
 CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+# 表示用の仮名の字（2026-11-06 河原さん。台帳 G-52）：Crockford の字から紛れやすい 0・1 を除いた 30 字（O・I・L は元から無い）
+DISPLAY_ALPHABET = "23456789ABCDEFGHJKMNPQRSTVWXYZ"
 ULID_RE = r"[0-9A-HJKMNP-TV-Z]{26}"
 ORG_PREFIX = "ORG"
 LABEL_PREFIX = {

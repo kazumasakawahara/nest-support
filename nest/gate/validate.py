@@ -14,6 +14,7 @@
 - 埋め込みの項目（名前が embedding で始まる・終わる）は止める（D10）
 - 日付は正典の types のとおり。形の違うもの・時差の無い日時は補わずに止める
 - 後見の類型は kind が Guardianship の関わりにだけ書ける
+- 新しい禁忌（NgAction）には根拠の記録（EVIDENCED_BY → Record）が一つは要る（台帳 G-52 (7)）
 - 終わり方 Transitioned は、任意後見受任者（guardianshipType VoluntaryGuardianshipContracted）と任意代理（kind AgencyContract）の関わりにだけ書ける（正典 v0.8。台帳 G-62）
 - 住所からの推定（inferenceBasis を持つ関わり）で作れる種類は Consultation と Administrative だけ。契約や選任で決まる関わりは住所から推し量れない（台帳 G-62・G-57）
 - AI 由来（origin AiExtracted）のノードは Pending で作る。ほかは Active。機関の写し（Organization。公開 ID への参照）だけは AI 由来でも Active（止まる点 4。台帳 G-59）。返す nodes に status を添え、書き込み（N-20）がそれを使う（約束 4-5。N-16）
@@ -199,6 +200,7 @@ def validate(req):
 
     _check_guardianship(ck, nodes_out)
     _check_concerns_person(ck, nodes_out, rels_out)
+    _check_ngaction_evidence(ck, nodes_out, rels_out)
     _check_provided(ck, nodes_out, rels_out)
     return {"ok": not ck.errors, "errors": ck.errors, "corrections": ck.corrections,
             "nodes": nodes_out, "relationships": rels_out, "requestId": req.get("requestId")}
@@ -217,6 +219,18 @@ def _check_guardianship(ck, nodes):
         if (n["label"] == "Involvement" and p.get("howEnded") == "Transitioned" and p.get("kind") != "AgencyContract"
                 and p.get("guardianshipType") != "VoluntaryGuardianshipContracted"):
             ck.errors.append("ノード %s: howEnded Transitioned は任意後見受任者（VoluntaryGuardianshipContracted）と任意代理（AgencyContract）の関わりにだけ書ける" % n["ref"])
+
+
+def _check_ngaction_evidence(ck, nodes, rels):
+    """新しい禁忌には、根拠の記録（EVIDENCED_BY → Record）が一つは要る（ADR D5。2026-11-06 河原さん。台帳 G-52 (7)）。
+    職員が直接知った禁忌は、先に職員の記録（Record kind Observation）を作り、それを根拠にする。"""
+    labels = {n["ref"]: n["label"] for n in nodes}
+    for n in nodes:
+        if n["label"] != "NgAction":
+            continue
+        if not any(r["type"] == "EVIDENCED_BY" and r["from"] == n["ref"]
+                   and (r["to"].get("label") if isinstance(r["to"], dict) else labels.get(r["to"])) == "Record" for r in rels):
+            ck.errors.append("ノード %s: 新しい禁忌には根拠の記録（EVIDENCED_BY → Record）が要る。職員が直接知った禁忌は、先に職員の記録（kind Observation）を作って結ぶ" % n["ref"])
 
 
 def _check_concerns_person(ck, nodes, rels):

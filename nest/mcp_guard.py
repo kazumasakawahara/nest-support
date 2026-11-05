@@ -12,7 +12,11 @@ Community 版には DB の側の権限が無いので、ここで止める。手
 - 注釈（// と /* */）、実名・かな・電話・住所・生年月日（SENSITIVE）の項目の名前を含む問い合わせ、properties()・keys()・{.*}、
   動的な項目の読み（n[k]・n['…']）を、実行の前に拒否する
 - 返すノード・マップから SENSITIVE の項目を外す。返す値のうち、DB にある SENSITIVE の値とそっくり同じ文字列は伏せる
-- 記録の本文・引用（text・quote）の中の名前は伏せない。どうするかは台帳 G-42 で決める（今は決めていない）
+- 記録の原文全体（text）は返さない。引用（quote）は自由な Cypher では読ませず、求められたときだけ専用の道具で
+  QUOTE_MAX 字までを返す（2026-11-06 河原さん。台帳 G-42 (1)。語りの中の人は役割の名前で書く運用と両方）
+- 包みが動く条件（require_personal_allowed）：NEXT-02 の歯止め（機能の設定と契約の確認の記録）がそろうか、
+  つないでいる DB に架空の印（NestLiveProbe。台帳 G-51）があるときだけ。どちらも無ければ拒否する（台帳 G-54 (3)）
+  架空の DB に印を置くのは人の手（ゲートを通さない）：CREATE (:NestLiveProbe {fictional: true})
 """
 import re
 
@@ -24,6 +28,11 @@ REFUSED_PREFIXES = ("EXPLAIN", "PROFILE")
 DENIED_OPERATORS = frozenset({"LoadCSV"})
 ALLOWED_PROCEDURES = frozenset({"db.labels", "db.relationshipTypes", "db.propertyKeys"})
 SENSITIVE = ("familyName", "givenName", "familyNameKana", "givenNameKana", "phone", "address", "birthDate")
+# 個人の側で、返さない（text）・専用の道具でだけ返す（quote）項目
+RECORD_TEXT = ("text", "quote")
+TEXT_ACCESS = re.compile(r"\.\s*`?(text|quote)`?(?![\w$])")
+QUOTE_MAX = 200
+FICTIONAL_MARK = "MATCH (m:NestLiveProbe) RETURN count(m) > 0 AS marked"
 WHOLE_PROPERTIES = re.compile(r"\b(properties|keys)\s*\(|\{\s*\.\s*\*", re.I)
 # 角かっこの前がこれらの語なら、一覧の書き方（[1, 2]）であって、項目の読みではない
 LIST_KEYWORDS = frozenset({"RETURN", "WITH", "IN", "WHERE", "AND", "OR", "NOT", "XOR", "UNWIND", "CASE", "WHEN", "THEN",
@@ -91,6 +100,8 @@ def check_personal_text(text):
     for name in SENSITIVE:
         if name.lower() in low:
             raise NotReadOnly("個人の側では %s を読まない（実名・かな・電話・住所・生年月日は返さない）" % name)
+    if TEXT_ACCESS.search(text):
+        raise NotReadOnly("個人の側では記録の原文（text）と引用（quote）を読まない。引用は read_quote で求める（台帳 G-42）")
     if WHOLE_PROPERTIES.search(text):
         raise NotReadOnly("個人の側では properties()・keys()・{.*} を使わない（返さない項目まで出るため）")
     if _dynamic_access(text):
@@ -138,7 +149,8 @@ def to_plain(value, personal, sensitive_values=frozenset()):
 
 
 def _props(items, personal, sensitive_values):
-    return {k: to_plain(v, personal, sensitive_values) for k, v in items if not (personal and k in SENSITIVE)}
+    return {k: to_plain(v, personal, sensitive_values) for k, v in items
+            if not (personal and (k in SENSITIVE or k in RECORD_TEXT))}
 
 
 SENSITIVE_VALUES = ("MATCH (n) UNWIND [k IN $names WHERE n[k] IS NOT NULL | n[k]] AS v "
@@ -166,3 +178,23 @@ def run_read(driver, query, params, personal, database="neo4j"):
 
     with driver.session(database=database) as s:
         return s.execute_read(work)
+
+
+def require_personal_allowed(driver, database="neo4j"):
+    """個人の側の包みが動いてよいかを確かめる（台帳 G-54 (3)）。NEXT-02 がそろうか、架空の印のある DB のときだけ。"""
+    from nest import egress
+    try:
+        egress.authorize("NEXT-02")
+        return
+    except egress.EgressDenied as e:
+        reason = str(e)
+    records, _, _ = driver.execute_query(FICTIONAL_MARK, {}, database_=database, routing_="r")
+    if records and records[0]["marked"]:
+        return
+    raise NotReadOnly("NEXT-02 の歯止めがそろっていない（%s）。架空の印（NestLiveProbe）のある DB でもないので読まない" % reason)
+
+
+def cap_quote(quote):
+    """引用を QUOTE_MAX 字までにする（台帳 G-42 (1)）。"""
+    text = quote or ""
+    return {"quote": text[:QUOTE_MAX], "truncated": len(text) > QUOTE_MAX}
