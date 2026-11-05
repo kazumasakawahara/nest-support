@@ -37,8 +37,11 @@ Claude が確度 `Inference` の関わり（`Involvement`）の案を作れる�
 
 ### SEM-AREA-03 候補の絞り方
 
-- 資源の側で、その区と、`PART_OF` で上にある市を `SERVES` で担当する機関のうち、`status: Active` で、種類が次の相談窓口のもの：
-  `DisabilityDivision`・`ElderlyDivision`・`CommunityGeneralSupportCenter`・`HardshipSupportDesk`・`WelfareOffice`・`BasicConsultationCenter`・`CareInsuranceDivision`・`MentalHealthDesk`（台帳 G-57）
+- 資源の側で、その区と、`PART_OF` で上にある市を `SERVES` で担当する機関のうち、`status: Active` で、種類が次の相談窓口のもの（2026-11-05 河原さん。台帳 G-57）。種類の値は tsunagu-net の `orgKind`（SEMANTICS ENU-14）の名前のまま
+  - いつも候補にする 7 つ：`DisabilityDivision`・`HardshipSupportDesk`・`WelfareOffice`・`BasicConsultationCenter`・`MentalHealthDesk`・`SocialWelfareCouncil`（日常生活自立支援事業。お金の安全に直結するため）・`GuardianshipCenter`（後見制度の相談の窓口として）
+  - 本人の年齢で足す種類は SEM-AREA-05。合わせて最大 10
+  - 候補にしない：`CareInsuranceDivision`（ENU-14 では本庁の介護保険課で、施設での高齢者虐待の対応と事業所への指導の課。個人の相談窓口ではない）、`DisabilityServiceSupervision`（指定・指導の部署）、`ChildGuidanceCenter`。契約で選ぶ事業所（相談支援事業所など）は地区の担当（`SERVES`）が無いので、住所からは推定できない（名前から引く。計画 N-24）
+  - 種類ごとの理由と、選ばなかった近い種類は `docs/journal/2026-11-05-g57-org-kinds.md`
 - 担当の根拠（`servesBasis`：`Designated`／`PresumedByLocation`）と、区の一部だけを担当するか（`partOfArea`）を候補に添える。`PresumedByLocation` を `Designated` に格上げしない（tsunagu-net BRS-23）
 - 点数づけをしない。区の担当を先に、市の担当を後に、名前の順に並べる
 - Claude に渡すのは候補の `orgId` と名前だけ（公開情報）。区コード・住所・根拠は渡さない（`docs/external-api.md` NEXT-01）
@@ -47,5 +50,17 @@ Claude が確度 `Inference` の関わり（`Involvement`）の案を作れる�
 
 - Claude は語りの文脈で候補から一つ選ぶか、選ばない（機関未確定）。候補の外の機関 ID は点検（`intake.check`）が止める
 - 関わりの確度はいつも `Inference`、終わり方は `Unknown`。案に確度を書かせない。AI 由来なので `Pending`。職員が承認して初めて確定する（N-21）
-- 後見（`Guardianship`）は推定で作らない
+- 後見（`Guardianship`）は推定で作らない。`GuardianshipCenter` を選んだ関わりは `Consultation` だけ（ほかの種類は点検が止める）
+- 親の介護の相談（親についての関わり）は、本人の関わりにしない。正典 v0.6 の関わりは本人（`Client`）にしか結べない（`CONCERNS` の終点は `Client` だけ）ので、今は記録の引用に残すだけにする（台帳 G-60）
 - 窓口（`Window`）までは絞らない。機関の単位で止め、窓口は未確定にする。間違った窓口を確定させない
+
+### SEM-AREA-05 本人の年齢で足す種類（2026-11-05 河原さん。台帳 G-57）
+
+- 決まった規則で分ける。AI は使わない。出るのは候補で、決めるのは人の承認
+- 年齢は、言及の時期（記録の `aboutDate`）で数える。時期が分からなければ今日で数える
+- 65 歳以上：`ElderlyDivision`・`CommunityGeneralSupportCenter` を足す。区切りは介護保険の第 1 号被保険者（介護保険法（平成9年法律第123号）第 9 条第 1 号「六十五歳以上の者」。e-Gov で照合 2026-11-05）
+- 18 歳未満：`ChildFamilyCenter` を足す。区切りは児童（児童福祉法（昭和22年法律第164号）第 4 条第 1 項「満十八歳に満たない者」。e-Gov で照合 2026-11-05）
+- 年齢の数え方：誕生日の前日に満の年齢に達する。2 月 29 日生まれは、応当日の無い年は 3 月 1 日の前日に達する。根拠は年齢計算ニ関スル法律（明治35年法律第50号）が準用する民法（明治29年法律第89号）第 143 条（民法 143 条は e-Gov で照合 2026-11-05。年齢計算ニ関スル法律は【未照合】：e-Gov の条文の取り出しで本文が取れなかった）
+- 生年月日の記録が無い（`birthDate` が無い、または `birthDatePrecision: Unknown`）：65 歳以上の窓口と 18 歳未満の窓口の両方を出し、「年齢の記録なし」と注記する
+- 生年月日が年だけ（`Year`）・年月だけ（`Month`）で、区切りの前後どちらか決まらない：その区切りの窓口を出し、決まらない旨を注記する。精度（`birthDatePrecision`）が無ければ、日まで分かっているものとして読む
+- 生年月日は推定の結果に入れない。Claude には渡さない（渡すのは候補の `orgId` と名前だけ）

@@ -125,7 +125,7 @@ CANDS = [{"orgId": "ORG-01AAAAAAAAAAAAAAAAAAAAAAAA", "name": "架空区高齢者
 def test_estimate_carries_no_area_code_or_address(monkeypatch):
     seen = {}
 
-    def fake_by_area(driver, code, limit=30):
+    def fake_by_area(driver, code, kinds=oe.ALWAYS_KINDS, limit=30):
         seen["code"] = code
         return {"candidates": CANDS, "truncated": False}
     monkeypatch.setattr(oe, "by_area", fake_by_area)

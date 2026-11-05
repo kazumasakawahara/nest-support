@@ -88,7 +88,7 @@ def receiver_certainty(provider):
 def _check_involvements(p, estimate, errors):
     """N-24a。関わりの案の点検。"""
     quotes = {_norm(f.get("quote")) for f in p.get("facts") or [] if isinstance(f.get("quote"), str)}
-    offered = {c["orgId"] for c in (estimate or {}).get("candidates", [])}
+    offered = {c["orgId"]: c.get("kind") for c in (estimate or {}).get("candidates", [])}
     kinds = canon.load(SCHEMA)["enums"]["involvementKind"]
     for n, inv in enumerate(p.get("involvements") or [], start=1):
         where = "関わり %d" % n
@@ -106,6 +106,8 @@ def _check_involvements(p, estimate, errors):
         org = inv.get("orgId")
         if org is not None and org not in offered:
             errors.append("%s: orgId %r は担当機関の推定の候補に無い（候補の中から選ぶ。選べなければ書かない）" % (where, org))
+        elif org is not None and offered[org] == "GuardianshipCenter" and inv.get("kind") != "Consultation":
+            errors.append("%s: 成年後見センターを推定で選んだ関わりは Consultation だけ（後見制度の相談の窓口。%r は作らない）" % (where, inv.get("kind")))
 
 
 def check(proposal, original, actor_staff_id, request_id, provider_org_id=None, estimate=None):

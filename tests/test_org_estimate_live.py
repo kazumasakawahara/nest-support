@@ -63,8 +63,8 @@ def test_past_mention_uses_the_old_ward(driver, admin, resource):
     cid = _client(driver, admin, [("福岡県北九州市小倉北区架空町1-2-3", "2023-04-01", None),
                                   ("福岡県北九州市八幡西区架空台4-5", "2015-04-01", "2023-04-01")])
     past = oe.estimate(driver, resource, cid, "2020-06-01")
-    assert past["basis"] == "AtTheTime" and past["notes"] == []
-    assert {c["orgId"] for c in past["candidates"]} == {c["orgId"] for c in oe.by_area(resource, YAHATANISHI)["candidates"]}
+    assert past["basis"] == "AtTheTime" and past["notes"] == ["年齢の記録なし。65 歳以上の窓口と 18 歳未満の窓口の両方を候補に出した"]
+    assert {c["orgId"] for c in past["candidates"]} == {c["orgId"] for c in oe.by_area(resource, YAHATANISHI, kinds=oe.CONSULTATION_KINDS)["candidates"]}  # 生年月日が無いので 10 種類
     text = repr(past)
     assert YAHATANISHI not in text and "架空台" not in text
     fallback = oe.estimate(driver, resource, _client(driver, admin, [("福岡県北九州市小倉北区架空町9", "2023-04-01", None)]), "2019-01-01")
