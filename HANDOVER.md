@@ -3,11 +3,11 @@
 > 前の HANDOVER（2026-08-03 main。WAM NET スキル整合）は git 履歴（ce627d9）にある。そこに書かれた
 > `~/.config/nest/neo4j.env`・ポート 7687・`nest-support-neo4j` は**前の構成**で、この枝では使わない。
 
-## 再開コマンド（DB なしは 2026-11-06 e5fbe4f、DB つきは 06:10 に 34f2577 で確かめた）
+## 再開コマンド（2026-11-06 06:36、止まる点 E-1 で 3 つとも確かめた）
 
 ```bash
 cd ~/Dev-Work/project/nest-support && git switch redesign/adr-001
-uv run pytest -q                       # 737 passed, 75 skipped（DB を使う試験は skip）
+uv run pytest -q                       # 750 passed, 83 skipped（DB を使う試験は skip）
 uv run python scripts/check_drift.py   # ずれ 0 件
 ```
 
@@ -15,13 +15,13 @@ DB を使う試験（結合試験のタスクのときだけ。終わったら�
 
 ```bash
 docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d     # nest-redesign-personal（37474/37687）・nest-redesign-resource（38474/38687）
-NEST_LIVE_DB=1 uv run pytest -q                                       # 最後に流したのは 2026-11-06（34f2577。DB を止めたのは 06:10）：784 passed
+NEST_LIVE_DB=1 uv run pytest -q                                       # 最後に流したのは 2026-11-06（止まる点 E-1。DB を止めたのは 06:36）：833 passed
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove-orphans は使わない
 ```
 
 - `neo4j-redesign.env` の中身は読まない・表示しない（接続の部品 `nest/connections.py` と試験が読む）
 - 起動の前に `docker ps` で前の DB が動いていないことを確かめ、起動の後に 2 つとも 127.0.0.1 だけで待ち受けていることを確かめる（N-18 の条件）
-- 2026-11-06 06:10 に down 済み。データのフォルダは残っていて、`up -d` で作り直される
+- 2026-11-06 06:36 に down 済み。データのフォルダは残っていて、`up -d` で作り直される
 
 ## 前提（実行前に現況で確かめること）
 
@@ -50,7 +50,9 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
   - [x] G-63：入口に禁忌・推奨ケアの候補の欄（`ngActions`・`carePreferences`）。正典 v0.9（855b06e）
   - [x] 前の DB を指す残り 7 か所が新しい DB を指さないことを試験で固定した（2d6635a。`tests/test_old_db_code_isolated.py`）
   - [x] N-26：EXTRACTION_PROMPT から埋める指示を消し、案の形を SKILL.md に一本化した（e5fbe4f）
-  - [ ] N-27〜N-30
+  - [x] N-27：列挙値の表示名を SEMANTICS に置きコードがそこから読む（G-47）、読み取りのスキル 8 本を書き直した（N-27a〜h）。G-63 の範囲を推奨ケアのすべてに広げた
+  - [ ] **止まる点 E-1**（N-27 の後。スキル 8 本の「何を消し、何を足したか」を河原さんが見る）
+  - [ ] N-28 → 止まる点 E-2 → N-29・N-30 → 止まる点 E-3
   - [ ] N-05a 前の DB の処分（河原さんが中身を確かめるまで手を付けない）
 
 ## グレーな判断
@@ -72,11 +74,12 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 - 条番号は e-Gov で照合してから書く。照合できないものは【未照合】
 - rtk の hook が Bash の出力を切り詰める。長い出力・JSON・日本語を含む処理は Python のスクリプトにして流す
 - 前の DB を指すコードの残り（G-49）：`lib/db_operations.py`・`sos/api_server.py`・`scripts/doctor.sh`・`scripts/rotate_password.py`・`setup.sh`・`installer/*`・`claude-skills/ecomap-generator/scripts/generate_mermaid.py`。消した script の名前を書いた文書（`CLAUDE.md`・`docs/PRIVACY_GUIDELINES.md`）は N-29
-- 試験の数の目安：DB なし 737 passed・75 skipped（e5fbe4f）、DB つき 784 passed（34f2577。その後に DB なしの試験が 28 件増えた）
-- 段階 E には止まる点が置かれていない。G-63・N-26 の後で止めて見ていただいた（2026-11-06）
+- 試験の数の目安：DB なし 750 passed・83 skipped、DB つき 833 passed（2026-11-06 止まる点 E-1）
+- 段階 E の止まる点は E-1（N-27 の後）・E-2（N-28 の後）・E-3（N-30 の後）。計画の表にある
+- 読み取りの包みは、実名・住所などの項目の名前を部分の一致で拒否する。正典の `ADDRESSES` も拒否される（台帳 G-64。決まるまでスキルで使わない）
 
 ## 次タスク（優先度順）
 
-- A：N-27 読み取りのスキルの照会を新しい正典に合わせる（スキルごとに 1 行）
-- B：N-28 SOS の中身、N-29 文書、N-30 `doctor.sh`
-- C：G-63 の候補を DB つきで書く試験（今は入口とゲートの検証まで。書き込みの部品は種類を問わない作り）
+- A：止まる点 E-1 の河原さんの判断（スキル 8 本、G-64）
+- B：N-28 SOS の中身 → 止まる点 E-2
+- C：N-29 文書、N-30 `doctor.sh` → 止まる点 E-3

@@ -77,6 +77,10 @@ def _problems(side, query):
     for pat in (r"properties\s*\(", r"keys\s*\(", r"\{\s*\.\*\s*\}", r"//", r"/\*"):
         if re.search(pat, bare):
             found.append("包みが止める書き方 %s" % pat)
+    try:  # 包みの実行の前の点検（DB を使わない部分）をそのまま当てる
+        mcp_guard.check_personal_text(query)
+    except mcp_guard.NotReadOnly as e:
+        found.append("包みが拒否する：%s" % e)
     return found
 
 
@@ -109,6 +113,7 @@ def test_the_checker_catches_old_queries():
     assert not _problems("personal", "MATCH (c:Client {displayCode: $code})-[:MUST_AVOID]->(n:NgAction) "
                                      "WHERE n.status IN ['Active', 'Pending'] RETURN n.action, n.riskLevel")
     assert not _problems("resource", "MATCH (o:Organization {orgId: $id}) RETURN o.name")
+    assert _problems("personal", "MATCH (p:CarePreference)-[:ADDRESSES]->(cd:Condition) RETURN cd.name")  # 台帳 G-64
     assert OLD_PORT.findall("bolt://localhost:7687") and not OLD_PORT.findall("127.0.0.1:37687")
 
 
