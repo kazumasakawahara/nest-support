@@ -30,7 +30,7 @@
 | N-06 | 正典の案 `docs/SCHEMA.md`：ラベル・関係・値、確度（5 値・二段）、聞いた記録と禁忌の結び方（D5）、`orgId`、ID の形、承認（D9）、CarePreference などに D5 の形を広げるか | — | ✅ 2026-11-05（v0.1 案 → 止まる点 2 の河原さんの判断 → v0.2。ADR D3 を改めた。台帳 G-37〜G-41） |
 | **止まる点 2** | 正典の案（型）を河原さんに見せる。ラベル・関係の名前、D5 を広げる範囲 | | |
 | N-07 | 正典の JSON と、それを読む部品（`nest/canon.py`） | 壊れた JSON・欠けたキーで失敗する |  ✅ 2026-11-05（正典 v0.2 §11 に JSON を置いた。ブロックの数・壊れた JSON・欠けたキー・無いラベルへの関係・接頭辞の欠け・重なり・`ORG`・無い列挙値への対応で失敗する。本物の正典で、ラベル 16、約束の列挙値、`Record` の項目が tsunagu-net とそろうこと、埋め込みの項目が無いことを確かめる。`tests/test_canon.py` 30 件。全体 301 passed） |
-| N-08 | 乖離の検査（`scripts/check_drift.py`）：正典の表と JSON、のちにゲートの許す一覧と突き合わせる | 表と JSON がずれた入力で失敗する | |
+| N-08 | 乖離の検査（`scripts/check_drift.py`）：正典の表と JSON、のちにゲートの許す一覧と突き合わせる | 表と JSON がずれた入力で失敗する |  ✅ 2026-11-05（正典の表と JSON：§3 の接頭辞、§4.2 のノードと項目（✅＝必須）、§4.3 の始点・終点と項目、§4.5 の列挙値（順も）。節・表が見つからないとき、JSON が読めないときも失敗。読めるように §4.3 の `EVIDENCED_BY`・`CONTRADICTS` の始点・終点をラベルの並びで書き、「（…ノード）」は任意のラベルとした。本物の正典でずれ 0 件。ゲートの許す一覧との突き合わせはゲート（N-15）ができてから足す。`tests/test_check_drift.py` 15 件。全体 321 passed） |
 | N-09 | shared-schema の写しを外す：`docs/SCHEMA_CONVENTION.md`・`docs/SEMANTIC_MODEL.md` とその `.bak`、`check_semantic_drift.py` の agno・shared-schema の参照（付録の表） | 外した後に、リポジトリの中に shared-schema・`/api/narrative` への参照が残っていない検査（記録の文書は除く） | |
 
 ## 段階 C　ゲート（約束 4）

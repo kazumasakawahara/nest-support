@@ -132,8 +132,8 @@
 | `PERFORMS` | Person → CareRole | `since`(Date), `until`(Date) |
 | `ROLE_FOR` | CareRole → Client | — |
 | `CAN_BE_PERFORMED_BY` | CareRole → Person / Involvement | — |
-| `EVIDENCED_BY` | （§4.2 の事実のノード 9 つと Involvement）→ Record | `linkedBy`✅(enum), `at`✅(DateTime) |
-| `CONTRADICTS` | Record → （事実のノード 9 つと Involvement） | `claim`✅, `raisedAt`✅(DateTime), `resolvedAt`(DateTime), `resolution`, `resolvedBy` |
+| `EVIDENCED_BY` | NgAction / CarePreference / Condition / Wish / LifeHistory / CareRole / Certificate / PublicAssistance / SupportLog / Involvement → Record | `linkedBy`✅(enum), `at`✅(DateTime) |
+| `CONTRADICTS` | Record → NgAction / CarePreference / Condition / Wish / LifeHistory / CareRole / Certificate / PublicAssistance / SupportLog / Involvement | `claim`✅, `raisedAt`✅(DateTime), `resolvedAt`(DateTime), `resolution`, `resolvedBy` |
 | `CONFIRMS` | Review → Record | — |
 | `ABOUT` | Record / Review / SupportLog → Client | — |
 | `TOLD_BY` | Record → Person / Client | — |
@@ -144,6 +144,7 @@
 | `AUDIT_FOR` | AuditLog → （任意のノード） | — |
 | `ACTED_BY` | AuditLog → Staff | — |
 
+- 始点・終点の「（…ノード）」は、個人の側の任意のラベル（JSON の `"*"`）
 - `RELATED_TO` の向きは「始点の人が、本人の〈kind〉である」。例：`(母)-[:RELATED_TO {kind: Parent}]->(本人)`。同じ人が家族でキーパーソンでもあるときは、`kind` ごとに一本ずつ張る（同じ `Person` のまま。D8）
 - `RELATED_TO` は関係そのものが事実なので、確度（`certainty`。作った後は変えない）と根拠の記録の ID の一覧（`evidenceRecordIds`）を関係に持つ。確かめ直したら、新しい `Record` の ID を一覧に足す。一覧から消さない（関係に関係をつなげないため。§9 の 6）
 - 交代・終わりは張り替えない。終わった関係・関わりに `until`・`endDate` と `Inactive` を書き、新しく作る（前の正典 §7.10 の考え方を残す）
