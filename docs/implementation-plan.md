@@ -27,7 +27,7 @@
 
 | # | タスク | 先に書く試験 | 済みの判定 |
 |---|---|---|---|
-| N-06 | 正典の案 `docs/SCHEMA.md`：ラベル・関係・値、確度（5 値・二段）、聞いた記録と禁忌の結び方（D5）、`orgId`、ID の形、承認（D9）、CarePreference などに D5 の形を広げるか | — |  案 v0.1 を書いた 2026-11-05（`docs/SCHEMA.md`。§9 の 9 つの論点を止まる点 2 で決める。台帳 G-37） |
+| N-06 | 正典の案 `docs/SCHEMA.md`：ラベル・関係・値、確度（5 値・二段）、聞いた記録と禁忌の結び方（D5）、`orgId`、ID の形、承認（D9）、CarePreference などに D5 の形を広げるか | — | ✅ 2026-11-05（v0.1 案 → 止まる点 2 の河原さんの判断 → v0.2。ADR D3 を改めた。台帳 G-37〜G-41） |
 | **止まる点 2** | 正典の案（型）を河原さんに見せる。ラベル・関係の名前、D5 を広げる範囲 | | |
 | N-07 | 正典の JSON と、それを読む部品（`nest/canon.py`） | 壊れた JSON・欠けたキーで失敗する | |
 | N-08 | 乖離の検査（`scripts/check_drift.py`）：正典の表と JSON、のちにゲートの許す一覧と突き合わせる | 表と JSON がずれた入力で失敗する | |
@@ -66,9 +66,9 @@
 |---|---|---|---|
 | N-25 | narrative-extractor の書き直し：書き込みの案（JSON）を出すだけ。Cypher の書き込みと、名前の統合の指示を消す | 案の例がゲートを通る（架空） | |
 | N-26 | EXTRACTION_PROMPT の書き直し：原文に無い値で埋める指示を消す | — | |
-| N-27 | 読み取りのスキル（neo4j-support-db・visit-prep・emergency-protocol・data-quality-agent・resilience-checker・onboarding-wizard・ecomap-generator・insight-agent）の照会を新しい正典に合わせる。スキルごとに 1 行に分ける | 照会のテンプレートを正典の JSON と突き合わせる検査 | |
+| N-27 | 読み取りのスキル（neo4j-support-db・visit-prep・emergency-protocol・data-quality-agent・resilience-checker・onboarding-wizard・ecomap-generator・insight-agent）の照会を新しい正典に合わせる。スキルごとに 1 行に分ける。列挙値の日本語の表示名は `docs/SEMANTICS.md`（新しく作る。正典 v0.2 §1）から引く | 照会のテンプレートを正典の JSON と突き合わせる検査 | |
 | N-28 | SOS の中身（D11-3）：LINE には SOS・誰のことか・位置・確かめる先だけ | 送る文に電話と禁忌が無い | |
-| N-29 | 文書を直す：PRIVACY_GUIDELINES（条番号は e-Gov で照合）・CLAUDE.md・README・QUICK_START・SETUP_GUIDE・manifesto の共有層と 7687 の記述（付録の表） | — | |
+| N-29 | 文書を直す：PRIVACY_GUIDELINES（条番号は e-Gov で照合）・CLAUDE.md・README・QUICK_START・SETUP_GUIDE・manifesto の共有層と 7687 の記述（付録の表）。**面談の音声ファイルの置き場所と保存の期間**を運用の文書に書く（DB には持たない。正典 v0.2 §4.2） | — | |
 | N-30 | `doctor.sh` を新しい構成に合わせる | doctor.sh が新しい構成で全項目を通る | |
 
 ## 付録　neo4j-agno-agent の共有層（7687）・shared-schema に頼っている箇所（2026-11-05 時点）
