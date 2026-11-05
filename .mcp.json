@@ -1,3 +1,12 @@
 {
-  "mcpServers": {}
+  "mcpServers": {
+    "nest-personal": {
+      "command": "uv",
+      "args": ["run", "--quiet", "python", "-m", "nest.mcp_personal"]
+    },
+    "nest-resource": {
+      "command": "uv",
+      "args": ["run", "--quiet", "python", "-m", "nest.mcp_resource"]
+    }
+  }
 }
