@@ -1,14 +1,15 @@
-# HANDOVER — 2026-11-06 redesign/adr-001（ADR-001 の作り直し。段階 A〜D 済み、段階 E の途中。止まる点 E-2 で止まっている）
+# HANDOVER — 2026-11-06 redesign/adr-001（ADR-001 の作り直し。段階 A〜D 済み、段階 E の途中。止まる点 E-3 で止まっている）
 
 > 前の HANDOVER（2026-08-03 main。WAM NET スキル整合）は git 履歴（ce627d9）にある。そこに書かれた
 > `~/.config/nest/neo4j.env`・ポート 7687・`nest-support-neo4j` は**前の構成**で、この枝では使わない。
 
-## 再開コマンド（2026-11-06 07:13、止まる点 E-2 で 3 つとも確かめた）
+## 再開コマンド（2026-11-06 07:44、止まる点 E-3 で確かめた）
 
 ```bash
 cd ~/Dev-Work/project/nest-support && git switch redesign/adr-001
-uv run pytest -q                       # 771 passed, 111 skipped（DB を使う試験は skip）
+uv run pytest -q                       # 788 passed, 111 skipped（DB を使う試験は skip）
 uv run python scripts/check_drift.py   # ずれ 0 件
+./scripts/doctor.sh                    # 環境の点検（今は wamnet-provider-sync のリンクの残りで 1 件 FAIL）
 ```
 
 DB を使う試験（結合試験のタスクのときだけ。終わったら必ず止める）：
@@ -27,7 +28,7 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 
 | 想定 | 確かめ方 | 最終確認日 |
 |---|---|---|
-| 枝 `redesign/adr-001` は origin に push 済み（河原さんが 2026-11-06 に打った。`origin/redesign/adr-001` = 34f2577）。その後、河原さんが b0b2177 まで push。**41949d9 からこの HANDOVER の直しまでの 8 件が未 push（push が要る）** | `git status -sb`（`ahead N` が未 push の数） | 2026-11-06 |
+| 枝 `redesign/adr-001` は origin に push 済み（河原さんが 2026-11-06 に打った。`origin/redesign/adr-001` = 34f2577）。その後、河原さんが b0b2177 まで push。河原さんが 960e8d9 まで push。**056d02e からこの HANDOVER の直しまでの 5 件が未 push（push が要る）** | `git status -sb`（`ahead N` が未 push の数） | 2026-11-06 |
 | **push は河原さんが打つ。** Claude は報告に「push が要る」と書くだけ。PR は作らない・main に合流させない | — | 2026-11-06 |
 | 前の DB（コンテナ `nest-support-neo4j`、`neo4j_data/` ほか）は止まっている。**実データが入っているものとして扱い、開かない・起動しない・消さない** | `docker ps -a`（Exited のまま） | 2026-11-06 |
 | `support-db-neo4j`（neo4j-agno-agent の共有層 7687）は restart=no で止まっている | `docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' support-db-neo4j` → `no` | 2026-11-06 |
@@ -58,8 +59,12 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
   - [x] emergency-protocol に「手元の緊急連絡カードと SOS の画面で確かめる」の一行（4233852）
   - [x] N-28：SOS の LINE の文は SOS・仮名・時刻・位置・確かめる先だけ。external-api v0.7（f583388。台帳 G-66）
   - [x] E-2 の DB の試験：架空の本人を一人入れ、neo4j-support-db の 15 本の中身を確かめた（f4e366e。照会 15 を直した。台帳 G-67）
-  - [ ] **止まる点 E-2**（河原さんが SOS の文の形と NEXT-05 の直しを見る）
-  - [ ] N-29・N-30 → 止まる点 E-3（台帳 G-65 の 3 本の扱いもここで決める）。N-31（任意）
+  - [x] 止まる点 E-2（承認 2026-11-06。G-65〜G-67 も承認）
+  - [x] G-65：wamnet-provider-sync を外し、inheritance-calculator に架空の印（056d02e）。G-67：照会 15 の範囲を一行で（58f1b7a）
+  - [x] N-29：利用者向けの文書を今の構成に合わせて書き直した（55c839c。台帳 G-68）
+  - [x] N-30：doctor.sh を新しい構成の点検に（2290041。台帳 G-69）
+  - [ ] **止まる点 E-3**（段階 E の外したもの・残したものと、未照合の一覧を河原さんが見る）
+  - [ ] N-31（任意）。G-68 の「まだ直していない文書」、未決（音声の保存の期間・バックアップ・廃棄）
   - [ ] N-05a 前の DB の処分（河原さんが中身を確かめるまで手を付けない）
 
 ## グレーな判断
