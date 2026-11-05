@@ -1,13 +1,13 @@
-# HANDOVER — 2026-11-06 redesign/adr-001（ADR-001 の作り直し。段階 A〜D 済み、段階 E の途中）
+# HANDOVER — 2026-11-06 redesign/adr-001（ADR-001 の作り直し。段階 A〜D 済み、段階 E の途中。止まる点 E-2 で止まっている）
 
 > 前の HANDOVER（2026-08-03 main。WAM NET スキル整合）は git 履歴（ce627d9）にある。そこに書かれた
 > `~/.config/nest/neo4j.env`・ポート 7687・`nest-support-neo4j` は**前の構成**で、この枝では使わない。
 
-## 再開コマンド（2026-11-06 06:36、止まる点 E-1 で 3 つとも確かめた）
+## 再開コマンド（2026-11-06 07:13、止まる点 E-2 で 3 つとも確かめた）
 
 ```bash
 cd ~/Dev-Work/project/nest-support && git switch redesign/adr-001
-uv run pytest -q                       # 749 passed, 84 skipped（DB を使う試験は skip）
+uv run pytest -q                       # 771 passed, 111 skipped（DB を使う試験は skip）
 uv run python scripts/check_drift.py   # ずれ 0 件
 ```
 
@@ -15,19 +15,19 @@ DB を使う試験（結合試験のタスクのときだけ。終わったら�
 
 ```bash
 docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d     # nest-redesign-personal（37474/37687）・nest-redesign-resource（38474/38687）
-NEST_LIVE_DB=1 uv run pytest -q                                       # 最後に流したのは 2026-11-06（止まる点 E-1。DB を止めたのは 06:36）：833 passed
+NEST_LIVE_DB=1 uv run pytest -q                                       # 最後に流したのは 2026-11-06（止まる点 E-2。DB を止めたのは 07:13）：882 passed
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove-orphans は使わない
 ```
 
 - `neo4j-redesign.env` の中身は読まない・表示しない（接続の部品 `nest/connections.py` と試験が読む）
 - 起動の前に `docker ps` で前の DB が動いていないことを確かめ、起動の後に 2 つとも 127.0.0.1 だけで待ち受けていることを確かめる（N-18 の条件）
-- 2026-11-06 06:36 に down 済み。データのフォルダは残っていて、`up -d` で作り直される
+- 2026-11-06 07:13 に down 済み。データのフォルダは残っていて、`up -d` で作り直される
 
 ## 前提（実行前に現況で確かめること）
 
 | 想定 | 確かめ方 | 最終確認日 |
 |---|---|---|
-| 枝 `redesign/adr-001` は origin に push 済み（河原さんが 2026-11-06 に打った。`origin/redesign/adr-001` = 34f2577）。その後のコミットは未 push | `git status -sb`（`ahead N` が未 push の数） | 2026-11-06 |
+| 枝 `redesign/adr-001` は origin に push 済み（河原さんが 2026-11-06 に打った。`origin/redesign/adr-001` = 34f2577）。その後、河原さんが b0b2177 まで push。**41949d9 からこの HANDOVER の直しまでの 8 件が未 push（push が要る）** | `git status -sb`（`ahead N` が未 push の数） | 2026-11-06 |
 | **push は河原さんが打つ。** Claude は報告に「push が要る」と書くだけ。PR は作らない・main に合流させない | — | 2026-11-06 |
 | 前の DB（コンテナ `nest-support-neo4j`、`neo4j_data/` ほか）は止まっている。**実データが入っているものとして扱い、開かない・起動しない・消さない** | `docker ps -a`（Exited のまま） | 2026-11-06 |
 | `support-db-neo4j`（neo4j-agno-agent の共有層 7687）は restart=no で止まっている | `docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' support-db-neo4j` → `no` | 2026-11-06 |
@@ -41,7 +41,7 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 - 目標：nest-support を、ADR-001（`docs/adr/ADR-001-redesign-and-shared-contract.md`。承認 2026-11-05）と約束 v1.1 に沿って作り直す。計画は `docs/implementation-plan.md`（1 タスク＝1 行）
 - 進捗：
   - [x] 段階 A（送らない・埋め込まない）：N-00〜N-05・N-05b・N-18a
-  - [x] 段階 B（正典）：N-06〜N-09。正典は `docs/SCHEMA.md` **v0.9**（G-63）、意味の文書は `docs/SEMANTICS.md`
+  - [x] 段階 B（正典）：N-06〜N-09。正典は `docs/SCHEMA.md` **v0.10**（G-63、G-64 で ADDRESSES → RESPONDS_TO）、意味の文書は `docs/SEMANTICS.md`
   - [x] 段階 C（ゲート）：N-10〜N-17
   - [x] 段階 D（DB と書き込み・承認）：N-18〜N-24a。止まる点 4 の承認済み
   - [x] N-24b：任意後見・任意代理を BRS-49 に合わせた（0270cd3・de2737b。台帳 G-62）
@@ -51,8 +51,15 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
   - [x] 前の DB を指す残り 7 か所が新しい DB を指さないことを試験で固定した（2d6635a。`tests/test_old_db_code_isolated.py`）
   - [x] N-26：EXTRACTION_PROMPT から埋める指示を消し、案の形を SKILL.md に一本化した（e5fbe4f）
   - [x] N-27：列挙値の表示名を SEMANTICS に置きコードがそこから読む（G-47）、読み取りのスキル 8 本を書き直した（N-27a〜h）。G-63 の範囲を推奨ケアのすべてに広げた
-  - [ ] **止まる点 E-1**（N-27 の後。スキル 8 本の「何を消し、何を足したか」を河原さんが見る）
-  - [ ] N-28 → 止まる点 E-2 → N-29・N-30 → 止まる点 E-3
+  - [x] 止まる点 E-1（承認 2026-11-06）
+  - [x] G-64：ADDRESSES を RESPONDS_TO に改名、正典 v0.10（41949d9）
+  - [x] N-20a：確認の記録（Review）を職員がゲートで作る操作 `nest.gate.write.record_review`（b0337b2）
+  - [x] N-27i：provider-search を資源の側の読み取りに。口コミ・書き込みを外した（6eb2370。台帳 G-65 に未書き直しのスキル 3 本の案）
+  - [x] emergency-protocol に「手元の緊急連絡カードと SOS の画面で確かめる」の一行（4233852）
+  - [x] N-28：SOS の LINE の文は SOS・仮名・時刻・位置・確かめる先だけ。external-api v0.7（f583388。台帳 G-66）
+  - [x] E-2 の DB の試験：架空の本人を一人入れ、neo4j-support-db の 15 本の中身を確かめた（f4e366e。照会 15 を直した。台帳 G-67）
+  - [ ] **止まる点 E-2**（河原さんが SOS の文の形と NEXT-05 の直しを見る）
+  - [ ] N-29・N-30 → 止まる点 E-3（台帳 G-65 の 3 本の扱いもここで決める）。N-31（任意）
   - [ ] N-05a 前の DB の処分（河原さんが中身を確かめるまで手を付けない）
 
 ## グレーな判断
