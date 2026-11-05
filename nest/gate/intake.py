@@ -17,6 +17,9 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
 - 原本の指紋（documentHash）は、ここで原文から作る。案に書かせない（N-12）
 - text を書くなら、quote に無い数字（日付・回数・金額・年齢・体重など）を含まないこと。全角の数字は半角と同じに数える。
   数字を足さない言い換えは警告して通す。text を書かなければ quote をそのまま本文にする（N-13）
+- 確度は原文の印で決める：quote の直後（同じ行）の【…】。推測＞伝聞・未確認＞本人の話＞確認済み の順で弱いほうを採る。
+  印が無ければ Unspecified。知らない印は推測で読み替えずに止める。自分の記録では certainty がこれと同じこと。
+  書面では providerCertainty がこれと同じで、certainty が受けた側の確度（receiver_certainty）と同じこと。上げも下げも止める（N-14）
 """
 import copy
 import hashlib
@@ -27,6 +30,8 @@ from nest import ids
 DOC_KINDS = ("ProvisionDocument", "OwnCaseRecord")
 DIGITS = re.compile(r"[0-9０-９]+")
 WIDE = str.maketrans("０１２３４５６７８９", "0123456789")
+MARK = re.compile(r"^\s*【([^】]+)】")
+WEAKEST_FIRST = (("推測", "Inference"), ("伝聞", "Hearsay"), ("未確認", "Hearsay"), ("本人の話", "SelfReport"), ("確認済み", "Confirmed"))
 
 
 def _norm(text):
@@ -39,6 +44,28 @@ def _in_original(quote, original):
 
 def _digits(text):
     return {d.translate(WIDE) for d in DIGITS.findall(text or "")}
+
+
+def mark_of(quote, original):
+    """quote の直後（同じ行）の印から確度を決める。印が無ければ Unspecified。知らない印なら None。"""
+    for line in original.splitlines():
+        flat = _norm(line)
+        pos = flat.find(_norm(quote))
+        if pos < 0:
+            continue
+        m = MARK.match(flat[pos + len(_norm(quote)):])
+        if not m:
+            return "Unspecified"
+        for word, value in WEAKEST_FIRST:
+            if word in m.group(1):
+                return value
+        return None
+    return "Unspecified"
+
+
+def receiver_certainty(provider):
+    """他の機関から受けた事実の、受けた側から見た確度。提供元より強くしない（ADR D4、tsunagu-net BRS-44 と同じ）。"""
+    return provider if provider in ("Inference", "Unspecified") else "Hearsay"
 
 
 def check(proposal, original, actor_staff_id, request_id):
@@ -76,6 +103,21 @@ def check(proposal, original, actor_staff_id, request_id):
                 errors.append("%s: 本文に原文の引用に無い数字 %s がある（補わない）" % (where, "・".join(extra)))
             else:
                 warnings.append("%s: 本文は引用の言い換え。承認の前に原文と見比べる" % where)
+        marked = mark_of(quote, original)
+        if marked is None:
+            errors.append("%s: 原文の印を読めない（知らない印）。推測で読み替えない" % where)
+            continue
+        if kind == "ProvisionDocument":
+            if f.get("providerCertainty") != marked:
+                errors.append("%s: 提供元の確度 %r が原文の印（%s）と違う（格上げも格下げもしない）" % (where, f.get("providerCertainty"), marked))
+            want = receiver_certainty(marked)
+            if f.get("certainty") != want:
+                errors.append("%s: 受けた側の確度は %s（他の機関からの情報。%r は書けない）" % (where, want, f.get("certainty")))
+        else:
+            if "providerCertainty" in f:
+                errors.append("%s: 自分の記録に提供元の確度を書かない" % where)
+            if f.get("certainty") != marked:
+                errors.append("%s: 確度 %r が原文の印（%s）と違う（格上げも格下げもしない）" % (where, f.get("certainty"), marked))
     if errors:
         return {"ok": False, "errors": errors, "warnings": warnings, "request": None}
     return {"ok": True, "errors": [], "warnings": warnings,
