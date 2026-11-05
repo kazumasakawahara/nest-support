@@ -73,7 +73,7 @@
 | N-27b | `visit-prep` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） || ✅ 2026-11-06 照会 4 本＋資源の側 1 本。電話番号は出せないので連絡網で確かめると書いた |
 | N-27c | `emergency-protocol` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） || ✅ 2026-11-06 照会 3 本＋資源の側 1 本。氏名・住所・年齢・電話は出せないことを出力の頭に書く |
 | N-27d | `data-quality-agent` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） || ✅ 2026-11-06 点検 8 種。埋め込みを使う重みの一貫性の点検は外した |
-| N-27e | `resilience-checker` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） | |
+| N-27e | `resilience-checker` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） || ✅ 2026-11-06 照会 3 本＋資源の側 1 本。登録の Cypher と事業所の候補探しは外した |
 | N-27f | `onboarding-wizard` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） | |
 | N-27g | `ecomap-generator` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） | |
 | N-27h | `insight-agent` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） | |
