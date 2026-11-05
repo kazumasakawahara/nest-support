@@ -104,7 +104,7 @@ def test_gate_refuses_ai_carepreference_without_evidence():
 
 def test_canon_is_raised_and_says_candidates_carry_no_certainty():
     text = (REPO / "docs" / "SCHEMA.md").read_text(encoding="utf-8")
-    assert text.startswith("# nest-support スキーマ正典 — v0.9")
+    assert "- v0.9（2026-11-06）" in text  # 版は後で上がる（v0.10 は G-64）
     assert "G-63" in text
     assert canon.load(REPO / "docs" / "SCHEMA.md")["personal"]["nodes"]["NgAction"]["required"] == ["ngActionId", "action", "riskLevel"]
 

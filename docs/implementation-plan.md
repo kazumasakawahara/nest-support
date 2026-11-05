@@ -66,6 +66,7 @@
 | # | タスク | 先に書く試験 | 済みの判定 |
 |---|---|---|---|
 | N-24b | 任意後見・任意代理を tsunagu-net の BRS-49 に合わせる（2026-11-06 河原さん。台帳 G-62） | 5 つの後見の類型・`AgencyContract`・`Transitioned` が正典にあり、`Transitioned` は受任者の段階と任意代理だけ通る（架空の依頼で両向き） | ✅ 2026-11-06 正典 v0.8、SEMANTICS SEM-GUARD-01・02、`nest/gate/validate.py`、試験 `tests/test_voluntary_guardianship.py` 16 件 |
+| N-20a | **確認の記録（Review）をゲートの操作で作る**（2026-11-06 河原さん。止まる点 E-1）：`Review` を作り、`CONFIRMS` で対象の記録に結ぶ。職員の ID・確かめた日・`reviewDomain` を必須にする。人が確かめた記録なので AI 由来にしない。入口の案には入れない | 必須の欠け・AI 由来・案からの作成で止まり、そろえば `Active` で書かれる（DB なしと DB つき） | |
 | N-25 | narrative-extractor の書き直し：書き込みの案（JSON）を出すだけ。Cypher の書き込みと、名前の統合の指示を消す | 案の例がゲートを通る（架空） | ✅ 2026-11-06 SKILL.md を書き直し、架空の例が入口の点検とゲートを通る（全部 Pending）。試験 `tests/test_narrative_extractor_skill.py`。禁忌・推奨ケアの案の道は無い（G-63） |
 | N-26 | EXTRACTION_PROMPT の書き直し：原文に無い値で埋める指示を消す | — | ✅ 2026-11-06 埋める指示と前の正典の形を消し、案の形は narrative-extractor の SKILL.md に一本化した。試験 `tests/test_extraction_prompt_doc.py`（計画では試験なしだったが足した） |
 | N-27 | 読み取りのスキル（neo4j-support-db・visit-prep・emergency-protocol・data-quality-agent・resilience-checker・onboarding-wizard・ecomap-generator・insight-agent）の照会を新しい正典に合わせる。スキルごとに 1 行に分ける。列挙値の日本語の表示名は `docs/SEMANTICS.md`（N-24a で担当機関の推定の節だけを持って作った。列挙値の節をここで足す。正典 v0.2 §1）から引く。**`SEMANTICS.md` を作ったら、コードの中の日本語名（`nest/gate/validate.py` の `CERTAINTY_JA` など）もそこから読む形に変える**（台帳 G-47。2026-11-05 河原さん） | 照会のテンプレートを正典の JSON と突き合わせる検査 | ✅ 2026-11-06（列挙値の表示名とコードの読み方の部分）`docs/SEMANTICS.md` SEM-ENUM-01・02、`nest/semantics.py`。validate の `CERTAINTY_JA`・intake の `WEAKEST_FIRST` をそこから読む。試験 `tests/test_semantics_enums.py`。スキルは下の 8 行 |
@@ -77,12 +78,14 @@
 | N-27f | `onboarding-wizard` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） || ✅ 2026-11-06 登録の Cypher を外し、聞き取りの案内と登録の状況の照会 2 本にした。本人の作成は Claude の外。確認（Review）を作る手順が無いことを書いた |
 | N-27g | `ecomap-generator` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） || ✅ 2026-11-06 照会 2 本＋資源の側 1 本。Claude が Mermaid の図にする。D3 の HTML・感情のグラフ・Python の部品（前の DB につながる）と、その試験 2 本は外した |
 | N-27h | `insight-agent` の照会を新しい正典に合わせる | 照会のテンプレートを正典の JSON と突き合わせる検査（`tests/test_read_skills_canon.py`） || ✅ 2026-11-06 照会 5 本。感情の推移と、前の分析の部品の呼び出しは外した。閾値は決めず数字を出す |
+| N-27i | `provider-search` を資源の側の読み取りの包み（`nest/mcp_resource.py`）を通す形に直す（2026-11-06 河原さん。河原さんは N-27b と書いたが、N-27b は visit-prep に使っていたので i にした） | 照会のテンプレートを資源の側の形と突き合わせる検査 | |
 | **止まる点 E-1** | N-27 の後（2026-11-06 河原さん）。スキル 8 本それぞれの「何を消し、何を足したか」を 1 行ずつ報告し、河原さんが全部見る。DB の試験を一度流し（N-18 の条件。終わったら down）、G-63 の候補が Pending で書かれることを確かめる | | |
 | N-28 | SOS の中身（D11-3）：LINE には SOS・誰のことか・位置・確かめる先だけ | 送る文に電話と禁忌が無い | |
 | **止まる点 E-2** | N-28 の後。LINE の SOS で送る文の形（架空の例）と external-api の NEXT-05 の直しを見ていただく | | |
 | N-29 | 文書を直す：PRIVACY_GUIDELINES（条番号は e-Gov で照合）・CLAUDE.md・README・QUICK_START・SETUP_GUIDE・manifesto の共有層と 7687 の記述（付録の表）。**面談の音声ファイルの置き場所と保存の期間**を運用の文書に書く（DB には持たない。正典 v0.2 §4.2） | — | |
 | N-30 | `doctor.sh` を新しい構成に合わせる | doctor.sh が新しい構成で全項目を通る | |
 | **止まる点 E-3** | 段階 E の終わり | | |
+| N-31（任意） | エコマップの動く図：DB につながず、Claude が出した Mermaid か JSON を読むだけの描画の部品（2026-11-06 河原さん。要るときだけ） | 描画の部品が DB・ネットワークにつながらない | |
 
 ## 付録　neo4j-agno-agent の共有層（7687）・shared-schema に頼っている箇所（2026-11-05 時点）
 

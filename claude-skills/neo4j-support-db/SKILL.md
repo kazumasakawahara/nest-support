@@ -64,12 +64,12 @@ ORDER BY CASE n.riskLevel WHEN 'LifeThreatening' THEN 0 WHEN 'Panic' THEN 1 ELSE
 MATCH (c:Client {displayCode: $code})-[:REQUIRES]->(p:CarePreference)
 WHERE p.status IN ['Active', 'Pending']
 OPTIONAL MATCH (p)-[:EVIDENCED_BY]->(r:Record)
+OPTIONAL MATCH (p)-[:RESPONDS_TO]->(cd:Condition)
 RETURN p.carePreferenceId AS id, p.category AS category, p.instruction AS instruction, p.priority AS priority,
-       p.status AS status, collect(DISTINCT {recordId: r.recordId, certainty: r.certainty, heardOn: r.heardOn}) AS evidence
+       p.status AS status, collect(DISTINCT {recordId: r.recordId, certainty: r.certainty, heardOn: r.heardOn}) AS evidence,
+       collect(DISTINCT cd.name) AS conditions
 ORDER BY CASE p.priority WHEN 'High' THEN 0 WHEN 'Medium' THEN 1 ELSE 2 END
 ```
-
-推奨ケアと特性のつながり（`ADDRESSES`）は、今は読めない。リレーションの名前に `address` の字が入っていて、読み取りの包みが住所の項目と見て拒否するため（台帳 G-64）。
 
 ### 4. 特性・本人の願い・生活の歴史
 

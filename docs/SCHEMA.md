@@ -1,6 +1,6 @@
-# nest-support スキーマ正典 — v0.9
+# nest-support スキーマ正典 — v0.10
 
-- 状態：v0.9（2026-11-06。取り込みの案から禁忌・推奨ケアの候補を作る形を §6 に書いた（台帳 G-63）。v0.8 で任意後見・任意代理を tsunagu-net の正典 v0.31（SEMANTICS v0.32 の BRS-49）に合わせた（§4.5、台帳 G-62）。v0.7 で関わりを本人以外の人にも向けられるようにした（§4.3、台帳 G-60）。v0.6 で関わりの種類の定義と推定の根拠を足した（§4.5、台帳 G-40・G-57）。それより前は 止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43・G-44 の判断（§9 の 10〜13）を反映した）
+- 状態：v0.10（2026-11-06。推奨ケア → 特性のリレーションを `ADDRESSES` から `RESPONDS_TO` に改めた（台帳 G-64）。v0.9 で取り込みの案から禁忌・推奨ケアの候補を作る形を §6 に書いた（台帳 G-63）。v0.8 で任意後見・任意代理を tsunagu-net の正典 v0.31（SEMANTICS v0.32 の BRS-49）に合わせた（§4.5、台帳 G-62）。v0.7 で関わりを本人以外の人にも向けられるようにした（§4.3、台帳 G-60）。v0.6 で関わりの種類の定義と推定の根拠を足した（§4.5、台帳 G-40・G-57）。それより前は 止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43・G-44 の判断（§9 の 10〜13）を反映した）
 - 根拠：ADR-001（承認 2026-11-05。D1〜D11。D3 は 2026-11-05 に 2 回改めた）、約束 v1.1（`~/Dev-Work/tsunagu-net/docs/contracts/nest-support-shared.md`。2026-11-05 改め。v1 は 2026-11-04 確定）
 - 扱う範囲：個人の側の DB の、ラベル・リレーション・プロパティ・列挙値の**名前と構造**、ID の形、制約。資源の側は tsunagu-net の正典を参照するだけ
 - 扱わない範囲：業務上の意味・運用の規則・列挙値の日本語の表示名（nest-support の意味の文書 `docs/SEMANTICS.md` に置く。まだ無い。ADR D1）。機械が読む JSON は N-07 で §11 に置き、この表と一致させる（N-08 の乖離の検査）
@@ -136,7 +136,7 @@
 | `REQUIRES` | Client → CarePreference | — |
 | `HAS_CONDITION` | Client → Condition | — |
 | `IN_CONTEXT` | NgAction → Condition | — |
-| `ADDRESSES` | CarePreference → Condition | — |
+| `RESPONDS_TO` | CarePreference → Condition | — |
 | `HAS_WISH` | Client → Wish | — |
 | `HAS_HISTORY` | Client → LifeHistory | — |
 | `HAS_CERTIFICATE` | Client → Certificate | — |
@@ -353,7 +353,7 @@
       "REQUIRES":            {"from": ["Client"], "to": ["CarePreference"], "required": [], "optional": []},
       "HAS_CONDITION":       {"from": ["Client"], "to": ["Condition"], "required": [], "optional": []},
       "IN_CONTEXT":          {"from": ["NgAction"], "to": ["Condition"], "required": [], "optional": []},
-      "ADDRESSES":           {"from": ["CarePreference"], "to": ["Condition"], "required": [], "optional": []},
+      "RESPONDS_TO":         {"from": ["CarePreference"], "to": ["Condition"], "required": [], "optional": []},
       "HAS_WISH":            {"from": ["Client"], "to": ["Wish"], "required": [], "optional": []},
       "HAS_HISTORY":         {"from": ["Client"], "to": ["LifeHistory"], "required": [], "optional": []},
       "HAS_CERTIFICATE":     {"from": ["Client"], "to": ["Certificate"], "required": [], "optional": []},
@@ -438,6 +438,7 @@
 
 ## 変更履歴
 
+- v0.10（2026-11-06）：河原さんの決定（台帳 G-64 の (b)）。推奨ケア → 特性のリレーション `ADDRESSES` を `RESPONDS_TO` に改めた。個人の側の読み取りの包みが、住所の項目（`address`）の部分一致で `ADDRESSES` を拒否するため。包みの検査は緩めない。tsunagu-net の正典・意味の文書に `RESPONDS_TO` は無い（2026-11-06 に確かめた）。新しい DB は `ADDRESSES` を一度も書いていない
 - v0.9（2026-11-06）：河原さんの決定（台帳 G-63）。取り込みの案に禁忌・推奨ケアの候補の欄を足した。候補は同じ案の事実を根拠に指し、確度を持たず、`Pending` で入る（§6）。推奨ケアにも由来によらず根拠の記録を求める（同日、河原さんの判断で AI 由来だけから広げた。人が直接知ったことは先に職員の `Record`（`kind: Observation`）を作って根拠にする）。ノード・リレーション・プロパティは変わらない
 - v0.8 追記（2026-11-06）：河原さんの判断（台帳 G-52 (1)）。§3 の `displayCode` の形を書いた（`C-` ＋ 乱数 6 字、紛れやすい字を除いた 30 字、一意制約）
 - v0.8（2026-11-06）：河原さんの決定（台帳 G-62）。任意後見・任意代理を tsunagu-net の正典 v0.31（BRS-49）に合わせた：`guardianshipType` に `VoluntaryGuardianshipContracted`、`involvementKind` に `AgencyContract`、`howEnded` に `Transitioned` を足し、`VoluntaryGuardianship` の始まりを定めた（§4.5）。`Transitioned` の書ける先をゲートで確かめる
