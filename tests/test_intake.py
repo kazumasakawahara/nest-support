@@ -207,17 +207,13 @@ def test_told_by_must_be_existing_id_or_new_person_ref():
 
 
 # N-11：写した直後は赤。各タスクで緑にしたら、そのタスクの印を外す
+# 通すべき入力の試験（良い案が通る）は、入口が依頼を作った時点（N-12）で緑になる。各タスクの印は止めるべき入力の試験に残す（台帳 G-46）
 _PENDING = {
-    "N-12": ["test_quote_not_in_original_stops", "test_quote_must_be_present", "test_quote_ignores_only_whitespace_differences",
-             "test_document_kind_and_provider_rules", "test_facts_must_be_present", "test_document_hash_is_made_from_the_original",
-             "test_does_not_mutate_input"],
-    "N-13": ["test_paraphrase_is_allowed_only_without_new_numbers", "test_full_width_digits_count_as_the_same_number"],
-    "N-14": ["test_good_provision_document_has_two_level_certainty", "test_weaker_provider_marks_carry_through",
-             "test_own_case_record_uses_one_level", "test_certainty_upgrade_and_downgrade_stop",
-             "test_provided_information_cannot_be_confirmed_by_the_receiver", "test_unknown_mark_stops"],
+    "N-13": ["test_paraphrase_is_allowed_only_without_new_numbers"],
+    "N-14": ["test_certainty_upgrade_and_downgrade_stop", "test_provided_information_cannot_be_confirmed_by_the_receiver",
+             "test_unknown_mark_stops"],
     "N-15": ["test_unknown_keys_stop_without_fixing", "test_snake_case_key_stops"],
-    "N-16": ["test_records_are_pending_ai_extracted", "test_new_person_is_a_pending_candidate_not_matched_by_name",
-             "test_told_by_must_be_existing_id_or_new_person_ref"],
+    "N-16": ["test_told_by_must_be_existing_id_or_new_person_ref"],
 }
 for _task, _names in _PENDING.items():
     for _name in _names:
