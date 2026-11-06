@@ -20,7 +20,7 @@ DOCS = ["CLAUDE.md", "README.md", "docs/QUICK_START.md", "docs/SETUP_GUIDE.md", 
         "manifesto/workflows/renewal_check.md", "manifesto/workflows/resilience_report.md",
         "manifesto/workflows/visit_preparation.md", "docs/FAQ.md"]
 # 前の配布物の導入・配布の手順は外した（要るときは新しい構成で書き直す。台帳 G-71）
-REMOVED_DOCS = ["docs/DEPLOYMENT_GUIDE.md", "docs/DISTRIBUTION_PLAN.md", "docs/USER_MANUAL_WINDOWS.md",
+REMOVED_DOCS = ["docs/FIRST_5_OPERATIONS.md", "docs/DEPLOYMENT_GUIDE.md", "docs/DISTRIBUTION_PLAN.md", "docs/USER_MANUAL_WINDOWS.md",
                 "docs/VIDEO_SCRIPTS.md", "docs/ADVANCED_USAGE.md"]
 OLD_PORT = re.compile(r"(?<!\d)(7687|7688|7474|7475)(?!\d)")
 OLD = ("neo4j-shared", "neo4j-agno-agent", "共有層", "support-db-neo4j", "nest-support-neo4j", "mcp__neo4j",

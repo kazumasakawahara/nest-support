@@ -80,10 +80,20 @@ def _section_of(head):
     return t[i:j if j > 0 else len(t)]
 
 
-def test_real_db_blocks_records_and_voice_too():
-    """最終レビュー：画面が止まるのは本人の一覧だけでなく、記録の入力（/record）と録音（/voice）も"""
+def test_screens_read_the_real_db_with_names_hidden():
+    """止まる点 H-1 の判断 2（台帳 G-85）：画面（field-ui・SOS）には NEXT-02 の歯止めを当てない。伏せ字だけ。Claude の照会は NEXT-02 のまま"""
     limits = _section_of("**先に読むこと")
-    assert "/record" in limits and "/voice" in limits
+    assert "G-85" in limits and "伏せ" in limits and "NEXT-02" in limits
+    assert "使えません" not in _text()
+
+
+def test_first_section_is_the_first_five_operations_in_the_new_way():
+    """前の「最初の 5 つの操作」の文書を取り込んで外した。前の書き方（Claude に名前で登録する）は残さない"""
+    t = _text()
+    first = re.search(r"^## (.+)$", t, re.M).group(1)
+    assert "最初の 5 つの操作" in first
+    sec = _section_of("## " + first)
+    assert "new_client" in sec and "登録したい" not in sec and "さんの" not in sec
 
 
 def test_marker_must_not_be_put_on_a_real_db():
