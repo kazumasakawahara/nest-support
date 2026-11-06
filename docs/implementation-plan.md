@@ -132,6 +132,20 @@
 | N-42 | SEMANTICS の条番号の照合：手帳・受給者証（`certificateType`）と年金・手当（`publicAssistanceType`）の根拠の法令と条番号を e-Gov で照合し【未照合】を外す。照合できなかったものは【未照合】のまま理由を書く | 二つの表に【未照合】が理由なしで残っていない  | ✅ 2026-11-06 SEMANTICS SEM-ENUM-03（11 件。10 件を照合、療育手帳は【未照合】のまま理由を書いた）。試験 `tests/test_semantics_basis.py`（3 件）。台帳 G-83 |
 | **止まる点 H-1** | 河原さんが N-40・N-41 の手順書を読む。`redesign/adr-001` を main に合流させるかを河原さんが決める（Mac は合流しない） |  | ✅ 2026-11-06 河原さん：N-40〜N-42・G-84 を承認。画面には NEXT-02 の歯止めを当てない（台帳 G-85）。`docs/FIRST_5_OPERATIONS.md` は `docs/OPERATIONS.md` の「0. 最初の 5 つの操作」に取り込んで外した。main に合流する（河原さんが GitHub で PR を作る。Mac は合流しない）。以後は新しい枝で段階 I（N-43〜N-45、止まる点 I-1）。redesign/adr-001 には足さない |
 
+## 段階 I　手元の道具をそろえる（2026-11-06 河原さん。枝 stage-i）
+
+- main への合流（merge commit e62f214。redesign/adr-001 は残す）の後、新しい枝 `stage-i` で行う。redesign/adr-001 には足さない
+- 順：N-43 → N-44 → N-45 → 止まる点 I-1
+- 試験を先に書いて赤を確かめてから緑にする。**手順書（`docs/OPERATIONS.md`）に書いたコマンドを、そのまま流す試験にする**（G-84 の「試験がコマンドのフラグまで確かめていない」を補う）
+- 前の DB は起動しない。tsunagu-net は変えない
+
+| # | タスク | 先に書く試験 | 済みの判定 |
+|---|---|---|---|
+| N-43 | 職員の登録の道具 `scripts/new_staff.py`：管理者が打ち、職員（Staff）をゲートで作る。出た職員 ID で `scripts/staff_token.py add` に続けられる形にする | 手順書のコマンドをそのまま流して職員ができる（監査ログが管理者に結ばれる）。管理者でない職員では止まる。役割の値の外は止まる | |
+| N-44 | 書き込みの案の点検と承認の道具 `scripts/review_proposals.py`：未確定（Pending）の一覧（古い順）、根拠の引用つきの表示、一つずつの承認と差し戻し、AuditLog への記録。承認は正典 §7 のとおり一つずつ。自己承認は `selfApproval` を付ける | 手順書のコマンドをそのまま流して：一覧が古い順、表示に引用、承認で Active・差し戻しで Inactive、AuditLog（Approve／Reject）、自分で登録したものの承認で selfApproval | |
+| N-45 | 音声を消す日を「バックアップの日と同じ日（週に一度）」と決め、`docs/OPERATIONS.md` のバックアップの段に `purge_voice` を足す。DB を起動してから流し、終わったら止める手順にする | バックアップの段に purge_voice が、DB を起こす・止める手順の間にある | |
+| **止まる点 I-1** | 道具 2 本を架空のデータで動かした結果（打ったコマンドと出力）を河原さんが見る | | |
+
 ## 付録　neo4j-agno-agent の共有層（7687）・shared-schema に頼っている箇所（2026-11-05 時点）
 
 記録の文書（HANDOVER・MIGRATION_LOG・SUMMARY・ADR・台帳）と、git 管理外の跡（`neo4j_livelihood_logs/`・`.quarantine/`）は直す対象にしない。
