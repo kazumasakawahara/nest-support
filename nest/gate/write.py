@@ -162,6 +162,8 @@ def _apply(tx, plan):
     role = actor_role(tx, plan["actor"], errors)
     if role and role != "Administrator" and any(n["label"] == "Staff" for n in plan["nodes"]):
         errors.append("職員を登録できるのは Administrator だけ（%s は %s）" % (plan["actor"], role))
+    if role and role != "Administrator" and any(n["label"] == "RetentionDecision" for n in plan["nodes"]):
+        errors.append("保存の判断を書けるのは Administrator だけ（%s は %s。N-32）" % (plan["actor"], role))
     for label, oid in plan["existing"]:
         if not exists(tx, label, oid):
             errors.append("既にあるはずの %s %s が無い" % (label, oid))
@@ -252,6 +254,24 @@ def record_review(driver, actor, client_id, domain, reviewed_at, informant_kind,
                   now=None, database="neo4j"):
     """N-20a。確認の記録を作り、CONFIRMS で対象の記録に結ぶ（ゲートの submit を通す）。"""
     req = review_request(actor, client_id, domain, reviewed_at, informant_kind, record_ids, request_id, note)
+    return submit(req, driver, now=now, database=database)
+
+
+def retention_request(actor, client_id, decided_on, decision, reason, request_id, next_review_on=None):
+    """N-32。保存の判断（RetentionDecision）を書く依頼。人の判断なので origin は Human（未確定を経ない）。
+    decision は Keep か Delete。reason に名前を書かない。消すのは nest.gate.purge（判断を書くだけでは消えない）。"""
+    props = {"decidedOn": decided_on, "decision": decision, "reason": reason}
+    if next_review_on is not None:
+        props["nextReviewOn"] = next_review_on
+    return {"requestId": request_id, "actorStaffId": actor,
+            "nodes": [{"ref": "rd", "label": "RetentionDecision", "origin": "Human", "properties": props}],
+            "relationships": [{"type": "DECIDES_ON", "from": "rd", "to": {"label": "Client", "id": client_id}, "properties": {}}]}
+
+
+def record_retention(driver, actor, client_id, decided_on, decision, reason, request_id, next_review_on=None,
+                     now=None, database="neo4j"):
+    """N-32。保存の判断を書く（ゲートの submit を通す。Administrator だけ）。"""
+    req = retention_request(actor, client_id, decided_on, decision, reason, request_id, next_review_on)
     return submit(req, driver, now=now, database=database)
 
 

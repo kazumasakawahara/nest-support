@@ -19,6 +19,7 @@
 - 住所からの推定（inferenceBasis を持つ関わり）で作れる種類は Consultation と Administrative だけ。契約や選任で決まる関わりは住所から推し量れない（台帳 G-62・G-57）
 - AI 由来（origin AiExtracted）のノードは Pending で作る。ほかは Active。機関の写し（Organization。公開 ID への参照）だけは AI 由来でも Active（止まる点 4。台帳 G-59）。返す nodes に status を添え、書き込み（N-20）がそれを使う（約束 4-5。N-16）
 - 確認の記録（Review）は人の記録（Human）。依頼の職員の REVIEWED、本人への ABOUT、記録への CONFIRMS が要る（N-20a）
+- 保存の判断（RetentionDecision）は人の記録（Human）。本人一人に DECIDES_ON 一本で結ぶ。書けるのは Administrator だけ（write が確かめる。N-32）
 - 既にあるノードは {"label", "id"} だけで指す。名前を添えたり名前で指したりしたら止める（D8。N-16）
 - 情報提供の書面の記録：PROVIDED_BY を持つ記録は providerCertainty を持ち、certainty は receiver_certainty の値に限る。
   PROVIDED_BY の無い記録は providerCertainty を持たない。documentHash は SHA-256 の 16 進 64 字
@@ -205,6 +206,7 @@ def validate(req):
     _check_ngaction_evidence(ck, nodes_out, rels_out)
     _check_provided(ck, nodes_out, rels_out)
     _check_review(ck, nodes_out, rels_out, req.get("actorStaffId"))
+    _check_retention(ck, nodes_out, rels_out)
     return {"ok": not ck.errors, "errors": ck.errors, "corrections": ck.corrections,
             "nodes": nodes_out, "relationships": rels_out, "requestId": req.get("requestId")}
 
@@ -229,6 +231,21 @@ def _check_review(ck, nodes, rels, actor):
             ck.errors.append("ノード %s: Review は ABOUT で本人に結ぶ" % ref)
         if not any(r["type"] == "CONFIRMS" and r["from"] == ref and label_of(r["to"]) == "Record" for r in rels):
             ck.errors.append("ノード %s: Review は CONFIRMS で対象の記録（Record）に一つ以上結ぶ" % ref)
+
+
+def _check_retention(ck, nodes, rels):
+    """N-32（2026-11-06 河原さん。止まる点 F-1）。保存の判断は人の操作だけで作る（AI の案から作らない。未確定を経ない）。
+    本人一人に DECIDES_ON 一本で結ぶ。書けるのが Administrator だけなのは、職員の役割を読む write が確かめる。"""
+    labels = {n["ref"]: n["label"] for n in nodes}
+    for n in nodes:
+        if n["label"] != "RetentionDecision":
+            continue
+        ref = n["ref"]
+        if n["origin"] != "Human":
+            ck.errors.append("ノード %s: RetentionDecision は人が決めた判断。origin は Human だけ（AI の案から作らない）" % ref)
+        to = [r["to"] for r in rels if r["type"] == "DECIDES_ON" and r["from"] == ref]
+        if len(to) != 1 or (to[0].get("label") if isinstance(to[0], dict) else labels.get(to[0])) != "Client":
+            ck.errors.append("ノード %s: RetentionDecision は DECIDES_ON 一本で本人（Client）一人に結ぶ（%r）" % (ref, to))
 
 
 def _check_guardianship(ck, nodes):
