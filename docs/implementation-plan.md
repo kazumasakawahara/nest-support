@@ -127,7 +127,7 @@
 
 | # | タスク | 先に書く試験 | 済みの判定 |
 |---|---|---|---|
-| N-40 | 運用の手順書 `docs/OPERATIONS.md`。相談支援の職員が上から順に読んで動かせる一本の手順：管理者の作成（bootstrap_admin）、職員のトークンの発行（staff_token）、本人の登録（new_client）、支援記録の入力（field-ui）、音声の扱い（録音から文字起こし、purge_voice）、バックアップの周期と戻し方（backup）、本人の廃棄（purge_client）、doctor の流し方と WARN・FAIL の読み方。各段に doctor のどの項目で点検できるかを横に書く。点検できない段は、doctor に項目を足すか「人が確かめる」と書く | 手順書に各段があり、段ごとに doctor の項目か「人が確かめる」が書いてある。書いた doctor の項目が doctor.sh に実在する。書いたコマンドの道具が実在する | |
+| N-40 | 運用の手順書 `docs/OPERATIONS.md`。相談支援の職員が上から順に読んで動かせる一本の手順：管理者の作成（bootstrap_admin）、職員のトークンの発行（staff_token）、本人の登録（new_client）、支援記録の入力（field-ui）、音声の扱い（録音から文字起こし、purge_voice）、バックアップの周期と戻し方（backup）、本人の廃棄（purge_client）、doctor の流し方と WARN・FAIL の読み方。各段に doctor のどの項目で点検できるかを横に書く。点検できない段は、doctor に項目を足すか「人が確かめる」と書く | 手順書に各段があり、段ごとに doctor の項目か「人が確かめる」が書いてある。書いた doctor の項目が doctor.sh に実在する。書いたコマンドの道具が実在する | ✅ 2026-11-06 `docs/OPERATIONS.md`（9 段と「段と点検の対応」）。試験 `tests/test_docs_operations.py`（13 件）。doctor に項目は足していない。台帳 G-81 |
 | N-41 | 契約の確認の記録と機能の設定の作り方 `docs/EXTERNAL_API_SETUP.md`：記録の 5 項目の書式（JSON の鍵と例）、置き場所と権限（`~/.config/nest/`、600）、NEXT の行ごとに分けること、次に確かめる日、機能の設定の書式、doctor での確かめ方、作った後に `egress.authorize` で通ることを確かめる方法。記録の中身（契約の内容）は河原さんが書くので入れない。先頭に「記録を作る前に確かめること」の節を置き、台帳 G-80 の内容を書く | 先頭の節に G-80 の内容がある。手順書の例の JSON を一時の置き場所に置くと `egress.authorize` が通り、鍵が一つ欠けると止まる | |
 | N-42 | SEMANTICS の条番号の照合：手帳・受給者証（`certificateType`）と年金・手当（`publicAssistanceType`）の根拠の法令と条番号を e-Gov で照合し【未照合】を外す。照合できなかったものは【未照合】のまま理由を書く | 二つの表に【未照合】が理由なしで残っていない | |
 | **止まる点 H-1** | 河原さんが N-40・N-41 の手順書を読む。`redesign/adr-001` を main に合流させるかを河原さんが決める（Mac は合流しない） | | |
