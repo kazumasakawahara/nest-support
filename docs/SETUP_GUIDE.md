@@ -163,7 +163,14 @@ cd sos && uv run python api_server.py     # http://127.0.0.1:8000/app/?id=C-…�
 
 ### 本人を作る・書き込む
 
-- 本人（氏名・生年月日）を作るのは、職員が Claude の外の入口で行い、仮名（`displayCode`）を受け取る
+- 本人（氏名・生年月日・住所）を作るのは、職員が Claude の外の入口（手元のターミナル）で行い、仮名（`displayCode`）を受け取る
+
+```bash
+uv run python scripts/new_client.py add --staff STF-… --family 氏 --given 名 --birth YYYY-MM-DD --address "住所"
+uv run python scripts/new_client.py find --family 氏 --given 名     # 名前から仮名を引く
+```
+
+  この道具の出力（名前と仮名の対応）は、Claude の会話に貼りません。Claude には仮名だけを伝えます。同じ氏名の本人がいて、生年月日が同じか、どちらかに無ければ作りません（二重登録のおそれ）
 - 聞いた話は `narrative-extractor` で書き込みの案（JSON）にし、職員が確かめてゲートに通す（`nest/gate/`）。AI が作ったものは未確定で入り、職員が一つずつ承認する
 - 「無い」と確かめたことは、職員が確認の記録を作る（`nest.gate.write.record_review`）
 

@@ -116,7 +116,7 @@
 
 | # | タスク | 先に書く試験 | 済みの判定 |
 |---|---|---|---|
-| N-39 | 本人を Claude の外で作る入口 `scripts/new_client.py`。職員が手元で打ち、ゲートを通して本人（Client）と住まい（Residence、RESIDES_AT）を作り、仮名（displayCode）を発番して画面に出す。実名・かな・生年月日・住所は DB に入れてよい（包みが返さないだけ）。Claude には何も渡さない。同じ道具で、名前から仮名を引く（台帳 G-42 (2) の「Claude の外の入口」） | 架空のデータで：作る（仮名が出る・ゲートの監査ログが付く）・引く（名前から仮名）・二重登録を止める | |
+| N-39 | 本人を Claude の外で作る入口 `scripts/new_client.py`。職員が手元で打ち、ゲートを通して本人（Client）と住まい（Residence、RESIDES_AT）を作り、仮名（displayCode）を発番して画面に出す。実名・かな・生年月日・住所は DB に入れてよい（包みが返さないだけ）。Claude には何も渡さない。同じ道具で、名前から仮名を引く（台帳 G-42 (2) の「Claude の外の入口」） | 架空のデータで：作る（仮名が出る・ゲートの監査ログが付く）・引く（名前から仮名）・二重登録を止める | ✅ 2026-11-06 `scripts/new_client.py`（add・find）。試験 `tests/test_new_client.py`（DB なし 6 件）・`tests/test_new_client_live.py`（DB つき 6 件）。その前の DB つきの試験 958 passed。台帳 G-79 |
 | **止まる点 G-1** | 実データを入れる前の最後の確認：契約の確認の記録・機能の設定・NEXT-02 の歯止め・doctor の FAIL 0 | | |
 
 ## 付録　neo4j-agno-agent の共有層（7687）・shared-schema に頼っている箇所（2026-11-05 時点）
