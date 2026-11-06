@@ -33,6 +33,8 @@ services:
       NEO4J_server_memory_pagecache_size: "512m"
       # file: の LOAD CSV を止める（tsunagu-net と同じ。http(s) は Community 版に止める設定が無く、読み取りの包みで止める。N-22）
       NEO4J_dbms_security_allow__csv__import__from__file__urls: "false"
+      # 匿名の利用の情報を Neo4j 社に送らない（既定は送る。docs/external-api.md に無い送信。台帳 G-75）
+      NEO4J_dbms_usage__report_enabled: "false"
     volumes:
       - ./nest_neo4j_personal_data:/data
       - ./nest_neo4j_personal_logs:/logs
@@ -51,6 +53,8 @@ services:
       NEO4J_server_memory_heap_max__size: "1G"
       NEO4J_server_memory_pagecache_size: "512m"
       NEO4J_dbms_security_allow__csv__import__from__file__urls: "false"
+      # 匿名の利用の情報を Neo4j 社に送らない（既定は送る。docs/external-api.md に無い送信。台帳 G-75）
+      NEO4J_dbms_usage__report_enabled: "false"
     volumes:
       - ./nest_neo4j_resource_data:/data
       - ./nest_neo4j_resource_logs:/logs

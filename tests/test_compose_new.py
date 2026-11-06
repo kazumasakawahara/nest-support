@@ -87,3 +87,10 @@ def test_passwords_come_from_outside_the_repository():
 def test_new_data_folders_are_ignored_by_git():
     ignore = (COMPOSE.parent / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert "nest_neo4j_*/" in ignore
+
+
+def test_usage_reporting_is_off_for_both_dbs():
+    """2026-11-06（N-33 の試験で見つけた。台帳 G-75）：Neo4j は既定で匿名の利用の情報を Neo4j 社に送る
+    （dbms.usage_report.enabled の既定は true。Neo4j Operations Manual）。docs/external-api.md に無い送信なので、二つとも止める"""
+    lines = [l.strip() for l in _lines()]
+    assert lines.count('NEO4J_dbms_usage__report_enabled: "false"') == 2
