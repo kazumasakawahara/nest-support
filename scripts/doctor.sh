@@ -9,7 +9,9 @@
 #   4. .mcp.json が nest-personal・nest-resource を持ち、前の MCP（neo4j・neo4j-shared）を持たない
 #   5. ~/.claude/skills/ のリンクが、このリポジトリの claude-skills を指している。外したスキルのリンクが残っていない
 #   6. 正典のずれが 0 件（scripts/check_drift.py）
-#   7. Claude Desktop の設定（知らせるだけ）
+#   7. FileVault が有効（N-33）
+#   8. バックアップの置き場所 ~/nest-backup/ は、あれば権限 700・Time Machine の対象外（N-33。無ければ知らせるだけ）
+#   9. Claude Desktop の設定（知らせるだけ）
 #
 # 結果は OK / FAIL / INFO で表示する。FAIL が一つでもあれば 1 を返す。
 
@@ -121,7 +123,30 @@ else
 fi
 
 echo ""
-echo "[7] Claude Desktop の設定（知らせるだけ）"
+echo "[7] FileVault（バックアップと DB のデータを守る。N-33）"
+if fdesetup status 2>/dev/null | grep -q "FileVault is On"; then
+  ok "FileVault が有効"
+else
+  fail "FileVault が有効でない（システム設定 → プライバシーとセキュリティ → FileVault）"
+fi
+
+echo ""
+echo "[8] バックアップの置き場所（~/nest-backup/。要配慮個人情報の写し。N-33）"
+BACKUP_DIR="${HOME}/nest-backup"
+if [ -d "${BACKUP_DIR}" ]; then
+  bmode="$(stat -f %Lp "${BACKUP_DIR}" 2>/dev/null || stat -c %a "${BACKUP_DIR}" 2>/dev/null)"
+  if [ "${bmode}" = "700" ]; then ok "~/nest-backup: 権限 700"; else fail "~/nest-backup の権限が ${bmode}（700 にする: chmod 700 ~/nest-backup）"; fi
+  if tmutil isexcluded "${BACKUP_DIR}" 2>/dev/null | grep -q "\[Excluded\]"; then
+    ok "~/nest-backup: Time Machine の対象外"
+  else
+    fail "~/nest-backup が Time Machine の対象（tmutil addexclusion ~/nest-backup）"
+  fi
+else
+  info "~/nest-backup はまだ無い（最初のバックアップで作る: uv run python scripts/backup.py dump）"
+fi
+
+echo ""
+echo "[9] Claude Desktop の設定（知らせるだけ）"
 if [ -f "${DESKTOP_CONFIG}" ]; then
   if grep -q '"nest-personal"' "${DESKTOP_CONFIG}"; then
     info "Desktop の設定に nest-personal がある"

@@ -7,6 +7,8 @@
 - .mcp.json が nest-personal・nest-resource を持ち、前の neo4j・neo4j-shared を持たない
 - スキルのリンクが、このリポジトリの claude-skills を指している。外したスキルのリンクが残っていない
 - 正典のずれが 0 件
+- FileVault が有効（fdesetup status。N-33）
+- バックアップの置き場所 ~/nest-backup/ は、あれば権限 700・Time Machine の対象外（N-33。無ければ知らせるだけ）
 """
 import os
 import stat
@@ -20,7 +22,8 @@ DOCTOR = REPO / "scripts" / "doctor.sh"
 SKILLS = sorted(p.name for p in (REPO / "claude-skills").iterdir() if (p / "SKILL.md").is_file())
 
 
-def _run(tmp_path, ps_lines, *, env_mode=0o600, extra_links=(), drop_link=None):
+def _run(tmp_path, ps_lines, *, env_mode=0o600, extra_links=(), drop_link=None, filevault="On", backup_mode=None,
+         excluded=True):
     home = tmp_path / "home"
     (home / ".config" / "nest").mkdir(parents=True)
     env_file = home / ".config" / "nest" / "neo4j-redesign.env"
@@ -38,9 +41,19 @@ def _run(tmp_path, ps_lines, *, env_mode=0o600, extra_links=(), drop_link=None):
     fake = bin_dir / "docker"
     fake.write_text("#!/bin/sh\n[ \"$1\" = ps ] && cat \"$FAKE_PS\"\nexit 0\n", encoding="utf-8")
     fake.chmod(fake.stat().st_mode | stat.S_IXUSR)
+    # 偽の fdesetup・tmutil（N-33）。tmutil isexcluded は本物と同じ形で一行を返す
+    for name, body in (("fdesetup", "echo \"FileVault is $FAKE_FV.\""),
+                       ("tmutil", "echo \"[$FAKE_TM]  $2\"")):
+        f = bin_dir / name
+        f.write_text("#!/bin/sh\n%s\n" % body, encoding="utf-8")
+        f.chmod(f.stat().st_mode | stat.S_IXUSR)
+    if backup_mode is not None:
+        (home / "nest-backup").mkdir()
+        os.chmod(home / "nest-backup", backup_mode)
     ps = tmp_path / "ps.txt"
     ps.write_text("".join(line + "\n" for line in ps_lines), encoding="utf-8")
-    env = dict(os.environ, HOME=str(home), PATH="%s:%s" % (bin_dir, os.environ["PATH"]), FAKE_PS=str(ps))
+    env = dict(os.environ, HOME=str(home), PATH="%s:%s" % (bin_dir, os.environ["PATH"]), FAKE_PS=str(ps), FAKE_FV=filevault,
+               FAKE_TM="Excluded" if excluded else "Included")
     return subprocess.run(["bash", str(DOCTOR)], cwd=REPO, env=env, capture_output=True, text=True, timeout=120)
 
 
@@ -88,3 +101,31 @@ def test_doctor_does_not_read_the_settings_file():
         for line in text.splitlines():
             if "neo4j-redesign.env" in line or "ENV_FILE" in line:
                 assert word not in line, line
+
+
+# ---- N-33（2026-11-06 河原さん。止まる点 F-1）：バックアップは要配慮個人情報の写し ----
+
+def test_fails_when_filevault_is_off(tmp_path):
+    out = _run(tmp_path, [], filevault="Off")
+    assert out.returncode == 1 and "FileVault" in out.stdout
+
+
+def test_backup_place_absent_is_only_info(tmp_path):
+    out = _run(tmp_path, [])
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert "nest-backup" in out.stdout
+
+
+def test_backup_place_passes_when_private_and_excluded(tmp_path):
+    out = _run(tmp_path, [], backup_mode=0o700)
+    assert out.returncode == 0, out.stdout + out.stderr
+
+
+def test_fails_when_the_backup_place_is_readable_by_others(tmp_path):
+    out = _run(tmp_path, [], backup_mode=0o755)
+    assert out.returncode == 1 and "700" in out.stdout
+
+
+def test_fails_when_the_backup_place_is_in_time_machine(tmp_path):
+    out = _run(tmp_path, [], backup_mode=0o700, excluded=False)
+    assert out.returncode == 1 and "Time Machine" in out.stdout

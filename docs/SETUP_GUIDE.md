@@ -75,6 +75,8 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down    # 使い終�
 
 データはリポジトリの下の `nest_neo4j_personal_data/`・`nest_neo4j_resource_data/` に置かれます（git には入りません）。
 
+バックアップ：DB に書き込んだ日の作業の終わりに、止めてから `uv run python scripts/backup.py dump`（`~/nest-backup/`、4 世代。`docs/PRIVACY_GUIDELINES.md` §5）。
+
 ---
 
 ## 6. 正典の制約と資源のデータ
@@ -119,7 +121,7 @@ for s in claude-skills/*/; do ln -sfn "$PWD/$s" ~/.claude/skills/"$(basename "$s
 
 ## 9. まだ置き換えていないもの
 
-`field-ui/`・`sos/`・`lib/`・`setup.sh`・`setup.ps1`・`installer/`・`scripts/backup.sh`・`scripts/rotate_password.py` は前の構成のままで、新しい構成では使えません（計画の段階 E・F）。
+`field-ui/`・`sos/`・`lib/`・`setup.sh`・`setup.ps1`・`installer/`・`scripts/rotate_password.py` は前の構成のままで、新しい構成では使えません（計画の段階 E・F）。
 
 ---
 
