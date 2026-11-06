@@ -54,3 +54,9 @@ def test_step6_names_the_day():
 def test_purge_day_no_longer_open():
     t = DOC.read_text(encoding="utf-8")
     assert "音声を消す日" not in t[t.index("## 道具がまだ無いこと"):]
+
+
+def test_backup_step_names_friday_and_the_fallback():
+    """台帳 G-90（2026-11-06 河原さん承認）：曜日は金曜日。金曜日に書き込みが無ければ、その週の最後に書き込んだ日"""
+    s = _section(7)
+    assert "金曜日" in s and "その週の最後に書き込んだ日" in s
