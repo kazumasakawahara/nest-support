@@ -100,7 +100,7 @@ def test_lookup_reads_through_the_wrapper(monkeypatch):
         seen["side"] = side
         yield "fake-driver"
     monkeypatch.setattr(connections, "driver", _driver)
-    monkeypatch.setattr(mcp_guard, "require_personal_allowed", lambda d: seen.setdefault("allowed", d))
+    monkeypatch.setattr(mcp_guard, "require_personal_allowed", lambda d, caller="mcp": seen.update(caller=caller) or seen.setdefault("allowed", d))
 
     def _run_read(d, query, params, personal):
         seen.update(query=query, params=params, personal=personal)
@@ -108,6 +108,7 @@ def test_lookup_reads_through_the_wrapper(monkeypatch):
     monkeypatch.setattr(mcp_guard, "run_read", _run_read)
     assert sos.lookup_client("C-ZZZZZZ") is True
     assert seen["side"] == "personal" and seen["allowed"] == "fake-driver" and seen["personal"] is True
+    assert seen["caller"] == "screen"
     assert seen["params"] == {"code": "C-ZZZZZZ"} and "$code" in seen["query"]
 
 

@@ -130,10 +130,10 @@ def test_read_personal_goes_through_the_wrapper(app_mod, monkeypatch):
         seen["side"] = side
         yield "fake-driver"
     monkeypatch.setattr(connections, "driver", _driver)
-    monkeypatch.setattr(mcp_guard, "require_personal_allowed", lambda d: seen.setdefault("allowed", d))
+    monkeypatch.setattr(mcp_guard, "require_personal_allowed", lambda d, caller="mcp": seen.update(caller=caller) or seen.setdefault("allowed", d))
     monkeypatch.setattr(mcp_guard, "run_read", lambda d, q, p, personal: seen.update(personal=personal) or [{"n": 1}])
     assert app_mod.read_personal("MATCH (c:Client) RETURN count(c) AS n") == [{"n": 1}]
-    assert seen == {"side": "personal", "allowed": "fake-driver", "personal": True}
+    assert seen == {"side": "personal", "allowed": "fake-driver", "caller": "screen", "personal": True}
 
 
 def test_field_ui_does_not_use_the_old_db_code():

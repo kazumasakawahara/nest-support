@@ -16,6 +16,8 @@ Community 版には DB の側の権限が無いので、ここで止める。手
   QUOTE_MAX 字までを返す（2026-11-06 河原さん。台帳 G-42 (1)。語りの中の人は役割の名前で書く運用と両方）
 - 包みが動く条件（require_personal_allowed）：NEXT-02 の歯止め（機能の設定と契約の確認の記録）がそろうか、
   つないでいる DB に架空の印（NestLiveProbe。台帳 G-51）があるときだけ。どちらも無ければ拒否する（台帳 G-54 (3)）
+  この歯止めは Claude へ送る経路（MCP の包み、caller="mcp"。既定）のため。外に送らない画面（field-ui・SOS、caller="screen"）は
+  歯止めを通さず、伏せ字（run_read の personal=True）だけを当てる。知らない呼び出し元は拒否する（2026-11-06 河原さん。台帳 G-85）
   架空の DB に印を置くのは人の手（ゲートを通さない）：CREATE (:NestLiveProbe {fictional: true})
 """
 import re
@@ -180,8 +182,18 @@ def run_read(driver, query, params, personal, database="neo4j"):
         return s.execute_read(work)
 
 
-def require_personal_allowed(driver, database="neo4j"):
-    """個人の側の包みが動いてよいかを確かめる（台帳 G-54 (3)）。NEXT-02 がそろうか、架空の印のある DB のときだけ。"""
+CALLERS = ("mcp", "screen")
+
+
+def require_personal_allowed(driver, database="neo4j", caller="mcp"):
+    """個人の側の包みが動いてよいかを確かめる（台帳 G-54 (3)・G-85）。
+
+    caller="mcp"（既定）：NEXT-02 がそろうか、架空の印のある DB のときだけ。caller="screen"：外に送らない画面なので通す。
+    """
+    if caller not in CALLERS:
+        raise NotReadOnly("知らない呼び出し元（%s）なので読まない" % caller)
+    if caller == "screen":
+        return
     from nest import egress
     try:
         egress.authorize("NEXT-02")

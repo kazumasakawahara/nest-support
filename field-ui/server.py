@@ -74,10 +74,10 @@ DASHBOARD_CLOSED = "ダッシュボードは閉じています（計画 N-37）�
 # =============================================================================
 
 def read_personal(query: str, params: dict | None = None) -> list[dict]:
-    """個人の側を読み取りの包みで読む（NEXT-02 の歯止めか架空の印、読み取りだけ、実名などは返さない）。"""
+    """個人の側を読み取りの包みで読む（画面の経路：NEXT-02 の歯止めは通さない。読み取りだけ、実名などは返さない。台帳 G-85）。"""
     from nest import connections, mcp_guard
     with connections.driver("personal") as d:
-        mcp_guard.require_personal_allowed(d)
+        mcp_guard.require_personal_allowed(d, caller="screen")
         return mcp_guard.run_read(d, query, params, personal=True)
 
 

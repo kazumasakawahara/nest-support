@@ -220,7 +220,7 @@ def lookup_client(code: str) -> bool:
     """個人の側に、その仮名の本人がいるか。読み取りの包み（nest.mcp_guard）を通して読む"""
     from nest import connections, mcp_guard
     with connections.driver("personal") as d:
-        mcp_guard.require_personal_allowed(d)
+        mcp_guard.require_personal_allowed(d, caller="screen")
         rows = mcp_guard.run_read(d, "MATCH (c:Client {displayCode: $code}) RETURN count(c) AS n", {"code": code},
                                   personal=True)
     return bool(rows and rows[0]["n"])
