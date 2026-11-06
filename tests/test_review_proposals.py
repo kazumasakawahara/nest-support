@@ -39,7 +39,8 @@ def test_unknown_id_stops_before_the_db(cmd, capsys):
     assert "止めた" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("argv", [["approve", "--id", REC], ["reject", "--id", REC], ["approve", "--staff", STAFF], ["show"]])
+@pytest.mark.parametrize("argv", [["approve", "--id", REC], ["reject", "--id", REC], ["approve", "--staff", STAFF], ["show"],
+                                  ["approve", "--staff", STAFF, "--id", REC, "--reason", "x"]])
 def test_required_arguments(argv):
     with pytest.raises(SystemExit):
         _script().parse(argv)
@@ -54,3 +55,14 @@ def test_manual_has_the_four_commands():
     got = " ".join(dc.lines("review_proposals.py"))
     for sub in ("review_proposals.py list", "review_proposals.py show", "review_proposals.py approve", "review_proposals.py reject"):
         assert sub in got, sub
+
+
+def test_reject_takes_a_reason_and_list_can_show_rejected():
+    """G-91：差し戻しに --reason（任意）。承認には付けられない（上の試験）。差し戻したものは list --rejected で理由と見る"""
+    m = _script()
+    assert m.parse(["reject", "--staff", STAFF, "--id", REC, "--reason", "引用と合わない"]).reason == "引用と合わない"
+    assert m.parse(["reject", "--staff", STAFF, "--id", REC]).reason is None
+    assert m.parse(["list", "--rejected"]).rejected is True
+    got = " ".join(dc.lines("review_proposals.py"))
+    assert "review_proposals.py reject --staff STF-… --id REC-… --reason" in got
+    assert "review_proposals.py list --rejected" in got

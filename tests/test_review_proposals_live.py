@@ -90,11 +90,18 @@ def test_approve_one_with_self_approval(driver, setup, capsys):
     assert rows == [{"status": "Active", "by": setup["admin"], "selfAudit": True, "selfRel": True}], rows
 
 
-def test_reject_one(driver, setup, capsys):
+def test_reject_one_with_a_reason_seen_in_show_and_list(driver, setup, capsys):
+    """G-91：差し戻しの理由は AuditLog の reason に残り、show と list --rejected で見える"""
     rid = setup["b"][0]
-    assert _run("reject", {"REC-…": rid, "STF-…": setup["admin"]}, driver) == 0
+    reason = "引用と中身が合わない（架空 %s）" % uuid.uuid4().hex[:6]
+    assert _run("reject", {"REC-…": rid, "STF-…": setup["admin"], "…": reason}, driver) == 0
     capsys.readouterr()
     rows = _q(driver, """MATCH (r:Record {recordId: $id})
                          OPTIONAL MATCH (r)<-[:AUDIT_FOR]-(a:AuditLog {action: 'Reject'})-[:ACTED_BY]->(s:Staff)
-                         RETURN r.status AS status, s.staffId AS by""", id=rid)
-    assert rows == [{"status": "Inactive", "by": setup["admin"]}], rows
+                         RETURN r.status AS status, s.staffId AS by, a.reason AS reason""", id=rid)
+    assert rows == [{"status": "Inactive", "by": setup["admin"], "reason": reason}], rows
+    assert _run("show", {"REC-…": rid}, driver) == 0
+    assert reason in capsys.readouterr().out
+    assert _run("list --rejected", {}, driver) == 0
+    out = capsys.readouterr().out
+    assert rid in out and reason in out

@@ -124,10 +124,12 @@ AI が作ったもの（`narrative-extractor` の案など）は未確定（Pend
 uv run python scripts/review_proposals.py list                                   # 未確定の一覧（古い順）。本人は仮名で出る
 uv run python scripts/review_proposals.py show --id REC-…                        # 一件の根拠の引用を見る
 uv run python scripts/review_proposals.py approve --staff STF-… --id REC-…       # 承認する（Active になる）
-uv run python scripts/review_proposals.py reject --staff STF-… --id REC-…        # 差し戻す（Inactive になる）
+uv run python scripts/review_proposals.py reject --staff STF-… --id REC-… --reason "…"   # 差し戻す（Inactive になる）。理由は一行・任意・名前を書かない
+uv run python scripts/review_proposals.py list --rejected                        # 差し戻したものを理由と見る
 ```
 
 - `--id` には一覧に出た ID（`REC-…`・`NGA-…`・`CPF-…` など）を一つだけ書きます。まとめての承認はしません
+- 差し戻しの理由（`--reason`）は AuditLog の `reason` に残り、`show` と `list --rejected` で見えます。理由は省けます。名前（本人・家族・職員）を書きません（台帳 G-91）
 - 承認・差し戻しは AuditLog に残ります。自分で登録したものを承認すると「自己承認」と出て、`selfApproval` が付きます
 - 承認する前に、`show` で根拠の引用を読みます。引用が無いもの・引用と中身が合わないものは差し戻します
 - 実データでは、Claude に渡せない間（台帳 G-80）AI の案が無いので、この段は使いません

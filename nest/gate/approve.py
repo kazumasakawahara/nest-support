@@ -8,6 +8,7 @@
   本人の事実の根拠の記録、本人についての記録を根拠にした関わり（親など本人以外の人に向けたものを含む。正典 v0.7）を並べる）。関わりには中身（種類・確度・終わり方・推定の根拠・注記・機関）も添える（止まる点 4。台帳 G-59）。引用は、記録ならその記録、
   事実なら根拠（EVIDENCED_BY）の記録、人ならその人から聞いた（TOLD_BY）記録から引く
 - 承認は Staff -[:APPROVED {at, selfApproval}]-> 対象 で残す。承認・却下とも AuditLog（Approve／Reject）を残す
+- 却下には理由を一行添えられる（任意）。AuditLog の reason に残す。名前を書かない（正典 v0.12。台帳 G-91）
 手本：tsunagu-net の tsunagu/gate/approve.py（読むだけ）。
 """
 from datetime import datetime, timezone
@@ -56,7 +57,7 @@ def _self(tx, actor, label, target_id):
     return bool(rows and rows[0]["n"])
 
 
-def _change(tx, action, actor, label, key, target_id, request_id, now, new_id):
+def _change(tx, action, actor, label, key, target_id, request_id, now, new_id, reason=None):
     done = list(tx.run("MATCH (t:%s {%s: $id}) WHERE t.status = 'Pending' SET t.status = '%s' RETURN count(t) AS n"
                        % (label, key, NEW_STATUS[action]), id=target_id))
     if not done or done[0]["n"] != 1:
@@ -68,11 +69,13 @@ def _change(tx, action, actor, label, key, target_id, request_id, now, new_id):
         tx.run("MATCH (s:Staff {staffId: $actor}) MATCH (t:%s {%s: $id}) CREATE (s)-[:APPROVED {at: $at, selfApproval: $selfApproval}]->(t)"
                % (label, key), actor=actor, id=target_id, at=now, selfApproval=self_approval)
         props["selfApproval"] = self_approval
+    if reason is not None:
+        props["reason"] = reason
     tx.run(gw.AUDIT_QUERY % (label, key), id=target_id, actor=actor, props=props)
     return self_approval
 
 
-def _decide_all(tx, action, actor, targets, request_id, now, new_id):
+def _decide_all(tx, action, actor, targets, request_id, now, new_id, reason=None):
     """全件を先に確かめ、一件でもだめなら何も変えない。"""
     errors = []
     gw.actor_role(tx, actor, errors)
@@ -89,7 +92,7 @@ def _decide_all(tx, action, actor, targets, request_id, now, new_id):
     shown, selfs = [], []
     for label, key, target_id in targets:
         shown.extend(_quotes(tx, label, key, target_id))
-        selfs.append(_change(tx, action, actor, label, key, target_id, request_id, now, new_id))
+        selfs.append(_change(tx, action, actor, label, key, target_id, request_id, now, new_id, reason))
     return shown, selfs
 
 
@@ -112,7 +115,7 @@ def _targets(raw, out):
     return targets
 
 
-def _run(action, driver, actor, raw_targets, request_id, now, new_id, database, out):
+def _run(action, driver, actor, raw_targets, request_id, now, new_id, database, out, reason=None):
     if not ids.is_valid_id(actor, "STF"):
         out["errors"].append("actorStaffId %r は職員の ID（STF-…）でなければならない" % (actor,))
     if not request_id:
@@ -125,7 +128,7 @@ def _run(action, driver, actor, raw_targets, request_id, now, new_id, database, 
     try:
         with driver.session(database=database) as s:
             shown, selfs = s.execute_write(_decide_all, action, actor, targets, request_id,
-                                           now or datetime.now(timezone.utc), new_id)
+                                           now or datetime.now(timezone.utc), new_id, reason)
     except gw.Rejected as e:
         out["errors"] = e.errors
         return out
@@ -144,12 +147,16 @@ def approve(driver, actor_staff_id, target, request_id, now=None, new_id=ids.new
     return _run("Approve", driver, actor_staff_id, [target], request_id, now, new_id, database, out)
 
 
-def reject(driver, actor_staff_id, target, request_id, now=None, new_id=ids.new_id, database="neo4j"):
+def reject(driver, actor_staff_id, target, request_id, now=None, new_id=ids.new_id, database="neo4j", reason=None):
+    """一件を却下（差し戻し）する。reason は任意の一行（AuditLog の reason。名前を書かない）。"""
     out = {"ok": False, "errors": [], "requestId": request_id, "action": "Reject", "target": target}
+    if reason is not None and (not isinstance(reason, str) or not reason.strip() or "\n" in reason or "\r" in reason):
+        out["errors"].append("差し戻しの理由は一行の文字列で書く（空・改行は不可）")
+        return out
     if not isinstance(target, dict):
         out["errors"].append("却下は一件ずつ（{label, id}）。一覧は渡せない")
         return out
-    return _run("Reject", driver, actor_staff_id, [target], request_id, now, new_id, database, out)
+    return _run("Reject", driver, actor_staff_id, [target], request_id, now, new_id, database, out, reason)
 
 
 def approve_many(driver, actor_staff_id, targets, request_id, now=None, new_id=ids.new_id, database="neo4j"):
