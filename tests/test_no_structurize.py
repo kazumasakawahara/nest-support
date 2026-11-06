@@ -48,21 +48,21 @@ def test_multi_importer_extracts_text_only(fake_genai, monkeypatch, tmp_path):
     assert written == []
 
 
-def test_field_ui_voice_transcribes_without_structuring(fake_genai, monkeypatch):
+def test_field_ui_voice_transcribes_without_structuring(fake_genai, monkeypatch, tmp_path):
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
-    from tests.test_field_ui_guards import AUTH, TOKEN, _load_field_ui, _set_clients
+    from tests.test_field_ui_guards import AUTH, CLIENT, _load_field_ui, _set_clients, _staff_table
 
-    monkeypatch.setenv("APP_ACCESS_TOKEN", TOKEN)
+    _staff_table(monkeypatch, tmp_path)
     app_mod = _load_field_ui()
-    _set_clients(monkeypatch, app_mod, existing={"架空の人"})
-    written = []
-    monkeypatch.setattr(app_mod, "register_to_database", lambda *a, **k: written.append(a) or {})
+    _set_clients(monkeypatch, app_mod, {CLIENT})
+    sent = []
+    monkeypatch.setattr(app_mod, "submit_to_gate", lambda req: sent.append(req) or {"ok": True})
     allow(fake_genai, *ALL_ROWS)
 
     r = TestClient(app_mod.app).post(
         "/api/voice/upload",
-        data={"clientName": "架空の人", "supporterName": "架空の職員"},
+        data={"clientId": CLIENT},
         files={"audio": ("fictional.webm", b"x" * 10, "audio/webm")},
         headers=AUTH,
     )
@@ -72,4 +72,4 @@ def test_field_ui_voice_transcribes_without_structuring(fake_genai, monkeypatch)
     assert body["transcript"] == "架空の文字起こし"
     assert body["nodes_registered"] == 0
     assert fake_genai["calls"] == ["generate_content"]  # 文字起こしの 1 回だけ
-    assert written == []
+    assert sent == []  # 構造化も登録もしない（案は職員が narrative-extractor と intake で作る）
