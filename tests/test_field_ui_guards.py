@@ -44,12 +44,14 @@ def _staff_table(monkeypatch, tmp_path):
     return p
 
 
-def _set_clients(monkeypatch, mod, existing):
+def _set_clients(monkeypatch, mod, existing, total=None):
     """read_personal を差し替え、指定の本人 ID だけがいる状態にする。読んだ問い合わせを返す。"""
     seen = []
 
     def fake(query, params=None):
         seen.append((query, params or {}))
+        if "AS total" in query:
+            return [{"total": total if total is not None else len(existing)}]
         if "count(c)" in query:
             return [{"n": 1 if (params or {}).get("id") in existing else 0}]
         return [{"clientId": cid, "displayCode": "C-ZZZZZZ"} for cid in sorted(existing)]
@@ -116,9 +118,24 @@ def test_login_takes_a_staff_token(app_mod, monkeypatch):
 def test_clients_are_ids_and_codes_without_names(app_mod, monkeypatch):
     seen = _set_clients(monkeypatch, app_mod, {CLIENT})
     r = TestClient(app_mod.app).get("/api/clients", headers=AUTH)
-    assert r.json() == [{"clientId": CLIENT, "displayCode": "C-ZZZZZZ"}]
-    query = seen[0][0]
-    assert "Name" not in query and "name" not in query
+    assert r.json() == {"clients": [{"clientId": CLIENT, "displayCode": "C-ZZZZZZ"}], "total": 1, "truncated": False}
+    for query, _ in seen:
+        assert "Name" not in query and "name" not in query
+
+
+def test_clients_are_newest_first_and_marked_when_cut(app_mod, monkeypatch):
+    """合流前の直し（2026-11-06 河原さん）：上限で黙って切らない。登録の新しい順で、切れたら truncated と件数"""
+    seen = _set_clients(monkeypatch, app_mod, {CLIENT, "CLI-01BBBBBBBBBBBBBBBBBBBBBBBB"}, total=5)
+    body = TestClient(app_mod.app).get("/api/clients", headers=AUTH).json()
+    assert body["truncated"] is True and body["total"] == 5 and len(body["clients"]) == 2
+    listing = next(q for q, _ in seen if "displayCode AS displayCode" in q)
+    assert "ORDER BY c.registeredAt DESC" in listing
+
+
+@pytest.mark.parametrize("page", ["record-form.html", "voice-recorder.html"])
+def test_pages_show_when_the_list_is_cut(page):
+    html = (_ROOT / "field-ui" / "static" / page).read_text(encoding="utf-8")
+    assert "data.truncated" in html and "data.clients" in html and "新しい順" in html
 
 
 def test_read_personal_goes_through_the_wrapper(app_mod, monkeypatch):

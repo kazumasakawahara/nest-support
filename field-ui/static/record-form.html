@@ -104,12 +104,18 @@
 // 今日の日付をデフォルトに
 document.getElementById('logDate').value = new Date().toISOString().split('T')[0];
 
-// 本人の一覧（ID と仮名だけ。名前は来ない）
+// 本人の一覧（ID と仮名だけ。名前は来ない。登録の新しい順。上限で切れたら truncated と件数が来る）
 fetch('/api/clients')
-    .then(r => r.ok ? r.json() : [])
-    .then(clients => {
+    .then(r => r.ok ? r.json() : {clients: [], total: 0, truncated: false})
+    .then(data => {
         const sel = document.getElementById('clientId');
-        clients.forEach(c => {
+        if (data.truncated) {
+            const note = document.createElement('p');
+            note.className = 'list-cut';
+            note.textContent = '本人が ' + data.total + ' 人います。登録の新しい順に ' + data.clients.length + ' 人だけ出しています（古い本人は出ていません）';
+            sel.parentNode.insertBefore(note, sel.nextSibling);
+        }
+        data.clients.forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.clientId;
             opt.textContent = c.displayCode;

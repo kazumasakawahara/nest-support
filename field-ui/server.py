@@ -158,11 +158,16 @@ async def api_login(data: LoginInput, response: Response):
 
 @app.get("/api/clients")
 async def api_clients(staff: str = Depends(require_staff)):
+    """本人の一覧（ID と仮名だけ）。登録の新しい順。包みの上限（mcp_guard.MAX_ROWS）で切れたら、黙らずに印を付ける
+    （truncated と全体の件数。2026-11-06 河原さん。台帳 G-86）。"""
     try:
-        return read_personal("MATCH (c:Client) WHERE c.status = 'Active' "
-                             "RETURN c.clientId AS clientId, c.displayCode AS displayCode ORDER BY displayCode")
+        clients = read_personal("MATCH (c:Client) WHERE c.status = 'Active' "
+                                "RETURN c.clientId AS clientId, c.displayCode AS displayCode "
+                                "ORDER BY c.registeredAt DESC, c.displayCode")
+        total = read_personal("MATCH (c:Client) WHERE c.status = 'Active' RETURN count(c) AS total")[0]["total"]
     except Exception:
         raise HTTPException(status_code=503, detail="いまは本人の一覧を読めません")
+    return {"clients": clients, "total": total, "truncated": total > len(clients)}
 
 
 # =============================================================================
