@@ -1,13 +1,13 @@
-# HANDOVER — 2026-11-06 redesign/adr-001（ADR-001 の作り直し。段階 A〜F 済み。段階 G の N-39 まで済み。止まる点 G-1 で止まっている）
+# HANDOVER — 2026-11-06 redesign/adr-001（ADR-001 の作り直し。段階 A〜G 済み。段階 H の N-40〜N-42 まで済み。止まる点 H-1 で止まっている）
 
 > 前の HANDOVER（2026-08-03 main。WAM NET スキル整合）は git 履歴（ce627d9）にある。そこに書かれた
 > `~/.config/nest/neo4j.env`・ポート 7687・`nest-support-neo4j` は**前の構成**で、この枝では使わない。
 
-## 再開コマンド（2026-11-06 12:45 に確かめた）
+## 再開コマンド（2026-11-06 14:30 に確かめた）
 
 ```bash
 cd ~/Dev-Work/project/nest-support && git switch redesign/adr-001
-uv run pytest -q                       # 841 passed, 129 skipped（DB を使う試験は skip）
+uv run pytest -q                       # 865 passed, 129 skipped（DB を使う試験は skip）
 uv run python scripts/check_drift.py   # ずれ 0 件
 ./scripts/doctor.sh                    # 環境の点検：29 passed, 2 warned, 0 failed（WARN は external-api の記録と設定のファイルが無いこと）
 ```
@@ -30,11 +30,11 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 
 | 想定 | 確かめ方 | 最終確認日 |
 |---|---|---|
-| origin の枝は 61a9963（F-3 の HANDOVER）まで（河原さんが push）。**9f65bf1・ce0a6cf・9de8587・8176555 とこの HANDOVER の直しが未 push（push が要る）** | `git status -sb`（`ahead N` が未 push の数） | 2026-11-06 |
-| **push は河原さんが打つ。** Claude は報告に「push が要る」と書くだけ。PR は作らない・main に合流させない | — | 2026-11-06 |
-| 前の DB（コンテナ `nest-support-neo4j`、`neo4j_data/` ほか）は止まっている。**実データが入っているものとして扱い、開かない・起動しない・消さない**（消すのは河原さん。N-05a） | `docker ps -a`（Exited のまま） | 2026-11-06 |
+| origin の枝は 120125b（G-80）まで（河原さんが push）。**244565d・6a8ba45・aa9d5a3・a3a8fd3 とこの HANDOVER の直しが未 push（push が要る）** | `git status -sb`（`ahead N` が未 push の数） | 2026-11-06 |
+| **push は河原さんが打つ。** Claude は報告に「push が要る」と書くだけ。PR は作らない・main に合流させない（合流させるかは止まる点 H-1 で河原さんが決める。Mac は合流しない） | — | 2026-11-06 |
+| 前の DB は河原さんが消した（N-05a。2026-11-06）：`nest-support-neo4j`・`neo4j_*`・`.quarantine/`・`~/.config/nest/neo4j-personal.env` が無い。`~/.config/nest/neo4j.env`（neo4j-agno-agent の設定）は残す | `docker ps -a`、`ls -d neo4j_* .quarantine` | 2026-11-06（河原さんの報告） |
 | `support-db-neo4j`（neo4j-agno-agent の共有層 7687）は restart=no で止まっている | `docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' support-db-neo4j` → `no` | 2026-11-06 |
-| `~/nest-support-hold/`（未コミットの写し 20 件・.bak）は 700・Time Machine の対象外のまま。F-3 で決めた：`COMPLETE_MANUAL.md`・`COMPLETE_MANUAL.html`・`家族聴き取りマニュアル.docx` は河原さんが実名の無いことを確かめたうえで `docs/archive/` にコミットする（Mac が git add する。docx は読まない）。残りの 17 件と .bak は、その後に河原さんが消す | `stat -f '%Sp' ~/nest-support-hold` | 2026-11-06（河原さんの報告） |
+| 写し 3 件は `docs/archive/` にコミットした（c5813e6）。`~/nest-support-hold/2026-11-05-uncommitted/` の残り 17 件と `.DS_Store` は河原さんが消す。N-09 の `.bak` の置き場所（`2026-11-05-n09-bak/`）は 2026-11-06 に見たとき無かった | `find ~/nest-support-hold -type f` | 2026-11-06 |
 | 職員のトークンの表 `~/.config/nest/field-ui-staff.json`（600）に、架空の職員 `STF-0000FAKESTAFF0000000000001` が一人いる（F-2 の画面の撮影で作った。DB の個人の側にも同じ職員がいる） | `uv run python scripts/staff_token.py list` | 2026-11-06 |
 | 資源の側の写しは `~/Dist/tsunagu-net-trial-20261104`（tsunagu-net の 2026-11-04 の一式）から読み込んだもの | `MANIFEST.json`（台帳 G-55） | 2026-11-05 |
 | tsunagu-net は `~/Dev-Work/tsunagu-net`、HEAD 3bf49ca。正典 SCHEMA v0.31・SEMANTICS v0.32（BRS-49）。**変えない** | `git -C ~/Dev-Work/tsunagu-net log -1` | 2026-11-06 |
@@ -45,29 +45,31 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 
 - 目標：nest-support を、ADR-001（`docs/adr/ADR-001-redesign-and-shared-contract.md`）と約束 v1.1 に沿って作り直す。計画は `docs/implementation-plan.md`（1 タスク＝1 行）
 - 進捗：
-  - [x] 段階 A〜E（N-00〜N-30、止まる点 4・E-1〜E-3）。経緯は git 履歴の前の HANDOVER（6e6ab61）と計画の表
-  - [x] 段階 F（N-32〜N-38、止まる点 F-1〜F-3。F-3 の承認 2026-11-06）
-  - [x] F-3 の直し：本人の廃棄は音声を先に消し、そのあと DB を消す（9f65bf1）。doctor の WARN の段・external-api v0.10 の NEXT-04（ce0a6cf）。計画に段階 G（9de8587）
-  - [x] 段階 G の最初の DB つきの試験：958 passed（N-38 の後）
-  - [x] N-39：本人を Claude の外で作る入口 `scripts/new_client.py`（add・find。8176555。台帳 G-79）
-  - [ ] **止まる点 G-1**：実データを入れる前の最後の確認（契約の確認の記録・機能の設定・NEXT-02 の歯止め・doctor の FAIL 0）
-  - [ ] `docs/archive/` に写し 3 件をコミットする（河原さんが実名の無いことを確かめてから）
-  - [ ] N-05a 前の DB の処分：河原さんが打つ（手順は計画の N-05a の行。`neo4j_plugins/` も消す）
+  - [x] 段階 A〜F（N-00〜N-38、止まる点 4・E-1〜E-3・F-1〜F-3）。経緯は git 履歴の前の HANDOVER と計画の表
+  - [x] 段階 G（N-39、止まる点 G-1。2026-11-06 河原さん）：写し 3 件を `docs/archive/` に（c5813e6）。契約の確認の記録はまだ作らない（台帳 G-80。external-api v0.11。120125b）
+  - [x] N-05a：前の DB の処分（河原さんが打った。計画の行に結果と残りを書いた。244565d）
+  - [x] N-40：運用の手順書 `docs/OPERATIONS.md`（6a8ba45。台帳 G-81）
+  - [x] N-41：契約の確認の記録と機能の設定の作り方 `docs/EXTERNAL_API_SETUP.md`（aa9d5a3。台帳 G-82）
+  - [x] N-42：SEMANTICS SEM-ENUM-03 の条番号（a3a8fd3。台帳 G-83。療育手帳だけ【未照合】のまま理由を書いた）
+  - [ ] **止まる点 H-1**：河原さんが N-40・N-41 の手順書を読む。`redesign/adr-001` を main に合流させるかを河原さんが決める（Mac は合流しない）
 
 ## グレーな判断
 
-G-1 で見ていただく、Claude が決めたこと（台帳 `docs/gray-decisions.md`）：
+H-1 で見ていただく、Claude が決めたこと（台帳 `docs/gray-decisions.md`）：
 
-- **G-79**（N-39）：二重登録は「同じ氏・名で、生年月日が同じか、どちらかに無い」とき止める（かなは見ない。それでも作る指定は付けない）。住まいの確度は Confirmed。find は仮名だけを出す。出力を Claude に貼らないことは文で知らせるだけ
-- **G-77 の直しの中**：音声を一つでも消せなければ DB は消さず、理由を出して止める
+- **G-81**（N-40）：doctor に項目を足さず、点検できない段は「人が確かめる」と書いた。field-ui と SOS が実データの DB を読まないことを見つけ、コードは変えず手順書に書いた。手元で打つ道具の無い段（二人目からの職員の登録、案の点検と承認）を書いた。音声を消す日は Claude の案と分けた
+- **G-82**（N-41）：例は NEXT-03。文字の項目は〈…〉、日付は書きかけで、写しただけでは通らない
+- **G-83**（N-42）：根拠は別の節 SEM-ENUM-03。生活保護は第 1 条。療育手帳は【未照合】（通知の名前と年は照合していない）
+- **G-79**（N-39）の承認の欄は、まだ空いている
 
 ## 未決論点
 
-1. **令和 8 年法律第 45 号の施行**：政令が出たら、後見・保佐を新しく使わないようゲートで止める（tsunagu-net の T-31a に合わせる。SEMANTICS SEM-GUARD-02）
-2. **N-05a**：前の DB の跡は、河原さんが原本を確かめてから河原さんが消す
-3. **G-1 の確認の材料**：`~/.config/nest/external-api-record.json`（契約の確認の記録）と `external-api-features.json`（機能の設定）がまだ無い。今は NEXT-01〜05 がすべて止まる（`egress.authorize` で確かめた）。個人の側の MCP は架空の印のある DB でしか動かない
-4. **ダッシュボード**：正典の SupportLog に感情・きっかけの項目を足すか（今は閉じている）
-5. **G-42 (2)**：職員を仮名で呼ぶ運用が使いにくければ、実データを入れる前にもう一度決める（N-39 で名前から仮名を引く入口はできた）
+1. **field-ui と SOS が実データの DB を読む条件**（N-40 で見つけた）：二つとも Claude と同じ包みの歯止め（`require_personal_allowed`：NEXT-02 か架空の印 `NestLiveProbe`）を通る。G-80 のままだと、実データの DB では画面に本人の一覧が出ず、SOS も読めない。画面は Claude に送らないので、この歯止めを画面に当てるかを決め直す
+2. **G-80**：実データを Claude に渡す経路を事業者向けの契約（API か Team/Enterprise）にするか【未決】
+3. **令和 8 年法律第 45 号の施行**：政令が出たら、後見・保佐を新しく使わないようゲートで止める（tsunagu-net の T-31a に合わせる。SEMANTICS SEM-GUARD-02）
+4. **手元で打つ道具が無い段**：二人目からの職員の登録、書き込みの案の点検と承認（`docs/OPERATIONS.md` の末尾）
+5. **音声を消す日**：決めていない
+6. **ダッシュボード**：正典の SupportLog に感情・きっかけの項目を足すか（今は閉じている）
 
 ## 既知の罠・注意
 
@@ -85,6 +87,6 @@ G-1 で見ていただく、Claude が決めたこと（台帳 `docs/gray-decisi
 
 ## 次タスク（優先度順）
 
-- A：止まる点 G-1（河原さんが、実データを入れる前の確認をする。G-79 の承認。push）
-- B：`docs/archive/` の写し 3 件（河原さんの確認の後）。N-05a の処分（河原さんが打つ）
+- A：止まる点 H-1（河原さんが手順書を読む。main に合流させるかを決める。G-79・G-81〜G-83 の承認。未決 1 の決め直し。push）
+- B：`docs/FIRST_5_OPERATIONS.md` は前の構成の書き方（Claude に名前で登録する）のまま。直すか外すかは別に決める（Claude は触っていない）
 - C：未照合の条番号は急がない
