@@ -158,6 +158,7 @@ def test_repository_canon_labels():
         "NgAction", "CarePreference", "Condition", "Wish", "LifeHistory", "CareRole",
         "Certificate", "PublicAssistance", "SupportLog",
         "Record", "Review", "AuditLog", "Organization", "Residence",
+        "RetentionDecision",  # v0.11（2026-11-06 河原さん。止まる点 F-1。台帳 G-74）
     }
 
 

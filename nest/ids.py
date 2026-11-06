@@ -19,7 +19,7 @@ LABEL_PREFIX = {
     "Client": "CLI", "Person": "PER", "Staff": "STF", "Involvement": "INV", "Residence": "RES", "Record": "REC",
     "NgAction": "NGA", "CarePreference": "CPF", "Condition": "CND", "Wish": "WSH", "LifeHistory": "LHS",
     "CareRole": "CRL", "Certificate": "CRT", "PublicAssistance": "PAS", "SupportLog": "SLG",
-    "Review": "REV", "AuditLog": "AUD",
+    "Review": "REV", "AuditLog": "AUD", "RetentionDecision": "RTD",
 }
 PREFIXES = frozenset(LABEL_PREFIX.values())
 

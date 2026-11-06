@@ -1,6 +1,6 @@
-# nest-support スキーマ正典 — v0.10
+# nest-support スキーマ正典 — v0.11
 
-- 状態：v0.10（2026-11-06。推奨ケア → 特性のリレーションを `ADDRESSES` から `RESPONDS_TO` に改めた（台帳 G-64）。v0.9 で取り込みの案から禁忌・推奨ケアの候補を作る形を §6 に書いた（台帳 G-63）。v0.8 で任意後見・任意代理を tsunagu-net の正典 v0.31（SEMANTICS v0.32 の BRS-49）に合わせた（§4.5、台帳 G-62）。v0.7 で関わりを本人以外の人にも向けられるようにした（§4.3、台帳 G-60）。v0.6 で関わりの種類の定義と推定の根拠を足した（§4.5、台帳 G-40・G-57）。それより前は 止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43・G-44 の判断（§9 の 10〜13）を反映した）
+- 状態：v0.11（2026-11-06。廃棄のための保存の判断 `RetentionDecision`・`DECIDES_ON`・`retentionDecision`、監査ログの `Purge` と件数の項目を、tsunagu-net の正典 v0.29〜v0.30 と同じ名前で足した（止まる点 F-1。台帳 G-74）。v0.10 で推奨ケア → 特性のリレーションを `ADDRESSES` から `RESPONDS_TO` に改めた（台帳 G-64）。v0.9 で取り込みの案から禁忌・推奨ケアの候補を作る形を §6 に書いた（台帳 G-63）。v0.8 で任意後見・任意代理を tsunagu-net の正典 v0.31（SEMANTICS v0.32 の BRS-49）に合わせた（§4.5、台帳 G-62）。v0.7 で関わりを本人以外の人にも向けられるようにした（§4.3、台帳 G-60）。v0.6 で関わりの種類の定義と推定の根拠を足した（§4.5、台帳 G-40・G-57）。それより前は 止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43・G-44 の判断（§9 の 10〜13）を反映した）
 - 根拠：ADR-001（承認 2026-11-05。D1〜D11。D3 は 2026-11-05 に 2 回改めた）、約束 v1.1（`~/Dev-Work/tsunagu-net/docs/contracts/nest-support-shared.md`。2026-11-05 改め。v1 は 2026-11-04 確定）
 - 扱う範囲：個人の側の DB の、ラベル・リレーション・プロパティ・列挙値の**名前と構造**、ID の形、制約。資源の側は tsunagu-net の正典を参照するだけ
 - 扱わない範囲：業務上の意味・運用の規則・列挙値の日本語の表示名（nest-support の意味の文書 `docs/SEMANTICS.md` に置く。まだ無い。ADR D1）。機械が読む JSON は N-07 で §11 に置き、この表と一致させる（N-08 の乖離の検査）
@@ -35,7 +35,7 @@
 
 | 対象 | 形 | 正規表現 |
 |---|---|---|
-| 個人の側のノード | 接頭辞 ＋ `-` ＋ ULID | `^(CLI|PER|STF|INV|RES|REC|NGA|CPF|CND|WSH|LHS|CRL|CRT|PAS|SLG|REV|AUD)-[0-9A-HJKMNP-TV-Z]{26}$` |
+| 個人の側のノード | 接頭辞 ＋ `-` ＋ ULID | `^(CLI|PER|STF|INV|RES|REC|NGA|CPF|CND|WSH|LHS|CRL|CRT|PAS|SLG|REV|AUD|RTD)-[0-9A-HJKMNP-TV-Z]{26}$` |
 | Organization（資源の側の ID。個人の側では発番しない） | `ORG-` ＋ ULID | `^ORG-[0-9A-HJKMNP-TV-Z]{26}$` |
 | 表示用の仮名 | `displayCode` | `C-` ＋ 乱数の 6 字。字は紛れやすいもの（0・O・1・I・l）を除いた 30 字（`23456789ABCDEFGHJKMNPQRSTVWXYZ`）。ゲートが付ける。名前・生年月日・連番から導かない。一意制約（§4.4）（2026-11-06 河原さん。台帳 G-52） |
 
@@ -52,10 +52,11 @@
 | `REC` | Record | Record | 同じ意味（§10） |
 | `REV` | Review | Review | 同じ意味 |
 | `AUD` | AuditLog | AuditLog | 同じ意味 |
+| `RTD` | RetentionDecision | RetentionDecision | 同じ意味（v0.11。tsunagu-net は世帯、nest-support は本人に結ぶ。§10） |
 | `CLI` | Client | — | nest-support だけ。tsunagu-net の接頭辞と重ならない |
 | `RES` | Residence | — | nest-support だけ。重ならない（tsunagu-net の `REC`・`REV`・`RTD`・`RUN` とも別） |
 | `NGA`・`CPF`・`CND`・`WSH`・`LHS`・`CRL`・`CRT`・`PAS`・`SLG` | NgAction・CarePreference・Condition・Wish・LifeHistory・CareRole・Certificate・PublicAssistance・SupportLog | — | nest-support だけ。重ならない |
-| — | — | `HH`・`MTG`・`DSC`・`COR`・`SUP`・`ONT`・`ITV`・`OUT`・`DST`・`CLS`・`RTD`・`RUN`・`PRP`・`ONM` | nest-support では使わない。同じ文字列を別の意味で使わない |
+| — | — | `HH`・`MTG`・`DSC`・`COR`・`SUP`・`ONT`・`ITV`・`OUT`・`DST`・`CLS`・`RUN`・`PRP`・`ONM` | nest-support では使わない。同じ文字列を別の意味で使わない |
 | `ORG` | Organization | Organization | 同じ意味・同じ形（`orgId`・`linkedAt` だけ）。資源の側の ID を持つ |
 
 ## 4. 個人の側
@@ -114,7 +115,8 @@
 |---|---|---|
 | `Record` | `recordId`✅, `kind`✅(enum), `text`✅, `quote`✅, `certainty`✅(enum), `informantKind`✅(enum), `sourceHash`✅, `aboutDate`(Date), `heardOn`(Date), `documentHash`, `providerCertainty`(enum), `receivedOn`(Date) | 聞いた記録（D4・D5 の根拠）。項目は tsunagu-net の `Record` とすべて同じ名前（§10）。面談は `kind: Interview`。`certainty`・`text`・`quote`・`informantKind`・`documentHash`・`providerCertainty` は作った後に変えない。`sourceHash` の一致で二重の登録を止める |
 | `Review` | `reviewId`✅, `domain`✅(enum), `reviewedAt`✅(DateTime), `informantKind`✅(enum), `note` | 確かめた記録。「確かめた上で 0 件」と「確かめていない」を分ける。追記だけ |
-| `AuditLog` | `auditId`✅, `at`✅(DateTime), `action`✅(enum), `targetLabel`✅, `targetId`✅, `requestId`✅, `selfApproval`(Boolean。action が Approve のときだけ) | 監査ログ。追記だけ。行った人は `ACTED_BY` で `Staff` の ID を指し、名前を残さない |
+| `AuditLog` | `auditId`✅, `at`✅(DateTime), `action`✅(enum), `targetLabel`✅, `targetId`✅, `requestId`✅, `selfApproval`(Boolean。action が Approve のときだけ), `retentionId`（Purge のとき：もとにした保存の判断）, `purgedCounts`(List。Purge のとき：消したものの種類ごとの件数 `Record:52` の形), `keptPersons`(Integer。Purge のとき：ほかの本人にもつながるので残した人の数) | 監査ログ。追記だけ。行った人は `ACTED_BY` で `Staff` の ID を指し、名前を残さない |
+| `RetentionDecision` | `retentionId`✅, `decidedOn`✅(Date), `decision`✅(enum), `reason`✅, `nextReviewOn`(Date) | 保存の判断（v0.11）。本人のデータを残すか消すか。常に CREATE。Administrator がゲートで書く。人の操作だけで、AI の案からは作らない（`origin: Human`、未確定を経ない）。`reason` に名前を書かない |
 
 - 人を指すプロパティは ID で持つ。名前で持たない
 - `Record.quote` は原文のその箇所をそのまま持つ（約束 4-1）。`text` は事実の言い換え。言い換えに引用に無い数字を足さない（約束 4-2。ゲートが検査する）
@@ -155,6 +157,7 @@
 | `APPROVED` | Staff → （Pending だったノード） | `at`✅(DateTime), `selfApproval`✅(Boolean) |
 | `AUDIT_FOR` | AuditLog → （任意のノード） | — |
 | `ACTED_BY` | AuditLog → Staff | — |
+| `DECIDES_ON` | RetentionDecision → Client | — |
 
 - 始点・終点の「（…ノード）」は、個人の側の任意のラベル（JSON の `"*"`）
 - `RELATED_TO` の向きは「始点の人が、本人の〈kind〉である」。例：`(母)-[:RELATED_TO {kind: Parent}]->(本人)`。同じ人が家族でキーパーソンでもあるときは、`kind` ごとに一本ずつ張る（同じ `Person` のまま。D8）
@@ -189,7 +192,8 @@
 | `birthDatePrecision`（tsunagu-net と同じ） | `Day`, `Month`, `Year`, `Unknown` |
 | `staffRole`（tsunagu-net の部分集合） | `Staff`, `Administrator` |
 | `reviewDomain` | `NgAction`, `CarePreference`, `KeyPerson`, `Guardianship`, `Certificate`, `CareRole` |
-| `auditAction` | `Create`, `Approve`, `Reject`, `Inactivate`, `LinkEvidence`, `RaiseContradiction`, `ResolveContradiction`, `Read` |
+| `auditAction` | `Create`, `Approve`, `Reject`, `Inactivate`, `LinkEvidence`, `RaiseContradiction`, `ResolveContradiction`, `Read`, `Purge` |
+| `retentionDecision`（tsunagu-net と同じ） | `Keep`, `Delete` |
 | `linkedBy` | `Gate`, `Human` |
 | `effectiveness` | `Effective`, `Ineffective`, `Neutral`, `Unknown` |
 | `priority` | `High`, `Medium`, `Low` |
@@ -309,6 +313,7 @@
 | `APPROVED.selfApproval` | 無い | 必須 | D9 |
 | `AuditLog.selfApproval` | 無い | 任意（Approve のとき） | D9 |
 | `Person` のプロパティ | `birthDate`・`recordedSex`・`nameConsentAt` など | `phone`・`note` | 本人は `Client`。周りの人には連絡先が要り、生年月日は要らない |
+| `DECIDES_ON` の終点 | Household | Client | 本人が中心（世帯を持たない）。廃棄は本人一人ずつ（v0.11。台帳 G-74） |
 | `guardianshipType` | 5 値 | 5 値（同じ） | v0.8 で tsunagu-net の v0.31 に合わせた（台帳 G-62）。前は §9 の 7 で nest-support だけ 4 値 |
 
 ## 11. 機械検証ブロック
@@ -342,7 +347,8 @@
       "SupportLog":       {"required": ["supportLogId", "date", "situation"], "optional": ["action", "effectiveness", "note", "nextAction"], "unique": ["supportLogId"]},
       "Record":           {"required": ["recordId", "kind", "text", "quote", "certainty", "informantKind", "sourceHash"], "optional": ["aboutDate", "heardOn", "documentHash", "providerCertainty", "receivedOn"], "unique": ["recordId"]},
       "Review":           {"required": ["reviewId", "domain", "reviewedAt", "informantKind"], "optional": ["note"], "unique": ["reviewId"]},
-      "AuditLog":         {"required": ["auditId", "at", "action", "targetLabel", "targetId", "requestId"], "optional": ["selfApproval"], "unique": ["auditId"]}
+      "AuditLog":         {"required": ["auditId", "at", "action", "targetLabel", "targetId", "requestId"], "optional": ["selfApproval", "retentionId", "purgedCounts", "keptPersons"], "unique": ["auditId"]},
+      "RetentionDecision": {"required": ["retentionId", "decidedOn", "decision", "reason"], "optional": ["nextReviewOn"], "unique": ["retentionId"]}
     },
     "relationships": {
       "RELATED_TO":          {"from": ["Person"], "to": ["Client"], "required": ["kind", "certainty", "evidenceRecordIds", "status"], "optional": ["rank", "since", "until"]},
@@ -371,14 +377,15 @@
       "REVIEWED":            {"from": ["Staff"], "to": ["Review"], "required": [], "optional": []},
       "APPROVED":            {"from": ["Staff"], "to": ["*"], "required": ["at", "selfApproval"], "optional": []},
       "AUDIT_FOR":           {"from": ["AuditLog"], "to": ["*"], "required": [], "optional": []},
-      "ACTED_BY":            {"from": ["AuditLog"], "to": ["Staff"], "required": [], "optional": []}
+      "ACTED_BY":            {"from": ["AuditLog"], "to": ["Staff"], "required": [], "optional": []},
+      "DECIDES_ON":          {"from": ["RetentionDecision"], "to": ["Client"], "required": [], "optional": []}
     }
   },
   "idPrefixes": {
     "Client": "CLI", "Person": "PER", "Staff": "STF", "Involvement": "INV", "Residence": "RES", "Record": "REC",
     "NgAction": "NGA", "CarePreference": "CPF", "Condition": "CND", "Wish": "WSH", "LifeHistory": "LHS",
     "CareRole": "CRL", "Certificate": "CRT", "PublicAssistance": "PAS", "SupportLog": "SLG",
-    "Review": "REV", "AuditLog": "AUD"
+    "Review": "REV", "AuditLog": "AUD", "RetentionDecision": "RTD"
   },
   "externalIds": {"Organization": "ORG"},
   "enums": {
@@ -395,7 +402,8 @@
     "birthDatePrecision": ["Day", "Month", "Year", "Unknown"],
     "staffRole": ["Staff", "Administrator"],
     "reviewDomain": ["NgAction", "CarePreference", "KeyPerson", "Guardianship", "Certificate", "CareRole"],
-    "auditAction": ["Create", "Approve", "Reject", "Inactivate", "LinkEvidence", "RaiseContradiction", "ResolveContradiction", "Read"],
+    "auditAction": ["Create", "Approve", "Reject", "Inactivate", "LinkEvidence", "RaiseContradiction", "ResolveContradiction", "Read", "Purge"],
+    "retentionDecision": ["Keep", "Delete"],
     "linkedBy": ["Gate", "Human"],
     "effectiveness": ["Effective", "Ineffective", "Neutral", "Unknown"],
     "priority": ["High", "Medium", "Low"],
@@ -410,7 +418,7 @@
     "NgAction.riskLevel": "riskLevel", "CarePreference.priority": "priority", "CareRole.priority": "priority",
     "Certificate.type": "certificateType", "PublicAssistance.type": "publicAssistanceType", "SupportLog.effectiveness": "effectiveness",
     "Record.kind": "recordKind", "Record.certainty": "certainty", "Record.providerCertainty": "certainty", "Record.informantKind": "informantKind",
-    "Review.domain": "reviewDomain", "Review.informantKind": "informantKind", "AuditLog.action": "auditAction",
+    "Review.domain": "reviewDomain", "Review.informantKind": "informantKind", "AuditLog.action": "auditAction", "RetentionDecision.decision": "retentionDecision",
     "RELATED_TO.kind": "clientRelationKind", "RELATED_TO.certainty": "certainty", "RELATED_TO.status": "status",
     "EVIDENCED_BY.linkedBy": "linkedBy"
   },
@@ -421,7 +429,8 @@
     "Condition.diagnosisDate": "Date", "Certificate.issuedDate": "Date", "Certificate.nextRenewalDate": "Date",
     "PublicAssistance.startDate": "Date", "PublicAssistance.endDate": "Date", "SupportLog.date": "Date",
     "Record.aboutDate": "Date", "Record.heardOn": "Date", "Record.receivedOn": "Date",
-    "Review.reviewedAt": "DateTime", "AuditLog.at": "DateTime", "AuditLog.selfApproval": "Boolean",
+    "Review.reviewedAt": "DateTime", "AuditLog.at": "DateTime", "AuditLog.selfApproval": "Boolean", "AuditLog.purgedCounts": "List", "AuditLog.keptPersons": "Integer",
+    "RetentionDecision.decidedOn": "Date", "RetentionDecision.nextReviewOn": "Date",
     "RELATED_TO.evidenceRecordIds": "List", "RELATED_TO.rank": "Integer", "RELATED_TO.since": "Date", "RELATED_TO.until": "Date",
     "PERFORMS.since": "Date", "PERFORMS.until": "Date",
     "EVIDENCED_BY.at": "DateTime", "CONTRADICTS.raisedAt": "DateTime", "CONTRADICTS.resolvedAt": "DateTime",
@@ -438,6 +447,7 @@
 
 ## 変更履歴
 
+- v0.11（2026-11-06）：河原さんの決定（止まる点 F-1。台帳 G-74）。本人のデータの廃棄（計画 N-32）のために、tsunagu-net の正典 v0.29（保存の判断）・v0.30（監査ログの Purge）と同じ名前で足した：ノード `RetentionDecision`（接頭辞 `RTD`）、`DECIDES_ON`（→ `Client`。tsunagu-net は → `Household`）、列挙値 `retentionDecision`（`Keep`・`Delete`）、`auditAction` の `Purge`、`AuditLog` の `retentionId`・`purgedCounts`・`keptPersons`。事案の終了（`CaseClosure`）と見直しの一覧は足さない
 - v0.10（2026-11-06）：河原さんの決定（台帳 G-64 の (b)）。推奨ケア → 特性のリレーション `ADDRESSES` を `RESPONDS_TO` に改めた。個人の側の読み取りの包みが、住所の項目（`address`）の部分一致で `ADDRESSES` を拒否するため。包みの検査は緩めない。tsunagu-net の正典・意味の文書に `RESPONDS_TO` は無い（2026-11-06 に確かめた）。新しい DB は `ADDRESSES` を一度も書いていない
 - v0.9（2026-11-06）：河原さんの決定（台帳 G-63）。取り込みの案に禁忌・推奨ケアの候補の欄を足した。候補は同じ案の事実を根拠に指し、確度を持たず、`Pending` で入る（§6）。推奨ケアにも由来によらず根拠の記録を求める（同日、河原さんの判断で AI 由来だけから広げた。人が直接知ったことは先に職員の `Record`（`kind: Observation`）を作って根拠にする）。ノード・リレーション・プロパティは変わらない
 - v0.8 追記（2026-11-06）：河原さんの判断（台帳 G-52 (1)）。§3 の `displayCode` の形を書いた（`C-` ＋ 乱数 6 字、紛れやすい字を除いた 30 字、一意制約）

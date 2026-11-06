@@ -22,7 +22,7 @@ def test_canon_has_responds_to_and_not_addresses():
     assert rels["RESPONDS_TO"]["from"] == ["CarePreference"] and rels["RESPONDS_TO"]["to"] == ["Condition"]
     assert "ADDRESSES" not in rels
     assert "| `RESPONDS_TO` | CarePreference → Condition |" in TEXT
-    assert TEXT.startswith("# nest-support スキーマ正典 — v0.10")
+    assert "- v0.10（2026-11-06）" in TEXT  # 版の見出しは v0.11 で進んだ（N-32a）
 
 
 def test_wrapper_accepts_responds_to():

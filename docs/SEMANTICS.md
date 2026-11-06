@@ -192,6 +192,9 @@ tsunagu-net と同じ列挙（`status`・`origin`・`certainty`・`informantKind
 | `auditAction` | `RaiseContradiction` | 食い違いを挙げた |
 | `auditAction` | `ResolveContradiction` | 食い違いを裁定した |
 | `auditAction` | `Read` | 読んだ |
+| `auditAction` | `Purge` | 消した（廃棄） |
+| `retentionDecision` | `Keep` | 残す |
+| `retentionDecision` | `Delete` | 消す |
 | `linkedBy` | `Gate` | 取り込みで結んだ |
 | `linkedBy` | `Human` | 人が結んだ |
 | `effectiveness` | `Effective` | 効果があった |
