@@ -20,7 +20,7 @@
 | N-03 | Gemini を既定で止める：文字起こし（`transcribe_audio`・field-ui の音声）・OCR（`file_readers`・`ocr_with_gemini`）を N-02 の歯止めに通す | 鍵があっても、設定と記録が無ければ外部への呼び出しが 0 回（偽の送信先で数える） | ✅ 2026-11-05（`lib/embedding.py` の `get_genai_client(row)` が呼ぶたびに許可を確かめる。埋め込みは NEXT-06、`multi_importer` の構造化は NEXT-07 で常に不許可。送り先を固定。`tests/test_gemini_gate.py` 10 件。全体 267 passed。台帳 G-28・G-29） |
 | N-04 | 埋め込みを外す（ADR D10）：登録時の埋め込み、`backfill_embeddings.py`、ベクトル索引の作成、意味検索、似た本人の検索。関係する既存の試験を改める | コードの中に埋め込みの呼び出しとベクトル索引の作成が残っていない検査 | ✅ 2026-11-05（`lib/embedding.py`・`scripts/backfill_embeddings.py`・`scripts/check_weight_consistency.py` を外した。Gemini の入口・文字起こし・OCR は `lib/genai.py`、面談記録の登録は `lib/meeting_record.py`（埋め込みなし）へ移した。`tests/test_no_embedding.py` 3 件・`tests/test_gemini_gate.py` 13 件。google-genai を 1.66.0 に固定。全体 267 passed。台帳 G-30〜G-33） |
 | N-05 | `multi_importer.py` の Gemini による構造化を外す（ADR D11-1） | 構造化の経路が外部を呼ばない検査。`structurize_with_gemini` の記録の文言「GEMINI_API_KEY が未設定です」の消し忘れが無いことを確かめる（台帳 G-29）。外した後は `tests/test_no_embedding.py` の許す行から NEXT-07 を除く |  ✅ 2026-11-05（`structurize_with_gemini` と、構造化の結果を DB に書く経路を外した。`multi_importer` は文字を取り出して出力するだけ。field-ui の音声は文字起こしを返すだけで、構造化も登録もしない。文言「GEMINI_API_KEY が未設定です」は鍵を読む `lib/genai.py` だけに残ることを試験で確かめる。`tests/test_no_structurize.py` 4 件。全体 270 passed。台帳 G-34） |
-| N-05a | 前の DB の処分を決める：`neo4j_data/`・`neo4j_backup/`（埋め込みの値を含みうる。要配慮個人情報から派生した値として扱う。台帳 G-33）と `neo4j_logs/`・`neo4j_livelihood_*`・`.quarantine/`。消すか、新しい DB に移すときに落とすか。新しい DB への切り替え（段階 D）の前に、河原さんが中身を確かめてから決める。**~/Dev-Work の下で前の DB（7688）を指す 7 か所（台帳 G-36）も一緒に扱う**。**N-09 で `~/nest-support-hold/2026-11-05-n09-bak/` に移した `docs/*.bak-*` の 19 件の処分も、ここで一緒に決める**（台帳 G-45。2026-11-05 河原さん） **前の DB のパスワードは `sos/.env.example` の履歴（GitHub にも上がっている）と `~/.config/nest/neo4j.env` にある（台帳 G-70）。処分するときは `~/.config/nest/neo4j.env` も一緒に消す。処分せず起動する場合は、起動の直後にパスワードを変える。** | — | |
+| N-05a | 前の DB の処分を決める：`neo4j_data/`・`neo4j_backup/`（埋め込みの値を含みうる。要配慮個人情報から派生した値として扱う。台帳 G-33）と `neo4j_logs/`・`neo4j_livelihood_*`・`.quarantine/`。消すか、新しい DB に移すときに落とすか。新しい DB への切り替え（段階 D）の前に、河原さんが中身を確かめてから決める。**~/Dev-Work の下で前の DB（7688）を指す 7 か所（台帳 G-36）も一緒に扱う**。**N-09 で `~/nest-support-hold/2026-11-05-n09-bak/` に移した `docs/*.bak-*` の 19 件の処分も、ここで一緒に決める**（台帳 G-45。2026-11-05 河原さん） **前の DB のパスワードは `sos/.env.example` の履歴（GitHub にも上がっている）と `~/.config/nest/neo4j.env` にある（台帳 G-70）。処分するときは `~/.config/nest/neo4j.env` も一緒に消す。処分せず起動する場合は、起動の直後にパスワードを変える。** | — | 段階 F の止まる点 F-1 で決める（材料は N-34。2026-11-06 河原さん） |
 | N-05b | 段階 A の締め（台帳 G-35 の手当て）：`.mcp.json` から Neo4j の MCP（`neo4j`・`neo4j-shared`）を外す（NEXT-11 の前倒し。N-22 の包みができたら入れ直す）。Claude Desktop の設定にある同じ項目の場所を河原さんに伝える。APOC は公式の文書だけで確かめ、「URL を読みに行ける」と仮定して扱う。~/Dev-Work の下で 7688・7687・`bolt://`・`neo4j://` を読み取りだけで探し、台帳に載せる | `.mcp.json` に Neo4j の MCP が無い（`tests/test_mcp_config.py`） | ✅ 2026-11-05（全体 271 passed。台帳 G-35・G-36） |
 
 ## 段階 B　正典（nest-support の中に持つ）
@@ -88,6 +88,25 @@
 | N-31（任意） | エコマップの動く図：DB につながず、Claude が出した Mermaid か JSON を読むだけの描画の部品（2026-11-06 河原さん。要るときだけ） | 描画の部品が DB・ネットワークにつながらない | |
 | N-32 | 本人のデータの廃棄の手順（2026-11-06 河原さん）。tsunagu-net の保存の判断（`RetentionDecision`。tsunagu-net `docs/SCHEMA.md` v0.29〜0.30、`docs/proposals/2026-11-05-purge-draft.md`、`scripts/retention_due.py`、`tests/test_gate_purge.py`）を手本に読む。廃棄は未確定（Pending）を経ず、人の操作だけで行い、操作の記録（AuditLog）に残す。正典に足すラベル・項目は河原さんの承認を得てから | 架空のデータで：廃棄が AI の案からは通らない・人の操作だけで消える・AuditLog が残る・ほかの本人に触れない | 段階 F の止まる点で決める |
 | N-33 | 個人の側の DB のバックアップの手順（2026-11-06 河原さん。河原さんは N-31 と書いたが、N-31 はエコマップの動く図に使っていたので 33 にした）。置き場所は Mac の中、権限 700、Time Machine の対象外。外のサービスには置かない（`docs/external-api.md` に行を足さない） | 架空のデータで、取る・戻すの両方。置き場所の権限が 700、Time Machine の除外が付いている | 段階 F の止まる点で決める |
+
+## 段階 F　決めごとと、前の構成の置き換え（2026-11-06 河原さん承認）
+
+- 順：N-34 → 止まる点 F-1 → N-32・N-33 → N-35 → N-36・N-37 → 止まる点 F-2 → N-38 → 止まる点 F-3。N-31（任意）は段階の外のまま
+- F-1 で河原さんが決めること：音声の保存の期間、バックアップの置き場所と周期、廃棄の手順、前の DB の処分（N-05a）と中身を新しい DB へ移すか、正典に足すラベル。N-34 では、それぞれ案を一つに絞って理由を添える
+- 前の DB は起動しない。tsunagu-net は変えない（読むだけ）
+
+| # | タスク | 先に書く試験 | 済みの判定 |
+|---|---|---|---|
+| N-34 | F-1 の材料をそろえる：(1) 音声の保存の期間・バックアップの置き場所と周期・廃棄の手順（tsunagu-net の保存の判断 `RetentionDecision` を読む）・正典に足すラベルの案を、それぞれ一つに絞り理由を添える。(2) N-05a の材料：前の DB（コンテナ・`neo4j_data/`）・`neo4j_backup/`・生活困窮者支援の跡（`neo4j_livelihood_*`）・`.quarantine/`・`~/nest-support-hold/` の .bak・`~/.config/nest/neo4j.env` の一覧と、それぞれ「消す／移す／残す」の案。**中身は開かない**（名前・種類・大きさ・日付だけ）。前の DB の中身を新しい DB へ移すかの案も出す | — | |
+| **止まる点 F-1** | N-34 の案を河原さんが決める（音声の保存の期間、バックアップ、廃棄、N-05a、移すか、正典のラベル）。移すと決めたら、ゲートを通る形の行を別に足す | | |
+| N-32 | 本人のデータの廃棄の手順（F-1 の決定どおり） | 上の N-32 の行のとおり | |
+| N-33 | 個人の側の DB のバックアップの手順（F-1 の決定どおり）。`scripts/backup.sh` を置き換える | 上の N-33 の行のとおり | |
+| N-35 | 認証の部品 `lib/auth.py` を `nest/` に移す | sos・field-ui の認証の試験がそのまま通る | |
+| N-36 | sos を作り直す：本人の入口は仮名（`displayCode`）だけで受け、名前を返さない。読むのは読み取りの包み | 503 の試験を「仮名だけ・名前を返さない」形に直す。**LINE の送信が NEXT-05 の歯止め（`nest.egress`）を通ること**（今は `egress.ensure("NEXT-05", …)` で通っている。置き換えの後も通ることを試験で固定する） | |
+| N-37 | field-ui を作り直す：読むのは読み取りの包み、登録は書き込みの案をゲートで通す。録音の画面は外部送信の一覧の NEXT-03 の行に合わせる | 新しい DB を直に書かない。**録音の文字起こしが NEXT-03 の歯止めを通ること**（今は `lib/genai.py` が `egress.authorize("NEXT-03")` で通っている。置き換えの後も通ることを試験で固定する） | |
+| **止まる点 F-2** | sos と field-ui の画面と、送る中身を見ていただく | | |
+| N-38 | 前の構成の残りを外す：`lib/` の残り・`setup.sh`・`setup.ps1`・`installer/`・`scripts/rotate_password.py`・`scripts/multi_importer.py`。`lib/genai.py` は `nest/` へ移す（台帳 G-30） | `tests/test_old_db_code_isolated.py` を「無いこと」を確かめる形に変える。**新しい Mac でゼロから動かす手順が `docs/SETUP_GUIDE.md` にあり、`scripts/doctor.sh` がその手順の結果を点検できる**（docker compose と、人が作る `~/.config/nest/` の設定のファイル。権限 600）。配布物（インストーラー）は作らない。要るなら段階 G の論点 | |
+| **止まる点 F-3** | 段階 F の終わり | | |
 
 ## 付録　neo4j-agno-agent の共有層（7687）・shared-schema に頼っている箇所（2026-11-05 時点）
 
