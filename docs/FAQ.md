@@ -1,59 +1,50 @@
 # FAQ & トラブルシューティング
 
+- 版：2026-11-06（E-3。台帳 G-71。実務の問いだけ残し、前の構成の問い・手順は消した。手順の正は `docs/SETUP_GUIDE.md`）
+
 ---
 
 ## よくある質問
 
 ### Q: データはどこに保存されますか？
 
-データはすべて**お使いのパソコン内**に保存されます。具体的には `nest-support/neo4j_data/` フォルダ内のDockerボリュームに格納されます。クラウドには送信されません。
+データはすべて**お使いの Mac の中**に保存されます。Docker で動く二つの DB（個人の側・資源の側）が、リポジトリの下の `nest_neo4j_personal_data/`・`nest_neo4j_resource_data/` に置きます（git には入りません）。DB は `127.0.0.1` だけで待ち受け、外からはつながりません。
 
-ただし、Claude Desktop を通じて会話する際、入力内容は Anthropic 社のサーバーに送信されます。個人情報を含むデータを入力する場合は、組織の個人情報保護規程と照らし合わせて運用してください。
+Claude と会話するとき、入力した内容と、読み取りの包みが返したもの（仮名・禁忌などの項目。実名・電話・住所・生年月日・記録の原文は返さない）は Anthropic 社のサーバーに送られます。何を送るかの一覧は `docs/external-api.md` です。実際の利用者のデータは、契約の確認の記録がそろうまで Claude に渡しません（`docs/PRIVACY_GUIDELINES.md`）。
 
-### Q: Claude Desktop の利用料金はいくらですか？
+### Q: Claude の利用料金はいくらですか？
 
-Claude Desktop は無料版でも基本的な操作が可能ですが、MCP（Neo4j接続）を使用するには Pro プラン（月額 $20 程度）が必要です。組織単位での契約については Anthropic 社のサイトをご確認ください。
-
-ICT導入支援事業の補助金（補助率10/10）が活用できる場合があります。
+プランと料金は変わることがあるので、Anthropic 社のサイトで確かめてください。組織で使うときは、契約の形（データの扱い）も合わせて確かめます。
 
 ### Q: ChatGPT でも使えますか？
 
-**使えません。Claude Desktop（Pro プラン）が必要です。**
+**使えません。Claude Desktop か Claude Code が要ります。**
 
-「プロジェクトのフォルダを ChatGPT に渡して、GPT 用に編集してもらう」という方法でも動作しません。理由は、ファイルの中身ではなく実行環境の仕組みの違いにあります。
-
-1. **ローカルのデータベースに接続できない** — 本システムは Claude Desktop がローカル MCP サーバーを起動し、パソコン内の Neo4j（localhost:7688）を読み書きする構造です。ChatGPT の MCP 対応（developer mode）はリモート HTTPS サーバー専用・Web 版のみで、ローカルで動くサーバーには接続できません
-2. **Skills に相当する仕組みがない** — 13 の Skills（話題に応じて Claude が業務手順書を自動で読み込む仕組み）は Claude 固有の機能です。テンプレートの文面を移植しても、それを実行する手段がありません
-3. **個人情報の設計が崩れる** — ChatGPT から使えるようにするにはデータベースをインターネットに公開する必要があり、「データ本体はローカル完結」という本システムのプライバシー設計（[PRIVACY_GUIDELINES.md](./PRIVACY_GUIDELINES.md)）が成立しなくなります
-
-Claude Desktop はこのシステムの UI・実行エンジンそのものであり、他の AI チャットで代替できる「道具の一部」ではありません。組織としてどうしても ChatGPT 側で運用したい場合は、API ラッパーの構築・認証・公開・個人情報保護を含む本格的な開発案件になります（フォルダを渡して依頼できる規模ではありません）。
+1. **手元の DB に読み取りの包みでつなぐ作りです** — 個人の側の DB は Mac の中の `127.0.0.1` だけで待ち受け、Claude が手元で起こす MCP（`nest-personal`・`nest-resource`）から読みます
+2. **スキルは Claude の仕組みです** — 話題に応じて Claude が手順書（`claude-skills/`）を読み込む仕組みを、他の AI チャットで動かす手段がありません
+3. **個人情報の設計が崩れます** — 他の AI からつなぐには DB を外に出す必要があり、「データ本体は手元で完結」という設計（`docs/PRIVACY_GUIDELINES.md`）が成り立たなくなります
 
 ### Q: 複数の担当者で使えますか？
 
-はい。Neo4j データベースは同じネットワーク内の複数のパソコンからアクセスできます。ただし、現在のバージョンではユーザー管理機能（誰がどの操作をしたかの厳密な追跡）は Claude の会話ログに依存しています。
+今の構成では、一台の Mac の中で使います。DB は `127.0.0.1` だけで待ち受けるので、ほかのパソコンからはつながりません。誰が何を書いたかは、ゲートの操作の記録（`AuditLog`）に残ります。複数の担当者で同じ DB を使う形は、まだ決めていません。
 
 ### Q: バックアップはどうすればよいですか？
 
-```bash
-# Neo4j データのバックアップ
-docker compose stop
-cp -r neo4j_data neo4j_data_backup_$(date +%Y%m%d)
-docker compose start
-```
-
-定期的なバックアップを推奨します。
+**手順はまだありません**（計画 N-33。段階 F で決める）。置き場所は Mac の中、権限 700、Time Machine の対象外とし、外のサービスには置かない方針です。手順ができるまで、`nest_neo4j_personal_data/` を自分でほかの場所に写さないでください。
 
 ### Q: データを別のパソコンに移行できますか？
 
-はい。`neo4j_data/` フォルダをコピーすることで移行できます。
+バックアップの手順（N-33）と一緒に決めます。それまでは移行しません。
 
 ### Q: インターネット接続は必要ですか？
 
-初回セットアップ時にはインターネット接続が必要です（Docker イメージのダウンロード、Node.js パッケージの取得）。セットアップ後は、Claude Desktop の利用時にインターネット接続が必要ですが、Neo4j データベース自体はオフラインで動作します。
+最初の準備（Docker のイメージ、Python の環境）と、Claude との会話にはインターネット接続が要ります。DB そのものは手元だけで動きます。
 
 ---
 
 ## トラブルシューティング
+
+**まず `./scripts/doctor.sh` を流してください。** 前の DB が動いていないこと、新しい DB の待ち受け、接続の設定のファイルの権限、`.mcp.json`、スキルのリンク、正典のずれを確かめ、FAIL の行に直し方を出します。よくあることは `docs/SETUP_GUIDE.md` の「10. うまくいかないとき」にあります。
 
 ### Docker が起動しない
 
@@ -65,213 +56,37 @@ docker compose start
 3. アイコンが表示されるまで1〜2分待つ
 4. それでも動かない場合: Docker Desktop を再インストール
 
-**対処法（Windows）**:
-1. タスクバー右下の通知領域にクジラのアイコンがあるか確認
-2. 起動していない場合: スタートメニューから「Docker Desktop」を検索して起動
-3. 「Docker Desktop is starting...」が消えるまで待つ（初回は数分かかることがあります）
-4. WSL2 バックエンドが有効か確認（Docker Desktop → Settings → General → Use the WSL 2 based engine）
-
 ```bash
 # Docker の状態確認
 docker info
 ```
 
-### Neo4j に接続できない
+### DB に接続できない
 
-**症状**: `curl: (7) Failed to connect to localhost port 7475`
-
-**対処法**:
 ```bash
-# コンテナの状態確認
-docker ps | grep neo4j
+# 二つが動いていて、127.0.0.1 だけで待ち受けているか
+docker ps --format '{{.Names}} {{.Ports}}'
 
-# コンテナが停止している場合、再起動
-docker compose up -d
+# 止まっていれば起動する（起動の直後は 30 秒ほど待つ）
+docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d
 
 # ログの確認
-docker logs nest-support-neo4j
+docker logs nest-redesign-personal
 ```
 
-**よくある原因**:
-- Docker Desktop が起動していない
-- ポートが他のアプリケーションに使われている（`lsof -i :7475` で確認）
-- メモリ不足（Docker Desktop の Settings → Resources でメモリを4GB以上に設定）
-
-### Claude Desktop で MCP ツールが表示されない
-
-**症状**: ツールアイコンに neo4j が表示されない
-
-**対処法（macOS）**:
-1. 設定ファイルの確認:
-```bash
-cat ~/Library/Application\ Support/Claude/claude_desktop_config.json
-```
-
-2. JSON の書式が正しいか確認（カンマの過不足に注意）
-
-3. 自動設定ツールで修復:
-```bash
-cd nest-support
-./installer/configure-claude.sh
-```
-
-4. Claude Desktop を完全に終了して再起動（メニューバーから Quit → 再度開く）
-
-**対処法（Windows）**:
-1. 設定ファイルの確認:
-```powershell
-Get-Content "$env:APPDATA\Claude\claude_desktop_config.json"
-```
-
-2. JSON の書式が正しいか確認（カンマの過不足に注意）
-
-3. 自動設定ツールで修復:
-```powershell
-cd nest-support
-.\installer\configure-claude.ps1
-```
-
-4. Claude Desktop を完全に終了して再起動（タスクトレイから右クリック → Quit → 再度起動）
-
-**共通の確認事項**:
-
-5. npx の動作確認:
-```bash
-npx -y @alanse/mcp-neo4j-server --help
-```
-
-### Skills が認識されない
-
-**症状**: Claude が Skills の機能を使ってくれない
-
-**対処法（macOS）**:
-```bash
-# シンボリックリンクの確認
-ls -la ~/.claude/skills/
-
-# リンク先が正しいか確認
-readlink ~/.claude/skills/neo4j-support-db
-
-# 再インストール
-cd nest-support
-./setup.sh --skills
-```
-
-**対処法（Windows）**:
-```powershell
-# Skills ディレクトリの確認
-dir $env:USERPROFILE\.claude\skills\
-
-# 再インストール
-cd nest-support
-.\setup.ps1 -Skills
-```
-
-> **Windows の注意**: シンボリックリンク作成に管理者権限が必要な場合、自動的にジャンクションリンクまたはコピーにフォールバックします。
-
-### 「エラー: Neo4j connection refused」と言われる
-
-**症状**: Claude が「Neo4j に接続できません」と返す
-
-**対処法**:
-1. Docker コンテナが起動しているか確認: `docker ps`
-2. ブラウザで http://localhost:7475 にアクセスできるか確認
-3. MCP 設定が `~/.config/nest/neo4j-personal.env`（URI は bolt://localhost:7688）を読んでいるか確認
-4. Docker Desktop のリソース設定でメモリを確認（4GB以上推奨）
-
-### デモデータの投入でエラーが出る
-
-**症状**: `load-demo-data.sh` 実行時にエラー
-
-**対処法**:
-```bash
-# Neo4j が起動しているか確認
-curl -s http://localhost:7475
-
-# 認証情報の確認（~/.config/nest/neo4j-personal.env から読む。値は画面に出さない）
-set -a; . ~/.config/nest/neo4j-personal.env; set +a
-curl -u "$NEO4J_USERNAME:$NEO4J_PASSWORD" http://localhost:7475/db/neo4j/tx/commit \
-  -H "Content-Type: application/json" \
-  -d '{"statements": [{"statement": "RETURN 1"}]}'
-```
-
-初回起動時は Neo4j のパスワード設定に時間がかかることがあります。1〜2分待ってから再実行してください。
-
-### Mac で「開発元を確認できない」と言われる
-
-**症状**: スクリプト実行時にセキュリティ警告
-
-**対処法**:
-```bash
-# ファイルの実行権限を確認・付与
-chmod +x installer/install-mac.sh
-chmod +x installer/configure-claude.sh
-chmod +x setup.sh
-```
-
-### Windows で「スクリプトの実行が無効」と言われる
-
-**症状**: `.ps1` ファイルを実行すると「このシステムではスクリプトの実行が無効になっています」と表示される
-
-**対処法**:
-```powershell
-# 現在のセッションのみ実行を許可（推奨）
-Set-ExecutionPolicy Bypass -Scope Process -Force
-
-# その後スクリプトを実行
-.\setup.ps1
-```
-
-> **注意**: `Set-ExecutionPolicy Bypass -Scope Process` は現在のPowerShellウィンドウのみに適用され、ウィンドウを閉じれば元に戻ります。システム全体の設定は変更しません。
-
-### Windows で Docker のメモリが不足する
-
-**症状**: Neo4j コンテナが起動後すぐに停止する、または「out of memory」エラー
-
-**対処法**:
-1. Docker Desktop → Settings → Resources → WSL Integration
-2. メモリを 4GB 以上に設定
-3. または `.wslconfig` で設定:
-
-```
-# %USERPROFILE%\.wslconfig に以下を記述
-[wsl2]
-memory=4GB
-```
-
-4. WSL を再起動: `wsl --shutdown` → Docker Desktop を再起動
-
-### Windows でポートが使用中と表示される
-
-**症状**: `docker compose up` で「port is already allocated」エラー
-
-**対処法**:
-```powershell
-# 使用中のポートを確認
-netstat -ano | findstr :7475
-netstat -ano | findstr :7688
-
-# 該当プロセスを確認（PID は上記コマンドの最後の列）
-tasklist | findstr <PID>
-```
-
-ポートを使用しているプロセスを終了するか、`docker-compose.yml` のポート番号を変更してください。
+接続の設定のファイル（`~/.config/nest/neo4j-redesign.env`）の中身は、画面に出したり人に見せたりしないでください。
 
 ### メモリ使用量が多い
 
 **症状**: パソコンの動作が遅くなった
 
 **対処法**:
-- Docker Desktop の Settings → Resources で Neo4j に割り当てるメモリを調整
-- `docker-compose.yml` の `NEO4J_server_memory_heap_max__size` を `256M` に下げる
-- 使わないときは `docker compose stop` でコンテナを停止
+- Docker Desktop の Settings → Resources で割り当てるメモリを調整
+- 使わないときは `docker compose --env-file ~/.config/nest/neo4j-redesign.env down` で止める
 
 ---
 
 ## サポート・問い合わせ
 
-困ったことがあれば、以下の方法でサポートを受けられます:
-
 1. **Claude に聞く**: 「セットアップで困っています」と話しかけてください
 2. **GitHub Issues**: バグ報告や機能要望は GitHub の Issues に投稿
-3. **ユーザーコミュニティ**: 他の利用者と情報交換（準備中）

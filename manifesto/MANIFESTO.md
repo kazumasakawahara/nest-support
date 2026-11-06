@@ -51,28 +51,25 @@ v4.0では、中核Skills（neo4j-support-db / provider-search / emergency-proto
 ### 第3の柱：危機管理ネットワーク (Safety Net)
 「誰が守るか」を定義する。緊急時の指揮命令系統と法的権限。
 
-- **主要ノード:** `:KeyPerson`, `:Guardian`, `:Hospital`, `:Doctor`
+- **主要ノード:** `:Person`（`RELATED_TO` の `kind` が `KeyPerson`・`PrimaryDoctor` など）、`:Involvement`（`kind` が `Medical`・`Guardianship`・`AgencyContract` など）
 - **マニフェスト価値:** 安全 (Safety)
 
-> 訂正（2026-07-12・DRIFT-02）: かかりつけ医は SCHEMA_CONVENTION v3.2 で
-> `Hospital.doctor` 文字列プロパティから独立した `:Doctor` ノード
-> （`(:Hospital)-[:HAS_DOCTOR]->(:Doctor)`）へ昇格済み。旧版の主要ノードには
-> `:Hospital` のみ記載されていた。
+> 2026-11-06（計画 E-3）：主要ノードを正典 `docs/SCHEMA.md` v0.10 に合わせた。前の版の `:KeyPerson`・`:Guardian`・`:Hospital`・`:Doctor` は、支える人（`Person` と `RELATED_TO`）と関わり（`Involvement`）にまとめられた。
 
 ### 第4の柱：法的基盤 (Legal Basis)
 「何の権利があるか」を定義する。支援を受けるための資格と行政の決定。
 
-- **主要ノード:** `:Certificate`, `:PublicAssistance`, `:Organization`
+- **主要ノード:** `:Certificate`, `:PublicAssistance`, `:Involvement`（後見・任意代理）
 - **マニフェスト価値:** 権利擁護 (Advocacy)
 
 ### 第5の柱：親の機能と移行 (Parental Transition)
 「親が担っている機能は何か」を定義し、その移転先を管理する。
 
-- **主要ノード:** `:Relative`, `:CareRole`, `:Service`, `:Supporter`
+- **主要ノード:** `:Person`（親）、`:CareRole`、`:Involvement`（代わりのサービス）
 - **リレーション:**
-  - `(:Relative)-[:PERFORMS]->(:CareRole)` 親がその役割を担っている
-  - `(:CareRole)-[:CAN_BE_PERFORMED_BY]->(:Service)` 代替サービスがある
-  - `(:CareRole)-[:CAN_BE_PERFORMED_BY]->(:Supporter)` 代替人物がいる
+  - `(:Person)-[:PERFORMS]->(:CareRole)-[:ROLE_FOR]->(:Client)` 親がその役割を担っている
+  - `(:CareRole)-[:CAN_BE_PERFORMED_BY]->(:Involvement)` 代わりのサービスがある
+  - `(:CareRole)-[:CAN_BE_PERFORMED_BY]->(:Person)` 代わりの人がいる
 - **マニフェスト価値:** 強靭性 (Resilience)
 
 ### 第6の柱：金銭的安全 (Financial Safety)
@@ -96,9 +93,9 @@ v4.0では、中核Skills（neo4j-support-db / provider-search / emergency-proto
 
 1. **禁忌事項 (NgAction / NgApproach)** - 二次被害を防ぐため
 2. **具体的対処 (CarePreference / EffectiveApproach)** - その場を落ち着かせるため
-3. **緊急連絡先 (KeyPerson)** - rank 順（rank 1 が最優先）
-4. **かかりつけ医 (Doctor / Hospital)**
-5. **法的代理人 (Guardian)**
+3. **支える人（キーパーソン → 家族ほか）** - 順位の順（1 が最優先）。連絡先は Claude から出さず、手元の緊急連絡カードと SOS の画面で確かめる
+4. **医療**（医療の関わりと主治医の続柄の人）
+5. **後見・任意代理**
 
 → 詳細: `protocols/emergency.md`
 
@@ -111,8 +108,8 @@ v4.0では、中核Skills（neo4j-support-db / provider-search / emergency-proto
 ### ルール2：親の機能不全トリガー (Parent Down Trigger)
 「母が入院した」「父が認知症になった」という入力があった場合、AIは直ちに以下を実行すること。
 
-1. その親 (:Relative) が担っていたタスク (:CareRole) を特定する
-2. そのタスクに紐づく代替手段 (:Service, :Supporter) を提示する
+1. その親（`:Person`）が担っていたタスク（`:CareRole`）を特定する
+2. そのタスクに紐づく代わり（`CAN_BE_PERFORMED_BY` の先の関わり・人）を提示する
 3. 代替手段が未登録の場合は、「緊急の支援調整が必要です」と警告する
 
 → 詳細: `protocols/parent_down.md`
