@@ -25,8 +25,7 @@ def sent(monkeypatch):
         raise AssertionError("SOS の文を作るのに DB を読まない")
 
     monkeypatch.setattr(sos, "send_line_message", _fake_send)
-    monkeypatch.setattr(sos, "get_client_info", _no_db)
-    monkeypatch.setattr(sos, "get_client_cautions", _no_db)
+    monkeypatch.setattr(sos, "run_query", _no_db, raising=False)
     return box
 
 

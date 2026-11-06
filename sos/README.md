@@ -60,7 +60,7 @@ POST /api/sos
 Content-Type: application/json
 
 {
-  "client_id": "山田健太",
+  "client_id": "C-ZZZZZZ",
   "latitude": 35.6812,
   "longitude": 139.7671,
   "accuracy": 15.0
@@ -75,13 +75,14 @@ Content-Type: application/json
 GET /api/client/{client_id}
 ```
 
-アプリ起動時にクライアント名を表示するために使用します。
+**閉じています（503）。** 前の DB から実名を返す入口で、ゲートも読み取りの包みも通らないため、2026-11-06 に閉じました（台帳 G-66）。sos の置き換え（後の段階）で作り直します。アプリは 503 でも SOS の送信の画面を止めません。
 
 ## SOS メッセージの内容
 
-送信されるメッセージには以下の情報が含まれます。
+送るのは次だけです（計画 N-28、`docs/external-api.md` NEXT-05。LINE は既定で使いません）。
 
-- クライアント名と発信時刻
-- 位置情報（Google Maps リンク）
-- キーパーソン（緊急連絡先）の名前・続柄・電話番号
-- 禁忌事項（LifeThreatening / Panic レベルの注意点）
+- SOS があったこと、誰のことか（仮名 `displayCode` の形のときだけ）、発信の時刻
+- 位置（Google マップのリンク）
+- 確かめる先：「連絡先と注意することは、手元の緊急連絡カードと SOS の画面で確かめてください」
+
+電話・禁忌・実名・キーパーソンの名前は送りません。文を作るのに DB を読みません。

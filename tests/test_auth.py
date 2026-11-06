@@ -132,18 +132,16 @@ def sos_mod(monkeypatch):
 def test_sos_send_is_unauthenticated(sos_mod, monkeypatch):
     """SOS 送信は APP_ACCESS_TOKEN 設定下でも無認証で成功する（非対称設計）。"""
     monkeypatch.setenv("APP_ACCESS_TOKEN", TOKEN)
-    monkeypatch.setattr(sos_mod, "get_client_info", lambda cid: None)
     client = TestClient(sos_mod.app)
     resp = client.post("/api/sos", json={"client_id": "誰か"})
     assert resp.status_code == 200
 
 
 def test_sos_client_lookup_requires_auth(sos_mod, monkeypatch):
-    """情報取得（GET /api/client/*）は認証必須。"""
+    """情報取得（GET /api/client/*）は認証必須。認証しても、前の DB から実名を返す入口は閉じた（E-3。503）。"""
     monkeypatch.setenv("APP_ACCESS_TOKEN", TOKEN)
-    monkeypatch.setattr(sos_mod, "get_client_info", lambda cid: {"name": "山田太郎"})
     client = TestClient(sos_mod.app)
 
-    assert client.get("/api/client/山田太郎").status_code == 401
-    ok = client.get("/api/client/山田太郎", headers={"Authorization": f"Bearer {TOKEN}"})
-    assert ok.status_code == 200
+    assert client.get("/api/client/C-ZZZZZZ").status_code == 401
+    closed = client.get("/api/client/C-ZZZZZZ", headers={"Authorization": f"Bearer {TOKEN}"})
+    assert closed.status_code == 503
