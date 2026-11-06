@@ -7,7 +7,7 @@
 
 ```bash
 cd ~/Dev-Work/project/nest-support && git switch stage-j
-uv run pytest -q                       # 925 passed, 142 skipped（DB を使う試験は skip）
+uv run pytest -q                       # 926 passed, 142 skipped（DB を使う試験は skip）
 uv run python scripts/check_drift.py   # ずれ 0 件
 ./scripts/doctor.sh                    # 環境の点検：29 passed, 2 warned, 0 failed（WARN は external-api の記録と設定のファイルが無いこと）
 ```
@@ -62,7 +62,7 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 - **G-85 の中**：知らない呼び出し元（`caller`）は拒否する（閉じる側）。Claude の判断
 - G-79・G-81〜G-85 は止まる点 H-1 で承認済み
 - G-88〜G-90 は止まる点 I-1 で承認済み
-- G-91 は承認済み（実装した）。**G-92**（G-91 の実装の Claude の判断。とくに「list で見える」を `list --rejected` にしたこと）は承認を取る
+- G-91 は承認済み（実装した）。G-92 は承認済み（理由は 200 字まで）
 
 ## 未決論点
 

@@ -8,7 +8,7 @@
   本人の事実の根拠の記録、本人についての記録を根拠にした関わり（親など本人以外の人に向けたものを含む。正典 v0.7）を並べる）。関わりには中身（種類・確度・終わり方・推定の根拠・注記・機関）も添える（止まる点 4。台帳 G-59）。引用は、記録ならその記録、
   事実なら根拠（EVIDENCED_BY）の記録、人ならその人から聞いた（TOLD_BY）記録から引く
 - 承認は Staff -[:APPROVED {at, selfApproval}]-> 対象 で残す。承認・却下とも AuditLog（Approve／Reject）を残す
-- 却下には理由を一行添えられる（任意）。AuditLog の reason に残す。名前を書かない（正典 v0.12。台帳 G-91）
+- 却下には理由を一行（200 字まで）添えられる（任意）。AuditLog の reason に残す。名前を書かない（正典 v0.12。台帳 G-91）
 手本：tsunagu-net の tsunagu/gate/approve.py（読むだけ）。
 """
 from datetime import datetime, timezone
@@ -19,6 +19,7 @@ from nest.gate import write as gw
 
 DECIDABLE = set(ids.LABEL_PREFIX) - gv.GATE_ONLY_LABELS - {"Staff"}
 NEW_STATUS = {"Approve": "Active", "Reject": "Inactive"}
+REASON_MAX = 200  # 差し戻しの理由の上限。read_quote の上限（nest.mcp_guard.QUOTE_MAX）と同じ（台帳 G-92）
 QUOTES = """MATCH (n:%s {%s: $id})
 OPTIONAL MATCH (n)-[:EVIDENCED_BY]->(e:Record)
 OPTIONAL MATCH (t:Record)-[:TOLD_BY]->(n)
@@ -152,6 +153,9 @@ def reject(driver, actor_staff_id, target, request_id, now=None, new_id=ids.new_
     out = {"ok": False, "errors": [], "requestId": request_id, "action": "Reject", "target": target}
     if reason is not None and (not isinstance(reason, str) or not reason.strip() or "\n" in reason or "\r" in reason):
         out["errors"].append("差し戻しの理由は一行の文字列で書く（空・改行は不可）")
+        return out
+    if reason is not None and len(reason) > REASON_MAX:
+        out["errors"].append("差し戻しの理由は %d 字まで（%d 字）" % (REASON_MAX, len(reason)))
         return out
     if not isinstance(target, dict):
         out["errors"].append("却下は一件ずつ（{label, id}）。一覧は渡せない")

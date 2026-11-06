@@ -115,7 +115,7 @@
 |---|---|---|
 | `Record` | `recordId`✅, `kind`✅(enum), `text`✅, `quote`✅, `certainty`✅(enum), `informantKind`✅(enum), `sourceHash`✅, `aboutDate`(Date), `heardOn`(Date), `documentHash`, `providerCertainty`(enum), `receivedOn`(Date) | 聞いた記録（D4・D5 の根拠）。項目は tsunagu-net の `Record` とすべて同じ名前（§10）。面談は `kind: Interview`。`certainty`・`text`・`quote`・`informantKind`・`documentHash`・`providerCertainty` は作った後に変えない。`sourceHash` の一致で二重の登録を止める |
 | `Review` | `reviewId`✅, `domain`✅(enum), `reviewedAt`✅(DateTime), `informantKind`✅(enum), `note` | 確かめた記録。「確かめた上で 0 件」と「確かめていない」を分ける。追記だけ |
-| `AuditLog` | `auditId`✅, `at`✅(DateTime), `action`✅(enum), `targetLabel`✅, `targetId`✅, `requestId`✅, `selfApproval`(Boolean。action が Approve のときだけ), `retentionId`（Purge のとき：もとにした保存の判断）, `purgedCounts`(List。Purge のとき：消したものの種類ごとの件数 `Record:52` の形), `keptPersons`(Integer。Purge のとき：ほかの本人にもつながるので残した人の数), `reason`（Reject のときだけ・任意：差し戻しの理由を一行。名前を書かない。決まりは `RetentionDecision.reason` と同じ） | 監査ログ。追記だけ。行った人は `ACTED_BY` で `Staff` の ID を指し、名前を残さない |
+| `AuditLog` | `auditId`✅, `at`✅(DateTime), `action`✅(enum), `targetLabel`✅, `targetId`✅, `requestId`✅, `selfApproval`(Boolean。action が Approve のときだけ), `retentionId`（Purge のとき：もとにした保存の判断）, `purgedCounts`(List。Purge のとき：消したものの種類ごとの件数 `Record:52` の形), `keptPersons`(Integer。Purge のとき：ほかの本人にもつながるので残した人の数), `reason`（Reject のときだけ・任意：差し戻しの理由を一行・200 字まで。名前を書かない。決まりは `RetentionDecision.reason` と同じ） | 監査ログ。追記だけ。行った人は `ACTED_BY` で `Staff` の ID を指し、名前を残さない |
 | `RetentionDecision` | `retentionId`✅, `decidedOn`✅(Date), `decision`✅(enum), `reason`✅, `nextReviewOn`(Date) | 保存の判断（v0.11）。本人のデータを残すか消すか。常に CREATE。Administrator がゲートで書く。人の操作だけで、AI の案からは作らない（`origin: Human`、未確定を経ない）。`reason` に名前を書かない |
 
 - 人を指すプロパティは ID で持つ。名前で持たない

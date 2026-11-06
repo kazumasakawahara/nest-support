@@ -129,7 +129,7 @@ uv run python scripts/review_proposals.py list --rejected                       
 ```
 
 - `--id` には一覧に出た ID（`REC-…`・`NGA-…`・`CPF-…` など）を一つだけ書きます。まとめての承認はしません
-- 差し戻しの理由（`--reason`）は AuditLog の `reason` に残り、`show` と `list --rejected` で見えます。理由は省けます。名前（本人・家族・職員）を書きません（台帳 G-91）
+- 差し戻しの理由（`--reason`）は AuditLog の `reason` に残り、`show` と `list --rejected` で見えます。理由は一行・200 字までで、省けます。名前（本人・家族・職員）を書きません（台帳 G-91）
 - 承認・差し戻しは AuditLog に残ります。自分で登録したものを承認すると「自己承認」と出て、`selfApproval` が付きます
 - 承認する前に、`show` で根拠の引用を読みます。引用が無いもの・引用と中身が合わないものは差し戻します
 - 実データでは、Claude に渡せない間（台帳 G-80）AI の案が無いので、この段は使いません
