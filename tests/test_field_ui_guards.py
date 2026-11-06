@@ -239,10 +239,10 @@ TRANSCRIPT = "（架空）散歩の途中で座り込んだ。" * 40  # 500 字�
 def test_voice_upload_keeps_the_audio_under_the_transcript_hash(app_mod, monkeypatch, tmp_path):
     import hashlib
     import stat
-    import lib.genai
+    import nest.genai
     _set_clients(monkeypatch, app_mod, {CLIENT})
     root = _voice_root(monkeypatch, app_mod, tmp_path)
-    monkeypatch.setattr(lib.genai, "transcribe_audio", lambda path: TRANSCRIPT)
+    monkeypatch.setattr(nest.genai, "transcribe_audio", lambda path: TRANSCRIPT)
     r = TestClient(app_mod.app).post("/api/voice/upload", data={"clientId": CLIENT},
                                      files={"audio": ("rec.webm", b"audio", "audio/webm")}, headers=AUTH)
     assert r.status_code == 200, r.text
@@ -255,10 +255,10 @@ def test_voice_upload_keeps_the_audio_under_the_transcript_hash(app_mod, monkeyp
 
 
 def test_voice_upload_keeps_nothing_when_transcription_fails(app_mod, monkeypatch, tmp_path):
-    import lib.genai
+    import nest.genai
     _set_clients(monkeypatch, app_mod, {CLIENT})
     root = _voice_root(monkeypatch, app_mod, tmp_path)
-    monkeypatch.setattr(lib.genai, "transcribe_audio", lambda path: None)
+    monkeypatch.setattr(nest.genai, "transcribe_audio", lambda path: None)
     r = TestClient(app_mod.app).post("/api/voice/upload", data={"clientId": CLIENT},
                                      files={"audio": ("rec.webm", b"audio", "audio/webm")}, headers=AUTH)
     assert r.status_code == 422

@@ -68,4 +68,4 @@ def test_canonical_db_operations_exposes_run_query():
 def test_consumer_modules_parse_and_import_cleanly():
     """run_query 差し替え後、消費者が構文・import 健全であること。"""
     importlib.import_module("lib.meeting_record")
-    importlib.import_module("lib.genai")
+    importlib.import_module("nest.genai")

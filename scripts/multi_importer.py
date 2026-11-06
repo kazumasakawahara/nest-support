@@ -63,7 +63,7 @@ def extract_text(file_path: Path) -> str | None:
     # 音声ファイル → Gemini で文字起こし
     if suffix in AUDIO_EXTENSIONS:
         try:
-            from lib.genai import transcribe_audio
+            from nest.genai import transcribe_audio
             text = transcribe_audio(str(file_path))
             if text:
                 _log(f"音声文字起こし完了: {file_path.name} ({len(text)}文字)")
@@ -75,7 +75,7 @@ def extract_text(file_path: Path) -> str | None:
     # 画像ファイル → Gemini OCR
     if suffix in _IMAGE_EXTENSIONS:
         try:
-            from lib.genai import ocr_with_gemini
+            from nest.genai import ocr_with_gemini
             text = ocr_with_gemini(
                 str(file_path),
                 instruction=(

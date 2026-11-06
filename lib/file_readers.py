@@ -232,7 +232,7 @@ def _ocr_fallback(file_bytes: bytes, suffix: str) -> str | None:
     GEMINI_API_KEY 未設定や lib.genai が利用できない場合は None を返す。
     """
     try:
-        from lib.genai import ocr_with_gemini
+        from nest.genai import ocr_with_gemini
     except ImportError:
         _log("lib.genai が利用できないため OCR スキップ", "WARN")
         return None

@@ -3,7 +3,7 @@
 - 構造化は NEXT-01（Claude）とゲートの経路だけ。Gemini で構造化して DB に書く経路を残さない
 - multi_importer は文書から文字を取り出すだけ。DB には書かない
 - field-ui の音声は文字起こし（NEXT-03）までで、構造化も登録もしない
-- 「GEMINI_API_KEY が未設定です」の文言は、鍵を実際に見る lib/genai.py だけに残る（台帳 G-29）
+- 「GEMINI_API_KEY が未設定です」の文言は、鍵を実際に見る nest/genai.py だけに残る（台帳 G-29）
 """
 import re
 
@@ -30,7 +30,7 @@ def test_no_structurize_path_in_code():
 def test_key_message_only_where_key_is_read():
     hits = [p for p in code_files() if p.endswith(".py")
             and "GEMINI_API_KEY が未設定です" in (REPO / p).read_text(encoding="utf-8")]
-    assert hits == ["lib/genai.py"]
+    assert hits == ["nest/genai.py"]
 
 
 def test_multi_importer_extracts_text_only(fake_genai, monkeypatch, tmp_path):
@@ -77,7 +77,7 @@ def test_field_ui_voice_transcribes_without_structuring(fake_genai, monkeypatch,
 
 
 def test_field_ui_voice_needs_the_next03_gate(fake_genai, monkeypatch, tmp_path):
-    """N-37：録音の文字起こしは NEXT-03 の歯止め（lib/genai.py の egress.authorize）を通る。許可が無ければ送らず、音声も残さない"""
+    """N-37：録音の文字起こしは NEXT-03 の歯止め（nest/genai.py の egress.authorize）を通る。許可が無ければ送らず、音声も残さない"""
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
     from tests.test_field_ui_guards import AUTH, CLIENT, _load_field_ui, _set_clients, _staff_table, _voice_root

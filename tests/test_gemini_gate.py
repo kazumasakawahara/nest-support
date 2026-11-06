@@ -15,7 +15,7 @@ pytest.importorskip("google.genai")
 from google import genai
 from urllib.parse import urlsplit
 
-import lib.genai as emb
+import nest.genai as emb
 from nest import egress
 from tests.test_egress import TODAY, good_entry, write
 
@@ -126,7 +126,7 @@ def test_only_one_place_builds_gemini_client():
                          cwd=egress.REPO, check=True).stdout.split()
     hits = [p for p in out if (egress.REPO / p).is_file() and "genai.Client(" in (egress.REPO / p).read_text(encoding="utf-8")
             and not p.startswith("tests/")]
-    assert hits == ["lib/genai.py"]
+    assert hits == ["nest/genai.py"]
 
 
 # --- G-28 の条件（2026-11-05 河原さん） --------------------------------------------
@@ -164,7 +164,7 @@ def test_client_host_comes_from_egress_rows():
     assert host == egress.DESTINATIONS["NEXT-03"].host == egress.DESTINATIONS["NEXT-04"].host
     rows = egress.rows_from_document(egress.DOCUMENT)
     assert rows["NEXT-03"][0] == rows["NEXT-04"][0] == host
-    assert "generativelanguage.googleapis.com" not in (egress.REPO / "lib" / "genai.py").read_text(encoding="utf-8")
+    assert "generativelanguage.googleapis.com" not in (egress.REPO / "nest" / "genai.py").read_text(encoding="utf-8")
 
 
 def test_google_genai_pinned_to_reviewed_version():

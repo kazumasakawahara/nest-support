@@ -6,7 +6,7 @@ lib/embedding.py から移した（N-04）。埋め込み（音声・文字起�
 import os
 import sys
 
-from lib.genai import _AUDIO_MIME_TYPES, transcribe_audio
+from nest.genai import _AUDIO_MIME_TYPES, transcribe_audio
 
 
 def log(message: str, level: str = "INFO"):
