@@ -106,7 +106,7 @@ tsunagu-net の SEMANTICS v0.32 の BRS-49 と ENU-05・10・20 に合わせた�
 
 正典 §4.5 の列挙値の日本語の表示名。コード（`nest/semantics.py`）はこの表から読む。コードに日本語名の対応表を直に書かない。
 tsunagu-net と同じ列挙（`status`・`origin`・`certainty`・`informantKind`・`recordKind`・`howEnded`・`guardianshipType`・`staffRole`、`involvementKind` の 9 つ、`clientRelationKind` の親族の 8 つ）は、tsunagu-net の SEMANTICS §3（ENU-01〜ENU-20）の日本語に合わせた。ほかは nest-support で付けた（2026-11-06。止まる点 E-1 で見ていただく）。
-`certificateType`・`publicAssistanceType` の根拠の条番号は、まだ書いていない【未照合】（正典 §4.5。e-Gov で照合してから足す）。
+`certificateType`・`publicAssistanceType` の根拠の法令と条番号は SEM-ENUM-03（2026-11-06 計画 N-42 で e-Gov で照合した）。
 
 ### SEM-ENUM-01 表示名
 
@@ -231,3 +231,23 @@ tsunagu-net と同じ列挙（`status`・`origin`・`certainty`・`informantKind
 | 未確認 | `Hearsay` |
 | 本人の話 | `SelfReport` |
 | 確認済み | `Confirmed` |
+
+### SEM-ENUM-03 手帳・受給者証と年金・手当の根拠
+
+2026-11-06 計画 N-42 で e-Gov（法令検索 API v2）で照合した。条番号は交付・支給を定める条。`Other` は根拠を持たない。
+
+| 列挙 | 値 | 根拠 |
+|---|---|---|
+| `certificateType` | `IntellectualDisabilityHandbook` | 【未照合：療育手帳は法律・政令に交付の条が無い。国の通知（昭和 48 年の厚生事務次官通知「療育手帳制度について」）と都道府県・政令市の要綱で交付される。通知・要綱は e-Gov の外で、照合していない】 |
+| `certificateType` | `PhysicalDisabilityHandbook` | 身体障害者福祉法（昭和24年法律第283号）第15条（第4項で都道府県知事が交付） |
+| `certificateType` | `MentalDisabilityHandbook` | 精神保健及び精神障害者福祉に関する法律（昭和25年法律第123号）第45条（第2項で都道府県知事が交付。第4項で 2 年ごとの認定） |
+| `certificateType` | `DisabilityServiceRecipientCertificate` | 障害者の日常生活及び社会生活を総合的に支援するための法律（平成17年法律第123号）第22条第8項 |
+| `certificateType` | `ChildDayServiceRecipientCertificate` | 児童福祉法（昭和22年法律第164号）第21条の5の7第9項 |
+| `certificateType` | `SupportiveMedicalCareCertificate` | 障害者の日常生活及び社会生活を総合的に支援するための法律（平成17年法律第123号）第54条第3項（医療受給者証） |
+| `publicAssistanceType` | `PublicAssistance` | 生活保護法（昭和25年法律第144号）第1条（法律の目的。保護の種類と範囲は同法の第2章以下） |
+| `publicAssistanceType` | `DisabilityBasicPension` | 国民年金法（昭和34年法律第141号）第30条（支給要件） |
+| `publicAssistanceType` | `DisabilityEmployeesPension` | 厚生年金保険法（昭和29年法律第115号）第47条（受給権者） |
+| `publicAssistanceType` | `SpecialDisabilityAllowance` | 特別児童扶養手当等の支給に関する法律（昭和39年法律第134号）第26条の2（支給要件） |
+| `publicAssistanceType` | `SpecialChildRearingAllowance` | 特別児童扶養手当等の支給に関する法律（昭和39年法律第134号）第3条（支給要件） |
+
+- 児童福祉法 第21条の5の7 と、特別児童扶養手当等の支給に関する法律 第26条の2 は、照合の道具が「の」の付く条を引けないので、e-Gov の API から法令の全文を取って本文を確かめた
