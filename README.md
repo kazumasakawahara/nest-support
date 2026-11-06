@@ -1,50 +1,21 @@
 # nest-support
 
-**Claude-Native 親なき後支援データベース**
+**親なき後の支援の情報を、本人の尊厳と安全のために残すデータベース**
 
-知的障害・精神障害のある方の支援情報を Neo4j グラフデータベースに蓄積し、**Claude Desktop / Claude Code + Skills + Neo4j MCP** で運用するシステムです。
+知的障害・精神障害のある方の支援の情報（禁忌・推奨ケア・支える人・関わる機関・支援の記録）を Neo4j に蓄え、Claude Desktop / Claude Code とスキルで読み書きの案を作ります。親が長年かけて蓄えてきた「我が子を守るための暗黙知」を、親なき後も働く形で引き継ぐためのものです。
 
-親が長年かけて蓄積してきた「我が子を守るための暗黙知」を、親なき後も機能する社会的システムへと継承するためのデジタル・アーカイブです。
+> **2026-11 の作り直し（ADR-001）について**：この README は、作り直しの枝（`redesign/adr-001`）の状態を書いています。前の構成（共有の DB、埋め込みによる意味検索、Gemini による構造化、口コミ）はやめました。経緯は `docs/adr/ADR-001-redesign-and-shared-contract.md`、作業の計画は `docs/implementation-plan.md`。
 
 ---
 
 ## 特徴
 
-- **Single Layer Architecture** — Claude が UI・分析・データ操作のすべてを担当。Streamlit への依存なし
-- **Skills-First** — 13の Claude Skills が Cypher テンプレートを提供し、汎用 Neo4j MCP 経由でクエリを実行
-- **Safety First** — 緊急時は禁忌事項（NgAction）を最優先で提示し、二次被害を防止
-- **Guardian Layer** — スキーマバリデーション（camelCase 自動変換・廃止リレーション修正・列挙値検証）でデータ品質を担保
-- **Oracle Layer** — 感情トレンド分析・リスク予兆検知・ケアパターン自動発見で予防的支援を実現
-- **セマンティック検索** — Gemini Embedding 2 + Neo4j Vector Index による意味ベースの類似検索
-- **音声面談記録** — 音声ファイルから自動文字起こし + dual embedding（音声ネイティブ + テキスト）で面談記録を登録・検索
-- **多機能インポーター** — 音声・画像・PDF・テキストから感情データを含む構造化データを一括登録
-- **ハイブリッド・インサイト・ビュー** — D3.js による感情時系列チャート + 物理グラフ + AI相談プロンプト
-- **クライアント類似度分析** — 支援特性に基づくクライアント間の類似度比較・類似ケース検索
-- **現場UI (Field UI)** — モバイルファーストの PWA で現場スタッフがスマホから支援記録入力・感情サマリー確認・音声ワンタップ録音（FastAPI サーバー）
-- **SOS 緊急通知** — スマホ PWA から LINE グループへ即時通知（FastAPI 独立サービス）
-
-## アーキテクチャ
-
-```
-ユーザー → Claude Desktop / Claude Code
-              ↓
-         Skills (SKILL.md)  ←  13のスキルがCypherテンプレートを提供
-              ↓
-         Neo4j MCP (@alanse/mcp-neo4j-server)
-              ↓
-         Neo4j Graph Database
-
-Guardian Layer (schema_validator.py)  ← 全データ書き込み時にスキーマ検証
-Oracle Layer (insight_engine.py)      ← 感情トレンド分析・リスク予兆検知
-Slim View (D3.js hybrid_insight)      ← ハイブリッド・インサイト・ビュー
-Field UI (FastAPI :8001)              ← 現場スタッフ向けモバイルPWA
-```
-
-```
-スマホ → SOS PWA → FastAPI → LINE Messaging API → 支援者グループ LINE
-                      ↓
-                  Neo4j（クライアント情報取得）
-```
+- **読むのは包みだけ、書くのはゲートだけ**：Claude は読み取りだけの MCP（`nest-personal`・`nest-resource`）で DB を読みます。書き込みはゲート（`nest/gate/`）だけが行い、すべてに操作の記録が付きます
+- **名前を Claude に渡さない**：本人は仮名（`displayCode`。`C-` と 6 字）で呼びます。包みは実名・かな・電話・住所・生年月日を返しません
+- **根拠のある記録**：禁忌・推奨ケアなどの事実は、聞いた記録（`Record`。原文からの引用と確度）に結びます。AI が作った案は「未確定」で入り、職員が一つずつ承認します
+- **「無い」と「聞いていない」を分ける**：「無い」と確かめたことは確認の記録（`Review`）として職員が残します
+- **Safety First**：緊急時は禁忌を最初に出します
+- **外に送らない**：外の送り先は `docs/external-api.md` の一覧だけで、既定は送りません。支援の情報を埋め込み（ベクトル）にしません
 
 ## 5つの価値 (The 5 Values)
 
@@ -56,391 +27,75 @@ Field UI (FastAPI :8001)              ← 現場スタッフ向けモバイルPW
 | **強靭性** | Resilience | 親が倒れた際、その機能を即座に代替できるバックアップ体制を可視化する |
 | **権利擁護** | Advocacy | 本人の声なき声を拾い上げ、法的な後ろ盾と紐づける |
 
-## クイックスタート
+## 構成
 
-### 前提条件
+```
+職員 → Claude Desktop / Claude Code → スキル（SKILL.md の照会）
+            │ 読む                                  │ 書き込みの案（JSON）
+            ▼                                       ▼
+  MCP nest-personal ─→ 個人の側の Neo4j ←── ゲート（nest/gate/。職員が通す）
+  MCP nest-resource ─→ 資源の側の Neo4j（事業所などの公開情報。tsunagu-net の写し。読むだけ）
+```
 
-| ツール | 用途 | 必須? |
-|-------|------|:---:|
-| [Docker Desktop](https://docs.docker.com/get-docker/) | Neo4j データベース | 必須 |
-| [Claude Desktop](https://claude.ai/download) | AI 操作 | 必須 |
-| [Node.js](https://nodejs.org/) (npx) | Neo4j MCP サーバー | 必須 |
-| [Gemini API Key](https://aistudio.google.com/apikey) | 音声文字起こし・OCR・テキスト構造化・embedding | 推奨 |
+- DB は二つとも使う人の Mac の Docker で動き、`127.0.0.1` だけで待ち受けます
+- 正典（ノード・リレーション・項目）は `docs/SCHEMA.md`、意味と表示名は `docs/SEMANTICS.md`
 
-> **Gemini API Key について**: 多機能インポーター（音声・画像→構造化登録）やセマンティック検索に必要です。未設定でもスキル操作やデータ閲覧は可能ですが、embedding 付与・OCR・音声処理はスキップされます。
+## はじめかた
 
-### セットアップ
+`docs/QUICK_START.md`（手順の要点）と `docs/SETUP_GUIDE.md`（詳しい手順）を読んでください。
 
 ```bash
 git clone https://github.com/kazumasakawahara/nest-support.git
 cd nest-support
-
-# 1. セットアップ（Neo4j起動 + Skills インストール）
-chmod +x setup.sh
-./setup.sh
-
-# 2. Claude Desktop 設定ファイルに Neo4j MCP を追加
-# Mac: ~/Library/Application Support/Claude/claude_desktop_config.json
-# テンプレート: configs/claude_desktop_config.json
+uv sync
+uv run pytest -q                       # DB を使わない試験
+uv run python scripts/check_drift.py   # 正典の表と JSON のずれ
+./scripts/doctor.sh                    # 環境の点検（前の DB が動いていない・待ち受け・設定・リンク）
 ```
 
-`claude_desktop_config.json` に追加する内容:
-
-```json
-{
-  "mcpServers": {
-    "neo4j": {
-      "command": "sh",
-      "args": ["-c", "set -a; . \"$HOME/.config/nest/neo4j-personal.env\"; set +a; exec npx -y @alanse/mcp-neo4j-server"]
-    },
-    "neo4j-shared": {
-      "command": "sh",
-      "args": ["-c", "set -a; . \"$HOME/.config/nest/neo4j.env\"; set +a; exec npx -y @alanse/mcp-neo4j-server"]
-    }
-  }
-}
-```
-> パスワードは設定ファイルに書かず、`~/.config/nest/neo4j-personal.env`（個人層 7688）と `~/.config/nest/neo4j.env`（共有層 7687）から読む。
-> `neo4j` が利用者・家族の個人層、`neo4j-shared` が事業所（ServiceProvider）の共有層。詳しくは neo4j-agno-agent の `docs/DB_REGISTRY.md`。
-
-### 環境整合チェック（推奨）
-
-セットアップ後は `doctor.sh` で全体の整合性（Docker コンテナ・Bolt 疎通・Skills symlink・MCP 設定）を一発確認できます。
-
-```bash
-./scripts/doctor.sh
-```
-
-問題があれば具体的な FAIL 項目が表示されます。常時 **All PASS** を目標にしてください。
-
-### 動作確認
-
-Claude Desktop を再起動し、以下のように話しかけてください:
-
-```
-データベースの統計情報を教えて
-```
-
-```
-以下の文章からクライアント情報を抽出して登録してください。
-
-健太は1995年3月15日生まれです。血液型はA型。
-自閉スペクトラム症と診断されています。
-後ろから急に声をかけないでください。パニックになります。
-パニック時は静かな部屋に移動して背中をゆっくりさすると落ち着きます。
-```
-
-## Skills 一覧（13スキル）
-
-| Skill | 対象業務 | 説明 |
-|-------|----------|------|
-| `neo4j-support-db` | 障害福祉クライアント管理 | プロフィール、支援記録、ケアパターン発見、更新期限チェック |
-| `provider-search` | 事業所検索・口コミ | サービス種類・地域・空き状況での検索、口コミ評価 |
-| `emergency-protocol` | 緊急時対応 | Safety First プロトコル（禁忌→推奨ケア→連絡先→医療→後見人）|
-| `ecomap-generator` | エコマップ・インサイト生成 | D3.js ハイブリッド・インサイト・ビュー、ノードクリックでAI相談 |
-| `narrative-extractor` | テキスト→構造化データ | 母親の語りやファイルから JSON 抽出→Neo4j 登録 |
-| `html-to-pdf` | HTML→PDF 変換 | ヘッドレス Chrome による全自動 PDF 変換（手動操作不要） |
-| `inheritance-calculator` | 法定相続計算 | 日本民法に基づく相続人・相続分の計算 |
-| `wamnet-provider-sync` | WAM NET 同期 | 障害福祉サービス情報公表システムからのデータ同期 |
-| `data-quality-agent` | データ品質チェック | 更新期限アラート・データ欠損・スキーマ違反の検出 |
-| `onboarding-wizard` | 新規クライアント登録 | 7本柱に沿った対話型情報収集・Neo4j 構造化登録 |
-| `resilience-checker` | 親なき後レジリエンス診断 | CareRole カバー率診断・福祉サービス候補の検索 |
-| `visit-prep` | 訪問準備ブリーフィング | 禁忌事項・推奨ケア・直近記録の自動収集 |
-| `insight-agent` | 予兆検知・インサイト分析 | 感情トレンド分析、連鎖リスク検知、ケアパターン自動発見 |
-
-## データ登録の方法（narrative-extractor）
-
-このシステムの核心機能です。親御さんの語りや支援記録などの**自然な日本語テキスト**を Claude に渡すだけで、構造化データとして Neo4j に登録できます。
-
-### 登録フロー
-
-```
-テキスト入力 → Claude が JSON に構造化 → ユーザー確認 → Neo4j に登録
-```
-
-旧システム（Streamlit + Gemini）の4ステップ GUI を、**Claude との会話**で実現しています。
-
-### トリガーワード
-
-以下のフレーズを含めると `narrative-extractor` スキルが自動的に選択されます：
-
-- **「抽出して」「構造化して」「登録してください」**
-- **「聞き取り内容」「面談記録」「ナラティブ」**
-- **「情報を追加して」**（既存クライアントへの追記）
-- **ファイル添付**（.docx, .xlsx, .pdf, .txt）
-
-### プロンプト例
-
-**基本的な使い方:**
-```
-以下の文章からクライアント情報を抽出してデータベースに登録してください。
-
-健太は1995年3月15日生まれです。血液型はA型。
-自閉スペクトラム症と診断されています。
-後ろから急に声をかけないでください。パニックになります。
-パニック時は静かな部屋に移動して背中をゆっくりさすると落ち着きます。
-```
-
-**母親の語り（物語調）:**
-```
-以下の聞き取り内容を構造化してデータベースに登録してください。
-
-うちの太郎はね、昭和62年の夏に生まれたんです。小さい頃から
-音に敏感で、運動会のピストルの音で泣いてしまって...。
-今でも大きな音は絶対ダメです。掃除機も怖がります。
-でもね、音楽は好きなんですよ。童謡を歌ってあげると
-にこにこして、すごく穏やかになるの。
-かかりつけは北九州中央病院の田中先生です。月に一回通ってます。
-療育手帳はA1で、来年の3月に更新です。
-```
-
-**既存クライアントへの追記:**
-```
-山田健太さんの情報に以下を追加してください。
-かかりつけは産業医科大学病院の中村先生（精神科）です。
-```
-
-**支援記録の登録:**
-```
-以下の支援記録をデータベースに登録してください。
-
-2024年12月15日、訪問支援。担当：鈴木。
-健太さんが昼食時にスプーンを投げてしまった。
-隣の利用者が大きな声を出したのがきっかけ。
-別室に誘導し、好きな音楽をかけたところ10分で落ち着いた。
-この対応は効果的だった。
-```
-
-### 自動抽出される情報
-
-テキスト中の表現から、以下のデータが自動的に分類・抽出されます：
-
-| テキスト中の表現 | 抽出先 | 重要度 |
-|----------------|--------|--------|
-| 「〜しないで」「〜するとパニック」「絶対ダメ」 | **NgAction（禁忌事項）** | 最重要 |
-| 「〜すると落ち着く」「〜が好き」「〜の方法で」 | CarePreference（推奨ケア） | 高 |
-| 「〜と診断」「〜の特性がある」 | Condition（特性・診断） | 高 |
-| 「母は〜」「連絡先は〜」 | KeyPerson（緊急連絡先） | 高 |
-| 「〜病院の〜先生」 | Hospital + Doctor（`(:Hospital)-[:HAS_DOCTOR]->(:Doctor)`） | 中 |
-| 「手帳は〜」「受給者証」「更新は〜」 | Certificate（手帳・証明書） | 中 |
-| 「後見人は〜」 | Guardian（法定代理人） | 中 |
-| 「小さい頃は〜」「学校では〜」 | LifeHistory（生育歴） | 中 |
-| 「〜したい」「〜が夢」 | Wish（願い） | 中 |
-
-> **Note**: 和暦（昭和・平成・令和等）は自動的に西暦に変換されます。
-
-## グラフデータモデル
-
-```
-                    ┌─────────────┐
-                    │   Client    │ ← 中心ノード（本人）
-                    └──────┬──────┘
-           ┌───────────────┼───────────────┐
-           │               │               │
-    ┌──────▼──────┐ ┌──────▼──────┐ ┌──────▼──────┐
-    │  NgAction   │ │CarePreference│ │  KeyPerson  │
-    │  (禁忌事項)  │ │ (推奨ケア)   │ │(緊急連絡先)  │
-    └─────────────┘ └─────────────┘ └─────────────┘
-           │
-    ┌──────▼──────┐
-    │  Condition  │     ┌─────────────┐  ┌─────────────┐
-    │ (特性・診断) │     │  Hospital   │  │  Guardian   │
-    └─────────────┘     │(かかりつけ医)│  │  (後見人)    │
-                        └─────────────┘  └─────────────┘
-
-    (:Client)-[:MUST_AVOID]->(:NgAction)        # 禁忌事項（最重要）
-    (:Client)-[:REQUIRES]->(:CarePreference)    # 推奨ケア
-    (:Client)-[:HAS_KEY_PERSON]->(:KeyPerson)   # キーパーソン
-    (:Client)-[:HAS_CONDITION]->(:Condition)    # 特性・診断
-    (:Client)-[:TREATED_AT]->(:Hospital)        # 通院先
-    (:Hospital)-[:HAS_DOCTOR]->(:Doctor)        # かかりつけ医（名寄せ済み・複数病院で共有可）
-    (:Client)-[:HAS_LEGAL_REP]->(:Guardian)     # 法定代理人
-    (:Supporter)-[:LOGGED]->(:SupportLog)-[:ABOUT]->(:Client)  # 支援記録
-    (:Supporter)-[:RECORDED]->(:MeetingRecord)-[:ABOUT]->(:Client)  # 面談記録（音声）
-    (:Relative)-[:IS_PARENT_OF|FAMILY_OF]->(:Client)            # 家族（第5の柱）
-    (:Relative)-[:PERFORMS]->(:CareRole)                        # 親が担う機能
-    (:CareRole)-[:CAN_BE_PERFORMED_BY]->(:ServiceProvider)      # 代替手段（レジリエンス診断）
-```
-
-## セマンティック検索（Embedding & Vector Search）
-
-Gemini Embedding 2（`gemini-embedding-2-preview`）を使ったマルチモーダルセマンティック検索機能です。テキスト・画像・PDF・音声を768次元のベクトル空間に統合し、Neo4j Vector Index で意味ベースの類似検索が可能です。
-
-### 主な機能
-
-- **自動 embedding 付与**: `lib/db_operations.py` でノード登録時にベストエフォートで自動付与（Client summaryEmbedding 含む）
-- **セマンティック検索**: 支援記録・禁忌事項・面談記録を意味ベースで検索（キーワード不一致でもヒット）
-- **音声面談記録**: 音声ファイル（MP3/WAV/M4A等）から自動文字起こし + dual embedding（音声ネイティブ + テキスト）で面談記録を登録
-- **クライアント類似度分析**: 支援特性に基づくクライアント間の類似度比較、テキスト説明からの類似ケース検索
-- **OCR フォールバック**: スキャン PDF や画像ファイル（jpg/png/webp/heic）を Gemini OCR で読み取り
-- **バックフィル**: 既存ノードへの embedding 一括付与スクリプト（Client summaryEmbedding 対応）
-
-### ベクトルインデックス
-
-| インデックス名 | 対象ノード | 次元 | 類似度 |
-|---------------|-----------|------|--------|
-| `support_log_embedding` | SupportLog | 768 | cosine |
-| `care_preference_embedding` | CarePreference | 768 | cosine |
-| `ng_action_embedding` | NgAction | 768 | cosine |
-| `client_summary_embedding` | Client | 768 | cosine |
-| `meeting_record_embedding` | MeetingRecord | 768 | cosine |
-| `meeting_record_text_embedding` | MeetingRecord | 768 | cosine |
-
-### 使い方
-
-```bash
-# 環境変数に Gemini API キーを設定
-# .env に GEMINI_API_KEY=your_key を追加
-
-# 既存ノードへの embedding バックフィル
-uv run python scripts/backfill_embeddings.py --all
-
-# Client summaryEmbedding のバックフィル
-uv run python scripts/backfill_embeddings.py --label Client
-
-# ドライラン（変更なし）
-uv run python scripts/backfill_embeddings.py --all --dry-run
-
-# 統計情報の確認
-uv run python scripts/backfill_embeddings.py --stats
-```
-
-> **Note**: `GEMINI_API_KEY` が未設定の場合、embedding 処理はスキップされます（登録処理自体はブロックされません）。
-
-## SOS 緊急通知サービス
-
-知的障害のある方がスマホからワンタップで支援者グループに SOS を送信できる PWA アプリです。
-
-```bash
-cd sos
-cp .env.example .env
-# .env に LINE_CHANNEL_ACCESS_TOKEN と LINE_GROUP_ID を設定
-uv run python api_server.py
-```
-
-アプリURL: `http://localhost:8000/app/?id=クライアント名`
-
-詳細: [sos/README.md](sos/README.md)
-
-## 現場UI (Field UI)
-
-現場スタッフがスマホから直接操作できるモバイルファーストの PWA です。FastAPI サーバー（port 8001）で提供されます。
-
-### 3つの画面
-
-| 画面 | URL | 説明 |
-|------|-----|------|
-| 支援記録フォーム | `/record` | チップ選択式の簡単入力で現場から支援記録を登録 |
-| 管理者ダッシュボード | `/dashboard` | クライアントの感情サマリーとドリルダウン分析 |
-| 音声ワンタップ録音 | `/voice` | ブラウザで録音 → Gemini 文字起こし → 自動登録 |
-
-### 起動方法
-
-```bash
-uv run uvicorn field-ui.server:app --host 0.0.0.0 --port 8001
-```
-
-アプリURL: `http://localhost:8001`
-
-> **Note**: 音声ワンタップ録音機能には `GEMINI_API_KEY` の設定が必要です。
-
-## プロジェクト構成
-
-```
-nest-support/
-├── CLAUDE.md                  # Claude 向けプロジェクト指示書
-├── docker-compose.yml         # Neo4j コンテナ設定
-├── pyproject.toml             # Python 依存関係
-├── setup.sh                   # セットアップスクリプト
-├── manifesto/                 # 理念・プロトコル・ワークフロー
-│   ├── MANIFESTO.md           # マニフェスト v4.0（5 Values + 7 Pillars）
-│   ├── protocols/             # 緊急時、親の機能不全、新規登録、引き継ぎ
-│   └── workflows/             # 訪問準備、レジリエンスレポート、更新チェック
-├── lib/                       # 共有 Python ライブラリ
-│   ├── db_operations.py       # Neo4j 接続・クエリ実行・グラフ構造化登録・仮名化（embedding 自動付与＋Guardian Layer 統合）
-│   ├── schema_validator.py    # Guardian Layer: スキーマバリデーション・camelCase 変換
-│   ├── insight_engine.py      # Oracle Layer: 感情トレンド分析・リスク予兆検知
-│   ├── embedding.py           # Gemini Embedding 2（ベクトル生成・検索・音声・類似度分析）
-│   ├── file_readers.py        # ファイル読み取り（docx/xlsx/pdf/画像 + OCR）
-│   ├── pseudonymizer.py       # 仮名化モジュール
-│   └── utils.py               # 日付パース（和暦対応）
-├── claude-skills/             # 13の Claude Skills
-│   ├── neo4j-support-db/      # 障害福祉 DB
-│   ├── provider-search/       # 事業所検索
-│   ├── emergency-protocol/    # 緊急時プロトコル（insight-agent 連動）
-│   ├── ecomap-generator/      # エコマップ・インサイト生成（D3.js ハイブリッドビュー）
-│   ├── narrative-extractor/   # テキスト→構造化データ抽出
-│   ├── html-to-pdf/           # HTML→PDF 変換
-│   ├── inheritance-calculator/ # 法定相続計算
-│   ├── wamnet-provider-sync/  # WAM NET データ同期
-│   ├── data-quality-agent/    # データ品質チェック
-│   ├── onboarding-wizard/     # 新規クライアント登録
-│   ├── resilience-checker/    # 親なき後レジリエンス診断
-│   ├── visit-prep/            # 訪問準備ブリーフィング
-│   └── insight-agent/         # 予兆検知・インサイト分析（Oracle Layer）
-├── field-ui/                  # 現場UI（モバイルファースト PWA）
-│   └── server.py              # FastAPI サーバー（port 8001）
-├── sos/                       # SOS 緊急通知サービス
-│   ├── api_server.py          # FastAPI サーバー
-│   └── app/                   # PWA フロントエンド
-├── configs/                   # Claude Desktop 設定テンプレート
-├── installer/                 # インストーラー・デモデータ
-│   ├── install-mac.sh         # macOS ワンクリックインストーラー
-│   ├── demo-data.cypher       # デモデータ（架空）
-│   └── simulation-emotion-data.cypher  # 感情シミュレーションデータ（検証用）
-├── docs/                      # ドキュメント
-│   ├── QUICK_START.md         # クイックスタートガイド
-│   ├── SETUP_GUIDE.md         # 詳細セットアップガイド
-│   ├── ADVANCED_USAGE.md      # Skills 詳細使い方
-│   ├── SCHEMA_CONVENTION.md   # Neo4j 命名規則（Single Source of Truth）
-│   ├── VOICE_RECORDING_GUIDE.md # 声の記録マニュアル（現場スタッフ向け）
-│   ├── PRIVACY_GUIDELINES.md  # プライバシーガイドライン
-│   └── EXTRACTION_PROMPT.md   # Gemini 構造化プロンプト（emotion/triggerTag/context 対応）
-├── tests/                     # テスト
-│   ├── test_schema_validator.py    # Guardian Layer テスト
-│   ├── test_insight_engine.py      # Oracle Layer テスト
-│   ├── test_simulation_scenario.py # シナリオテスト
-│   └── test_pseudonymizer.py       # 仮名化テスト
-└── scripts/                   # ユーティリティ
-    ├── backup.sh              # Neo4j バックアップ
-    ├── backfill_embeddings.py # 既存ノードへの embedding 一括付与
-    └── multi_importer.py      # 多機能インポーター（音声・画像・PDF→構造化→登録）
-```
-
-## 技術スタック
-
-| レイヤー | 技術 |
-|---------|------|
-| AI | Claude Desktop / Claude Code + Skills |
-| セマンティック検索 | Gemini Embedding 2 (`gemini-embedding-2-preview`, 768次元) |
-| データベース | Neo4j 5.15+ (Docker) |
-| DB 接続 | Neo4j MCP (`@alanse/mcp-neo4j-server`) |
-| SOS API | FastAPI + uvicorn |
-| SOS 通知 | LINE Messaging API |
-| SOS フロントエンド | PWA (HTML + Service Worker) |
-| 言語 | Python 3.12+ |
-| パッケージ管理 | uv |
-
-## ドキュメント
-
-| ドキュメント | 内容 |
-|-------------|------|
-| [CLAUDE.md](CLAUDE.md) | Claude 向けプロジェクト指示書（スキーマ規則、Skills ルーティング含む）|
-| [docs/USER_MANUAL_WINDOWS.md](docs/USER_MANUAL_WINDOWS.md) | **はじめての方のためのユーザーマニュアル（Windows対応・福祉職向け）** |
-| [docs/QUICK_START.md](docs/QUICK_START.md) | 5分セットアップガイド |
-| [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md) | 詳細セットアップガイド（非技術者向け）|
-| [docs/ADVANCED_USAGE.md](docs/ADVANCED_USAGE.md) | Skills の詳細な使い方とプロンプト例 |
-| [docs/SCHEMA_CONVENTION.md](docs/SCHEMA_CONVENTION.md) | Neo4j 命名規則（Single Source of Truth）|
-| [docs/VOICE_RECORDING_GUIDE.md](docs/VOICE_RECORDING_GUIDE.md) | 声の記録マニュアル（現場スタッフ向け）|
+## スキル
+
+| スキル | 何をするか |
+|---|---|
+| `neo4j-support-db` | 本人ごとの禁忌・推奨ケア・支える人・関わり・手帳・支援記録・確認の状況を読む（照会 15 本） |
+| `emergency-protocol` | 緊急時に禁忌 → 推奨ケア → 支える人 → 医療 → 後見の順で出す |
+| `visit-prep` | 訪問の前の準備 |
+| `narrative-extractor` | 語り・面談の記録から書き込みの案（JSON）を作る。DB には書かない |
+| `onboarding-wizard` | 初回面接で 7 本の柱に沿って聞き取りを案内する |
+| `resilience-checker` | 親が担っている役割の代わりを見る |
+| `data-quality-agent` | 欠け・食い違い・期限の点検 |
+| `insight-agent` | 支援記録の推移から予兆を見る（数字を出し、判断は職員） |
+| `ecomap-generator` | 支援のネットワークの図（Mermaid） |
+| `provider-search` | 事業所の公開情報を資源の側から探す |
+| `inheritance-calculator` | 法定相続の計算（DB に触れない） |
+| `html-to-pdf` | HTML を PDF にする（DB に触れない） |
+
+読み取りのスキルは読むだけで、本人は仮名で呼びます。
+
+## 外した前の構成
+
+現場の画面 `field-ui/` と SOS の通知 `sos/` は、新しい DB を読みの包みとゲートを通して使う形に作り直しました（計画 N-36・N-37）。
+前の構成の `lib/`・`setup.sh`・`setup.ps1`・`installer/`・`scripts/rotate_password.py`・`scripts/multi_importer.py` は外しました（N-38）。無いことを試験で固定しています（`tests/test_old_db_code_isolated.py`）。
+
+## 文書
+
+| 文書 | 内容 |
+|---|---|
+| [CLAUDE.md](CLAUDE.md) | Claude 向けの指示（スキルの使い分け、決まり） |
+| [docs/QUICK_START.md](docs/QUICK_START.md) | 手順の要点 |
+| [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md) | 詳しい手順 |
+| [docs/SCHEMA.md](docs/SCHEMA.md) | 正典（ノード・リレーション・項目） |
+| [docs/SEMANTICS.md](docs/SEMANTICS.md) | 意味・表示名・記録の決まり |
+| [docs/external-api.md](docs/external-api.md) | 外に何を送るか |
 | [docs/PRIVACY_GUIDELINES.md](docs/PRIVACY_GUIDELINES.md) | プライバシーガイドライン |
-| [manifesto/MANIFESTO.md](manifesto/MANIFESTO.md) | マニフェスト v4.0 |
-| [sos/README.md](sos/README.md) | SOS 緊急通知サービスの詳細 |
+| [docs/VOICE_RECORDING_GUIDE.md](docs/VOICE_RECORDING_GUIDE.md) | 声の記録のガイド |
+| [manifesto/MANIFESTO.md](manifesto/MANIFESTO.md) | マニフェスト（5 Values + 7 Pillars） |
 
 ## 開発背景
 
 このシステムは、知的障害のある方の家族を支援する NPO と協働する弁護士によって開発されました。主介護者が不在になった緊急時に、支援スタッフが重要なケア情報に即座にアクセスできることを最優先に設計されています。
 
-**設計思想**: 親の暗黙知を構造化されたグラフデータとして保存し、危機的状況においても自然言語で照会可能にする。
+開発と試験は架空の事例だけで行います。実際の利用者のデータをリポジトリに入れません。
 
 ## ライセンス
 

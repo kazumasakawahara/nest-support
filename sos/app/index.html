@@ -328,35 +328,20 @@
 
         // --- 初期化 ---
         const params = new URLSearchParams(window.location.search);
-        const clientId = params.get('id') || params.get('name') || '';
+        const clientId = params.get('id') || '';
 
         // クライアントIDがない場合はエラー表示
         if (!clientId) {
             document.getElementById('mainContent').style.display = 'none';
             document.getElementById('setupError').classList.add('show');
         } else {
-            // クライアント情報を取得して名前を表示
             initializeApp();
         }
 
-        async function initializeApp() {
-            // 名前表示は補助情報。/api/client は認証必須なので、未認証(401)や
-            // 接続失敗でも SOS 送信 UI を止めない（緊急導線を殺さない）。
-            try {
-                const response = await fetch(`${API_BASE_URL}/api/client/${encodeURIComponent(clientId)}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.found && data.name) {
-                        document.getElementById('userName').textContent = data.name + ' さん';
-                        return;
-                    }
-                }
-                // 認証なし/未登録/エラー時は URL パラメータの識別子を表示
-                document.getElementById('userName').textContent = clientId + ' さん';
-            } catch (e) {
-                document.getElementById('userName').textContent = clientId + ' さん';
-                console.log('API接続エラー（SOS送信は可能）:', e);
-            }
+        function initializeApp() {
+            // 画面に出すのは仮名（displayCode）だけ。名前は出さない（計画 N-36）。
+            // 本人の確認（/api/client）は職員の確かめ用で、SOS の送信には使わない（緊急の導線を止めない）
+            document.getElementById('userName').textContent = clientId;
         }
 
         // --- SOS送信 ---

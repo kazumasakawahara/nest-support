@@ -1,380 +1,104 @@
 ---
 name: onboarding-wizard
-description: 新規クライアントの初回面接時に、7本柱に沿った情報収集をガイドし、聞き漏らしを防止しながらNeo4jに構造化登録するスキル。「新規登録」「新しい利用者」「インテーク」「初回面接」「クライアントを追加」「初回アセスメント」などの発言時に必ずこのスキルを使用すること。面談メモやナラティブからの一括抽出にも対応する。
+description: 新しい本人の初回面接で、7 本の柱に沿って聞き取りを案内し、聞き漏らしを防ぐスキル。登録済みの項目と未確認の項目を個人の側の DB から読み（仮名 displayCode）、聞いた話は narrative-extractor の書き込みの案にする。「新規登録」「新しい利用者」「インテーク」「初回面接」「初回アセスメント」などの発言時に使う。DB には書かない。
 ---
 
-# 新規クライアント登録ウィザード (onboarding-wizard)
+# onboarding-wizard：初回面接の案内
 
-## なぜこのスキルが必要か
+## なぜ要るか
 
-新規クライアントの登録で最も危険なのは「聞き漏らし」です。禁忌事項（NgAction）を聞き逃したまま支援が始まれば、二次被害につながります。キーパーソンの登録を忘れれば、緊急時に連絡先がわからない事態になります。
+初回面接は「聞いたが無かった」と「まだ聞いていない」が最も入り混じる場面。聞き漏らしを防ぎ、聞いた話を根拠つきで残す（計画 N-27f）。
 
-このスキルは、マニフェスト7本柱に沿って**何を聞くべきか**を体系的にガイドし、聞き取った内容を構造化してNeo4jに登録します。全てを初回で揃える必要はなく、優先度に沿って段階的に情報を蓄積していきます。
+## 決まり
 
-## 対象ユーザー
+- **このスキルは DB に書かない。** 書くのはゲートだけ
+- **本人の作成（氏名・生年月日）は Claude の外で行う。** 名前を受け取る道具は無い（SEMANTICS SEM-REC-02。台帳 G-42 (2)）。職員が手元の入口で本人を作り、仮名（`displayCode`）を受け取ってから、このスキルを使う。同じ人の重なりの確かめもその入口で行う
+- 聞いた話は `narrative-extractor` の書き込みの案（JSON）にする。禁忌・推奨ケアは、同じ案の事実の引用を根拠にした候補にする（台帳 G-63）
+- 語りの中の人は役割の名前で書く（母・主治医・担当の相談員。SEMANTICS SEM-REC-01）
+- 道具は MCP `nest-personal` の `read_personal_cypher`（登録の状況を見るだけ）
 
-- 計画相談支援専門員（初回面接時）
-- インテーク担当者
+## 「無い」と言われたら
 
-## トリガーワード
+「特にないです」は、確認（`Review`）として残す必要がある。残さなければ、以後「確かめたうえで無い」と「まだ聞いていない」が区別できない。
 
-- 「新規登録」「新しい利用者さん」「クライアントを追加」
-- 「インテーク」「初回面接」「初回アセスメント」
-- 「〇〇さんを登録したい」
+- 誰に聞いたか（本人・家族・機関）を必ず控える
+- **確認の記録は職員がゲートの操作で作る**（`nest.gate.write.record_review`。計画 N-20a）。人が確かめた記録なので、入口の案（`narrative-extractor`）には入れず、Claude は作らない。職員の ID・確かめた日時・領域（`reviewDomain`）が要り、確かめた話の記録（`Record`）に `CONFIRMS` で結ぶ。だから先に、「無い」と言われた聞き取りそのものを事実の案（例「母に聞くと、してはいけないことは特に無いと言った【伝聞】」）にしてゲートに通す
+- チェックリストに「確認の記録を作るもの」として、何を・誰に聞いて「無い」と言われたかを書き、職員に渡す
+- 聞けていない項目に確認を作らない（未確認のまま残すのが正しい）
 
----
+## 聞き取りの順（7 本の柱）
 
-## 使用するMCPツール
+**最初に必ず**
+1. 本人性：生活の歴史のキーになる出来事、本人・家族の願い（`LifeHistory`・`Wish`）
+2. ケアの暗黙知：**禁忌**（してはいけないこと。生命に関わる／パニックを招く／不快・ストレス）、推奨ケア（食事・入浴・睡眠・移動・やりとり）、特性・診断。「〇〇するとどうなりますか」「してはいけないことはありますか」と具体的に聞く
+3. 危機管理の網：キーパーソン（順位）、主治医、医療の機関。連絡先の電話番号は Claude の外の入口で登録する
 
-| ツール | 用途 |
-|--------|------|
-| `neo4j:execute_query` | 既存登録の重複確認（読み取り）・クライアント情報の登録（書き込み）。読み書き兼用ツール |
+**初回か 2 回目**
+4. 法的基盤：手帳・受給者証（種類・等級・次の更新日）、後見・保佐・補助・任意後見・任意代理
+5. 親の機能移行：親が担っている役割 → `resilience-checker`
 
----
+**支援の始まりの後に順に**
+6. 金銭の安全：年金・手当・生活保護、金銭の管理
+7. 多機関の連携：関わっている機関
 
-## 実行手順
+## 登録の状況を見る照会
 
-### Phase 1: 重複確認
-
-まず、同名または類似名のクライアントが既に登録されていないか確認する。
-
-```cypher
-MATCH (c:Client)
-WHERE c.name CONTAINS $nameFragment
-RETURN c.name AS 氏名, c.dob AS 生年月日
-```
-
-名前の類似（漢字違い、ひらがな/カタカナ、旧姓等）にも注意する。該当がなければ次へ進む。
-
-### Phase 2: 段階的情報収集
-
-7本柱に沿って、優先度順に情報を収集する。ユーザーから面談メモやナラティブをまとめて受け取った場合は `narrative-extractor` スキルの抽出ルールに従って一括処理する。対話的に聞き取る場合は以下の順序でガイドする。
-
-#### 優先度: 最高 — 初回に必ず確認
-
-**第1の柱: 本人性 (Identity & Narrative)**
-
-聞き取り項目:
-- 氏名（フルネーム）
-- 生年月日
-- 血液型（不明でもOK）
-- 生育歴のキーエピソード（幼少期、学齢期、成人後）
-- 本人・家族の願い
-
-**第2の柱: ケアの暗黙知 (Care Instructions)** — 安全に直結
-
-聞き取り項目:
-- **禁忌事項（NgAction）**: 「絶対にしてはいけないこと」を漏らさず確認。riskLevelを判定:
-  - LifeThreatening: アレルギー、誤嚥リスクなど命に関わるもの
-  - Panic: パニック誘発（大きな音、特定の状況等）
-  - Discomfort: 嫌がること、苦手なこと
-- **配慮事項（CarePreference）**: 食事、入浴、睡眠、移動、コミュニケーション等
-- **特性・診断（Condition）**: 診断名、特性名
-
-聞き方のコツ: 「〇〇するとどうなりますか？」「してはいけないことはありますか？」と具体的に聞く。親の語りから暗黙知を引き出すことが重要。
-
-> ### ★ 「無い」と言われたら、それも必ず記録する（BRS-12）
->
-> **新規登録は「聞いたが無かった」が最も発生する場面**である。
-> ここで記録しなければ、以後永久に「確認したうえで無い」と「まだ聞いていない」が
-> 区別できなくなる（リレーションの不在としては同じに見える）。
->
-> 禁忌・配慮事項・キーパーソン等について「特にないです」と返ってきたら、
-> **Phase 3 の「確認記録（Review）」で登録する**。必ず **誰に聞いたか（source）** を
-> 控えること——「母親に確認して禁忌なし」と「本人にしか聞けていない」は、
-> 同じ「0件」でも重みが全く違う。
->
-> **聞けていない項目には Review を登録しない。** 未確認のまま残すのが正しい
-> （空欄を埋めたいだけの登録は、未聴取を確認済みと偽ることになる）。
-
-**第3の柱: 危機管理ネットワーク (Safety Net)**
-
-聞き取り項目:
-- キーパーソン（優先順位付き）: 氏名、続柄、電話番号、役割
-- かかりつけ医: 病院名、診療科、担当医名、電話番号
-
-#### 優先度: 高 — 初回または2回目の面接
-
-**第4の柱: 法的基盤 (Legal Basis)**
-- 手帳の種類と等級、次回更新日
-- 受給者証の情報
-- 成年後見人等の有無
-
-**第5の柱: 親の機能移行 (Parental Transition)**
-- 主たる介護者（親）の基本情報と健康状態
-- 親が担っているタスク（CareRole）の洗い出し
-  → `resilience-checker` スキルと連携
-
-#### 優先度: 通常 — 支援開始後に順次
-
-**第6の柱: 金銭的安全 (Financial Safety)**
-- 金銭管理の状況
-- 経済的搾取リスクの有無
-
-**第7の柱: 多機関連携 (Multi-Agency Collaboration)**
-- 連携している支援機関の情報
-
-### Phase 3: データ登録
-
-収集した情報をNeo4jに登録する。登録前に**必ず内容をユーザーに確認**すること。
-
-#### クライアント基本情報
+### 1. 柱ごとの件数と確認
 
 ```cypher
-MERGE (c:Client {name: $name})
-SET c.dob = date($dob),
-    c.bloodType = $bloodType
-RETURN c.name AS 氏名
+MATCH (c:Client {displayCode: $code})
+OPTIONAL MATCH (c)-[:HAS_HISTORY]->(h:LifeHistory) WHERE h.status IN ['Active', 'Pending']
+WITH c, count(DISTINCT h) AS history
+OPTIONAL MATCH (c)-[:HAS_WISH]->(w:Wish) WHERE w.status IN ['Active', 'Pending']
+WITH c, history, count(DISTINCT w) AS wishes
+OPTIONAL MATCH (c)-[:MUST_AVOID]->(n:NgAction) WHERE n.status IN ['Active', 'Pending']
+WITH c, history, wishes, count(DISTINCT n) AS ngActions
+OPTIONAL MATCH (c)-[:REQUIRES]->(p:CarePreference) WHERE p.status IN ['Active', 'Pending']
+WITH c, history, wishes, ngActions, count(DISTINCT p) AS carePreferences
+OPTIONAL MATCH (c)-[:HAS_CONDITION]->(cd:Condition) WHERE cd.status IN ['Active', 'Pending']
+WITH c, history, wishes, ngActions, carePreferences, count(DISTINCT cd) AS conditions
+OPTIONAL MATCH (k:Person)-[rt:RELATED_TO {kind: 'KeyPerson'}]->(c) WHERE rt.status IN ['Active', 'Pending']
+WITH c, history, wishes, ngActions, carePreferences, conditions, count(DISTINCT k) AS keyPersons
+OPTIONAL MATCH (c)-[:HAS_CERTIFICATE]->(ct:Certificate) WHERE ct.status IN ['Active', 'Pending']
+WITH c, history, wishes, ngActions, carePreferences, conditions, keyPersons, count(DISTINCT ct) AS certificates
+OPTIONAL MATCH (g:Involvement)-[:CONCERNS]->(c) WHERE g.status IN ['Active', 'Pending']
+  AND g.kind IN ['Guardianship', 'AgencyContract']
+WITH c, history, wishes, ngActions, carePreferences, conditions, keyPersons, certificates, count(DISTINCT g) AS legal
+OPTIONAL MATCH (r:CareRole)-[:ROLE_FOR]->(c) WHERE r.status IN ['Active', 'Pending']
+WITH c, history, wishes, ngActions, carePreferences, conditions, keyPersons, certificates, legal, count(DISTINCT r) AS careRoles
+OPTIONAL MATCH (c)-[:RECEIVES]->(pa:PublicAssistance) WHERE pa.status IN ['Active', 'Pending']
+WITH c, history, wishes, ngActions, carePreferences, conditions, keyPersons, certificates, legal, careRoles,
+     count(DISTINCT pa) AS assistance
+OPTIONAL MATCH (i:Involvement)-[:CONCERNS]->(c) WHERE i.status IN ['Active', 'Pending']
+WITH c, history, wishes, ngActions, carePreferences, conditions, keyPersons, certificates, legal, careRoles, assistance,
+     count(DISTINCT i) AS involvements
+OPTIONAL MATCH (v:Review)-[:ABOUT]->(c) WHERE v.status = 'Active'
+RETURN history, wishes, ngActions, carePreferences, conditions, keyPersons, certificates, legal, careRoles, assistance,
+       involvements, collect(DISTINCT v.domain) AS reviewed
 ```
 
-#### 禁忌事項（最重要）
-
-クライアント配下のノードとしてリレーションごと MERGE する（再実行で重複せず、他クライアントとノードを共有しない。
-グローバルな `MERGE (ng:NgAction {action})` は同文の禁忌を持つ別クライアントとノードを共有し、riskLevel を相互に上書きするため禁止）。
+### 2. 未確定（承認を待っている）の数
 
 ```cypher
-MATCH (c:Client {name: $clientName})
-MERGE (c)-[:MUST_AVOID]->(ng:NgAction {action: $action})
-ON CREATE SET ng.reason = $reason, ng.riskLevel = $riskLevel
-ON MATCH SET  ng.reason = COALESCE($reason, ng.reason),
-              ng.riskLevel = COALESCE($riskLevel, ng.riskLevel)
-RETURN ng.action AS 禁忌事項, ng.riskLevel AS リスクレベル
+MATCH (n {status: 'Pending'})
+WHERE (n)-[:ABOUT]->(:Client {displayCode: $code})
+   OR (:Client {displayCode: $code})-[:MUST_AVOID|REQUIRES|HAS_CONDITION|HAS_WISH|HAS_HISTORY|HAS_CERTIFICATE|RECEIVES]->(n)
+RETURN labels(n)[0] AS label, count(*) AS pending
 ```
 
-#### 配慮事項
+## チェックリストの形
 
-```cypher
-MATCH (c:Client {name: $clientName})
-MERGE (c)-[:REQUIRES]->(cp:CarePreference {category: $category, instruction: $instruction})
-ON CREATE SET cp.priority = $priority
-ON MATCH SET  cp.priority = COALESCE($priority, cp.priority)
-RETURN cp.category AS カテゴリ
+```text
+## 初回面接チェックリスト：C-……
+### 🚨 未確認（件数 0 で確認も無い。最優先で聞く）
+- 禁忌／キーパーソン／後見／親の担っている役割 ……
+### ✅ 聞いた（件数。未確定なら「未確定 …件」と添える）
+### 次の面接で聞くこと（柱 4〜7）
+### 確認の記録を職員が作るもの（「無い」と聞いたもの。誰に聞いたか）
 ```
 
-#### 特性・診断
-
-```cypher
-MATCH (c:Client {name: $clientName})
-MERGE (con:Condition {name: $conditionName})
-SET con.status = COALESCE($status, 'Active')
-MERGE (c)-[:HAS_CONDITION]->(con)
-RETURN con.name AS 特性
-```
-
-#### キーパーソン
-
-```cypher
-MATCH (c:Client {name: $clientName})
-MERGE (c)-[r:HAS_KEY_PERSON]->(kp:KeyPerson {name: $kpName})
-SET kp.phone = COALESCE($phone, kp.phone),
-    kp.relationship = COALESCE($relationship, kp.relationship),
-    kp.role = COALESCE($role, kp.role),
-    r.rank = COALESCE($rank, r.rank)
-RETURN kp.name AS キーパーソン
-```
-
-#### 医療機関
-
-```cypher
-MATCH (c:Client {name: $clientName})
-MERGE (h:Hospital {name: $hospitalName})
-SET h.specialty = $specialty,
-    h.phone = $phone
-MERGE (c)-[:TREATED_AT]->(h)
-// かかりつけ医は Doctor ノードで表現（Hospital.doctor プロパティは廃止）
-FOREACH (_ IN CASE WHEN $doctor IS NULL OR $doctor = '' THEN [] ELSE [1] END |
-    MERGE (d:Doctor {name: $doctor})
-    MERGE (h)-[:HAS_DOCTOR]->(d))
-RETURN h.name AS 医療機関
-```
-
-#### 手帳・受給者証
-
-手帳種別（type）×等級（grade）ごとに1ノード（SCHEMA_CONVENTION §10.3 の複合キー。
-等級未指定は「不明」）。発行日・状態はスキーマ規約どおり
-リレーション側（`HAS_CERTIFICATE {issuedDate, status}`）に持つ。
-
-```cypher
-MATCH (c:Client {name: $clientName})
-MERGE (c)-[r:HAS_CERTIFICATE]->(cert:Certificate {type: $certType, grade: COALESCE($grade, '不明')})
-SET cert.nextRenewalDate = CASE WHEN $nextRenewalDate IS NOT NULL
-                                THEN date($nextRenewalDate) ELSE cert.nextRenewalDate END,
-    r.issuedDate = CASE WHEN $issuedDate IS NOT NULL
-                        THEN date($issuedDate) ELSE r.issuedDate END,
-    r.status = COALESCE(r.status, 'Active')
-RETURN cert.type AS 種類, cert.grade AS 等級
-```
-
-> 訂正（2026-07-12）: 旧テンプレートは `{type}` のみを MERGE キーとしていたが、
-> SCHEMA_CONVENTION §10.3 の複合キー `["type","grade"]` に合わせて修正した（DRIFT-08）。
-
-#### 後見人
-
-```cypher
-MATCH (c:Client {name: $clientName})
-MERGE (c)-[:HAS_LEGAL_REP]->(g:Guardian {name: $guardianName})
-SET g.type = COALESCE($guardianType, g.type),
-    g.phone = COALESCE($phone, g.phone),
-    g.organization = COALESCE($organization, g.organization)
-RETURN g.name AS 後見人
-```
-
-#### 確認記録（Review）——「聞いたが無かった」を残す ★新規登録では必須★
-
-聞き取りの結果「無い」だった領域は、**必ず Review を登録する**。
-登録しなければ、その聞き取りは**行われなかったのと同じ扱い**になる（次の支援者に伝わらない）。
-追記のみ。既存の Review を更新・削除してはならない。
-
-```cypher
-MATCH (c:Client {name: $clientName})
-MERGE (s:Supporter {name: $supporterName})
-CREATE (rv:Review {
-    domain: $domain,
-    reviewedAt: date($reviewedAt),
-    source: $source,
-    note: $note
-})
-MERGE (s)-[:REVIEWED]->(rv)
-MERGE (rv)-[:ABOUT]->(c)
-RETURN rv.domain AS 領域, rv.reviewedAt AS 確認日, rv.source AS 情報源
-```
-
-**パラメータ**:
-- `$clientName`（完全一致）, `$supporterName`（確認を行った支援者）
-- `$domain`: `NgAction` / `CarePreference` / `KeyPerson` / `Guardian` / `Certificate` / `CareRole`
-  （SCHEMA_CONVENTION §7.7。他の値は使わない）
-- `$reviewedAt`: 確認日（通常は面接日。YYYY-MM-DD）
-- `$source`: **誰に確認したか**。`本人` / `母親` / `父親` / `家族・親族` / `主治医` /
-  `前事業所` / `相談支援専門員` / `後見人等` / `記録のみ`（§7.8）
-- `$note`: 補足（任意）
-
-> **登録対象は「0件の領域」だけではない。**
-> 1件以上登録した領域でも、「この3件で全部だと確認した」なら Review を残す価値がある
-> （後から「他にもあるのか、これで全部なのか」を問わなくて済む）。
-
-> **`$source` を推測で埋めないこと。** 面接の相手が誰だったか不明なら、支援者に聞く。
-
-#### 監査ログ（全登録操作で必須）
-
-```cypher
-CREATE (al:AuditLog {
-    timestamp: datetime(),
-    user: $user,
-    action: 'CREATE',
-    targetType: $targetType,
-    targetName: $targetName,
-    details: $details,
-    clientName: $clientName
-})
-RETURN al.timestamp AS 記録日時
-```
-
-### Phase 4: 登録確認と不足項目の提示
-
-登録後にプロフィールを取得し、不足情報を明示する。
-**件数0の項目は、確認記録（Review）と照らして「確認済み」か「未確認」かを判定する（BRS-12）。**
-
-```cypher
-MATCH (c:Client {name: $clientName})
-OPTIONAL MATCH (c)-[:MUST_AVOID]->(ng:NgAction)
-OPTIONAL MATCH (c)-[:REQUIRES]->(cp:CarePreference)
-OPTIONAL MATCH (c)-[kpRel:HAS_KEY_PERSON]->(kp:KeyPerson)
-OPTIONAL MATCH (c)-[:TREATED_AT]->(hosp:Hospital)
-OPTIONAL MATCH (c)-[:HAS_CERTIFICATE]->(cert:Certificate)
-OPTIONAL MATCH (c)-[:HAS_LEGAL_REP]->(g:Guardian)
-OPTIONAL MATCH (c)<-[:IS_PARENT_OF|FAMILY_OF]-(r:Relative)
-
-// 確認記録（Review）—— 0件の意味を判定するために必須
-OPTIONAL MATCH (rvNg:Review {domain: 'NgAction'})-[:ABOUT]->(c)
-OPTIONAL MATCH (rvCp:Review {domain: 'CarePreference'})-[:ABOUT]->(c)
-OPTIONAL MATCH (rvKp:Review {domain: 'KeyPerson'})-[:ABOUT]->(c)
-
-RETURN
-    c.name AS 氏名,
-    c.dob AS 生年月日,
-    count(DISTINCT ng)   AS 禁忌登録数,
-    CASE WHEN count(DISTINCT ng) > 0 THEN '登録あり'
-         WHEN max(rvNg.reviewedAt) IS NULL THEN '🚨 未確認'
-         ELSE '✅ 確認済み（0件）' END AS 禁忌状態,
-    max(rvNg.reviewedAt) AS 禁忌確認日,
-    collect(DISTINCT rvNg.source) AS 禁忌情報源,
-    count(DISTINCT cp)   AS 配慮事項数,
-    CASE WHEN count(DISTINCT cp) > 0 THEN '登録あり'
-         WHEN max(rvCp.reviewedAt) IS NULL THEN '🚨 未確認'
-         ELSE '✅ 確認済み（0件）' END AS 配慮状態,
-    count(DISTINCT kp)   AS キーパーソン数,
-    CASE WHEN count(DISTINCT kp) > 0 THEN '登録あり'
-         WHEN max(rvKp.reviewedAt) IS NULL THEN '🚨 未確認'
-         ELSE '✅ 確認済み（0件）' END AS 連絡先状態,
-    count(DISTINCT hosp) AS 医療機関数,
-    count(DISTINCT cert) AS 手帳数,
-    count(DISTINCT g)    AS 後見人数,
-    count(DISTINCT r)    AS 家族情報数
-```
-
-> **🚨 未確認を見つけたら、「次回確認」ではなく「今聞けないか」を提起する。**
-> 面接中ならその場で聞ける。とりわけ **NgAction の未確認のまま支援を開始しない**。
-
-### Phase 5: チェックリスト出力
-
-**安全直結項目は2値（ある/ない）ではなく3値で表現する**——
-登録あり / ✅ 確認済み（0件）/ 🚨 未確認。
-「1件以上あること」を完了条件にすると、**聞いたうえで本当に禁忌が無い人は永久に
-未完了になる**し、逆に空欄のまま流せば未確認と区別がつかなくなる。
-
-```markdown
-## 登録完了チェックリスト: [クライアント名]
-
-### 必須項目（初回）
-- [x/空] 氏名・生年月日
-- 禁忌事項（NgAction）: [登録あり（N件）/ ✅ 確認済み（0件・2026-07-12、母親）/ 🚨 未確認]
-- キーパーソン: [登録あり（rank 1 あり）/ ✅ 確認済み（0件）/ 🚨 未確認]
-- [x/空] かかりつけ医
-
-### 推奨項目（初回〜2回目）
-- 手帳・受給者証: [登録あり / ✅ 確認済み（0件）/ 🚨 未確認]
-- 成年後見人等: [登録あり / ✅ 確認済み（0件）/ 🚨 未確認]
-- [x/空] 主たる介護者（親）の情報
-
-### 🚨 未確認の項目（最優先）
-- [未確認の領域と、次に誰に聞くべきか]
-```
-
-> **「禁忌なし」と書いてはならない（BRS-12）。**
-> Review がある場合のみ「✅ 確認済み（0件）」と書き、**必ず確認日と情報源を併記**する。
-> Review が無い0件は「🚨 未確認」であり、**支援開始前に埋めるべき欠損**である。
-
----
-
-## ナラティブからの一括登録
-
-ユーザーが面談メモや親の語りをまとめて提供した場合は、`narrative-extractor` スキルの抽出ルールに従ってJSON形式でデータを抽出し、確認後に一括登録する。
-
-抽出時の最重要ルール:
-1. テキストにない情報を**絶対に創作しない**
-2. 禁忌事項（NgAction）は**最優先で漏らさず抽出**する
-3. 表記揺れは同一エンティティに統合する
-
----
+0 件の項目を「なし」と書かない。確認があるものだけ「確認済み（0 件）」と書く。
 
 ## 関連スキル
 
-| スキル | 連携タイミング |
-|--------|---------------|
-| `support-db-write-gate` | 書き込み（MERGE/更新/削除）の直前に必読 |
-| `narrative-extractor` | 面談メモからの一括抽出 |
-| `resilience-checker` | 第5の柱（CareRole）の登録後にカバー率診断 |
-| `ecomap-generator` | 登録完了後にエコマップ自動生成 |
-| `neo4j-support-db` | Cypherテンプレートの参照・プロフィール確認 |
-
-## 証拠・鮮度モデル（Track A Phase 1・2026-08-08 正典収載）
-
-SCHEMA_CONVENTION **v3.4 §7.9** / SEMANTIC_MODEL **v1.6 BRS-13**（河原氏承認 2026-08-08）で
-NgAction / CarePreference に `source`（ENU-17 語彙）/ `sourceDetail` / `status`（Active・Pending・
-Inactive の3値制限）/ `lastConfirmedAt` / `staleAfter` が、リレーション `CONTRADICTS`（矛盾の保留・
-追記専用）/ `CONFIRMS`（Review→事実の個別確認）が正典収載された。
-
-本スキルへの影響（挙動実装は Phase 1 ステップ3以降）:
-- 新規登録する NgAction / CarePreference には `source`（ENU-17 語彙。聞き取り相手）と
-  `lastConfirmedAt`（=登録日）の付与が必須になる（正典 §7.9・requiredProperties）。
-- `sourceDetail` に「2026-07 面談で母親から聴取」のような支援者が読める文を残す。
+`narrative-extractor`（聞いた話を案にする）、`resilience-checker`（親の役割）、`neo4j-support-db`、`visit-prep`

@@ -35,18 +35,15 @@
 <div class="container">
     <a href="/" class="nav-back">&larr; メニューに戻る</a>
     <h1 style="font-size:20px; margin: 8px 0 16px;">声の記録</h1>
+    <p class="hint" style="margin-bottom:12px;">文字起こしを返すだけで、データベースには登録しません。登録は、文字起こしを原文にして書き込みの案を作り、ゲートで通します（計画 N-37）。</p>
 
     <!-- クライアント選択 -->
     <div class="card">
         <div class="form-group">
-            <label>クライアント名</label>
-            <select id="clientName" required>
+            <label>本人（仮名）</label>
+            <select id="clientId" required>
                 <option value="">選択してください</option>
             </select>
-        </div>
-        <div class="form-group">
-            <label>記録者（任意）</label>
-            <input type="text" id="supporterName" placeholder="例: 鈴木">
         </div>
     </div>
 
@@ -81,10 +78,8 @@
     <!-- 結果 -->
     <div id="resultSection" style="display:none;">
         <div class="card">
-            <h2 style="font-size:16px; margin-bottom:8px; color:var(--success);">登録完了</h2>
-            <p style="font-size:14px; margin-bottom:12px;">
-                <span id="resultNodes">-</span>件のデータが登録されました
-            </p>
+            <h2 style="font-size:16px; margin-bottom:8px; color:var(--success);">文字起こしができました</h2>
+            <p style="font-size:14px; margin-bottom:12px;">まだ登録していません。この文字起こしを原文にして、書き込みの案を作ってください。</p>
             <h3 style="font-size:14px; color:var(--text-light); margin-bottom:8px;">文字起こし結果:</h3>
             <div class="transcript-box" id="transcriptBox"></div>
         </div>
@@ -112,22 +107,24 @@ let timerInterval = null;
 let seconds = 0;
 let isRecording = false;
 
-// クライアント一覧
+// 本人の一覧（ID と仮名だけ。名前は来ない。登録の新しい順。上限で切れたら truncated と件数が来る）
 fetch('/api/clients')
-    .then(r => r.json())
-    .then(clients => {
-        const sel = document.getElementById('clientName');
-        clients.forEach(name => {
+    .then(r => r.ok ? r.json() : {clients: [], total: 0, truncated: false})
+    .then(data => {
+        const sel = document.getElementById('clientId');
+        if (data.truncated) {
+            const note = document.createElement('p');
+            note.className = 'list-cut';
+            note.textContent = '本人が ' + data.total + ' 人います。登録の新しい順に ' + data.clients.length + ' 人だけ出しています（古い本人は出ていません）';
+            sel.parentNode.insertBefore(note, sel.nextSibling);
+        }
+        data.clients.forEach(c => {
             const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = name;
+            opt.value = c.clientId;
+            opt.textContent = c.displayCode;
             sel.appendChild(opt);
         });
     });
-
-// 記録者名の復元
-const savedName = localStorage.getItem('supporterName');
-if (savedName) document.getElementById('supporterName').value = savedName;
 
 function setStep(step) {
     ['step1', 'step2', 'step3'].forEach((id, i) => {
@@ -139,8 +136,8 @@ function setStep(step) {
 }
 
 async function toggleRecording() {
-    if (!document.getElementById('clientName').value) {
-        alert('クライアントを選択してください');
+    if (!document.getElementById('clientId').value) {
+        alert('本人を選択してください');
         return;
     }
 
@@ -210,13 +207,7 @@ async function uploadAudio() {
     const blob = new Blob(audioChunks, { type: getMimeType() });
     const formData = new FormData();
     formData.append('audio', blob, `recording${ext}`);
-    formData.append('clientName', document.getElementById('clientName').value);
-
-    const supporter = document.getElementById('supporterName').value;
-    if (supporter) {
-        formData.append('supporterName', supporter);
-        localStorage.setItem('supporterName', supporter);
-    }
+    formData.append('clientId', document.getElementById('clientId').value);
 
     try {
         document.getElementById('processingText').textContent = '音声を文字起こし中...';
@@ -231,7 +222,6 @@ async function uploadAudio() {
         }
 
         const result = await res.json();
-        document.getElementById('resultNodes').textContent = result.nodes_registered || 0;
         document.getElementById('transcriptBox').textContent = result.transcript || '(文字起こし結果なし)';
         document.getElementById('resultSection').style.display = 'block';
 

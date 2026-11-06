@@ -1,266 +1,121 @@
 ---
 name: visit-prep
-description: 訪問・同行支援の前に、クライアントの禁忌事項・推奨ケア・直近の支援記録・更新期限を自動収集し、簡潔なブリーフィングシートを生成するスキル。「訪問準備」「訪問前に確認」「明日〇〇さんのところに行く」「同行支援の注意点」「ブリーフィング」などの発言時に必ずこのスキルを使用すること。訪問や面談の予定がある場合にも積極的に使用する。
+description: 訪問・同行支援の前に、本人（仮名 displayCode、例 C-7K3M9Q）の禁忌・推奨ケア・特性・前回からの申し送り・更新期限を個人の側の DB から読み、短い訪問前ブリーフィングを作るスキル。「訪問準備」「訪問前に確認」「明日 C-… さんのところに行く」「同行支援の注意点」「ブリーフィング」などの発言時に使う。読むだけで、DB には書かない。
 ---
 
-# 訪問準備ブリーフィング スキル (visit-prep)
+# visit-prep：訪問前ブリーフィング
 
-> **正本参照ルール（2026-07-12 追記・検収指摘対応）**: 業務的意味・運用原則・
-> 指標の解釈は、まず `docs/SEMANTIC_MODEL.md` を読むこと（プロジェクト内は
-> 同期コピー。正は `~/Dev-Work/shared-schema/SEMANTIC_MODEL.md`。特に BRS-02
-> riskLevel 提示順・MET-06 更新期限の緊急度）。リレーション名・列挙値・命名は
-> `docs/SCHEMA_CONVENTION.md` が正。本スキルは索引に徹し、定義を二重化しない。
+## なぜ要るか
 
-## なぜこのスキルが必要か
+訪問で最も危ないのは「知らなかったこと」による事故。禁忌を知らずにパニックを招く、前回の問題を知らずに同じことを繰り返す、を防ぐ（計画 N-27b）。
 
-訪問支援で最も危険なのは「知らなかったこと」による事故です。禁忌事項を知らずに大きな音を出してパニックを誘発する、前回の訪問で問題があったことを把握せずに同じ過ちを繰り返す、といった二次被害を防ぐために、訪問前に必要な情報を自動的に集約します。
+## 道具と決まり
 
-## 対象
+- 個人の側は MCP `nest-personal` の `read_personal_cypher`、機関の名前は `nest-resource` の `read_resource_cypher` で読む。読むだけ
+- 本人は仮名（`displayCode`）で呼ぶ。名前は受け取らない（SEMANTICS SEM-REC-02）
+- 包みは実名・電話・住所・生年月日・記録の原文を返さない。**連絡先の電話番号はブリーフィングに出せない。** 「連絡先は事業所の連絡網・紙の緊急連絡カードで確かめる」と書く
+- 読み方の決まり（未確定の添え方、確度の出し方、0 件を「なし」と言わない）は `neo4j-support-db` の「読み方の決まり」と同じ
+- 訪問の目的は職員から聞く。推し量って書かない
 
-- 計画相談支援専門員、ヘルパー、同行支援員
-- 訪問・同行支援の前日〜当日に使用
+## 手順
 
-## トリガーワード
+1. 職員から仮名と訪問の目的・日を聞く
+2. 下の照会 1〜4 を流す（`$code` に仮名、`$days` は 90）
+3. 禁忌が 0 件なら、照会 4 で禁忌の確認（`Review`、領域 `NgAction`）があるかを見る
+4. 下の形でブリーフィングを書く。未確定（`Pending`）の項目には「未確定」と添える
+5. 外出・同行支援なら「同行の追加の確認」も書く
 
-- 「訪問準備」「訪問前に確認」「ブリーフィング」
-- 「明日〇〇さんのところに行く」「〇〇さんの訪問がある」
-- 「同行支援の注意点」「外出支援の準備」
-- 「〇〇さんに会う前に確認しておきたい」
+## 照会
 
----
-
-## 使用するMCPツール
-
-| ツール | 用途 |
-|--------|------|
-| `neo4j:execute_query` | port 7687（障害福祉DB）からの読み取り（このスキルはブリーフィング生成のための読み取り専用。書き込みは行わない） |
-
----
-
-## 実行手順
-
-### Step 1: クライアント名の特定
-
-ユーザーの発言からクライアント名を抽出する。曖昧な場合はクライアント一覧から候補を提示して確認する。
-
-### Step 2: 安全情報の取得（最優先）
-
-禁忌事項と推奨ケアを取得する。この情報は**必ず最初に表示**する。
+### 1. 禁忌と推奨ケア（安全を先に）
 
 ```cypher
-MATCH (c:Client)
-WHERE c.name CONTAINS $clientName
-
-// 禁忌事項（最重要）
-OPTIONAL MATCH (c)-[:MUST_AVOID|PROHIBITED]->(ng:NgAction)
-OPTIONAL MATCH (ng)-[:IN_CONTEXT|RELATES_TO]->(ngCon:Condition)
-
-// 推奨ケア
-OPTIONAL MATCH (c)-[:REQUIRES|PREFERS]->(cp:CarePreference)
-
-// 特性・診断
-OPTIONAL MATCH (c)-[:HAS_CONDITION]->(con:Condition)
-
-// 確認記録（Review）—— 禁忌0件の意味を判定するために必須（BRS-12）
-OPTIONAL MATCH (rvNg:Review {domain: 'NgAction'})-[:ABOUT]->(c)
-
-RETURN
-    c.name AS 氏名,
-    c.dob AS 生年月日,
-    c.bloodType AS 血液型,
-    collect(DISTINCT {
-        action: ng.action,
-        reason: ng.reason,
-        riskLevel: ng.riskLevel,
-        context: ngCon.name
-    }) AS 禁忌事項,
-    count(DISTINCT ng) AS 禁忌件数,
-    max(rvNg.reviewedAt)          AS 禁忌確認日,
-    collect(DISTINCT rvNg.source) AS 禁忌情報源,
-    collect(DISTINCT {
-        category: cp.category,
-        instruction: cp.instruction,
-        priority: cp.priority
-    }) AS 配慮事項,
-    collect(DISTINCT {
-        name: con.name,
-        status: con.status
-    }) AS 特性
+MATCH (c:Client {displayCode: $code})
+OPTIONAL MATCH (c)-[:MUST_AVOID]->(n:NgAction) WHERE n.status IN ['Active', 'Pending']
+OPTIONAL MATCH (n)-[:EVIDENCED_BY]->(nr:Record)
+OPTIONAL MATCH (n)-[:IN_CONTEXT]->(ncd:Condition)
+WITH c, n, collect(DISTINCT nr.certainty) AS ngEvidence, collect(DISTINCT ncd.name) AS ngContext
+WITH c, collect(CASE WHEN n IS NULL THEN NULL ELSE {action: n.action, riskLevel: n.riskLevel, reason: n.reason,
+       status: n.status, evidence: ngEvidence, context: ngContext} END) AS ngActions
+OPTIONAL MATCH (c)-[:REQUIRES]->(p:CarePreference) WHERE p.status IN ['Active', 'Pending']
+OPTIONAL MATCH (p)-[:EVIDENCED_BY]->(pr:Record)
+WITH ngActions, p, collect(DISTINCT pr.certainty) AS cpEvidence
+RETURN ngActions, collect(CASE WHEN p IS NULL THEN NULL ELSE {category: p.category, instruction: p.instruction,
+       priority: p.priority, status: p.status, evidence: cpEvidence} END) AS carePreferences
 ```
 
-**パラメータ**: `$clientName`
-
-> **禁忌件数が 0 のときの表示（BRS-12。厳守）**
-> - `禁忌確認日` が null → **🚨 未確認。「避けるべきことはありません」とは書かない**
-> - `禁忌確認日` あり → ✅ 禁忌なし（確認日と情報源を併記）
->
-> 訪問で最も危険なのは「知らなかったこと」による事故であり、
-> **未聴取を「安全確認済み」と誤認させるブリーフィングはその原因そのもの**になる。
-
-### Step 3: 緊急連絡先の取得
+### 2. 特性と、前回からの申し送り
 
 ```cypher
-MATCH (c:Client)-[kpRel:HAS_KEY_PERSON|EMERGENCY_CONTACT]->(kp:KeyPerson)
-WHERE c.name CONTAINS $clientName
-OPTIONAL MATCH (c)-[:TREATED_AT]->(hosp:Hospital)
-RETURN
-    collect(DISTINCT {
-        rank: kpRel.rank,
-        name: kp.name,
-        relationship: kp.relationship,
-        phone: kp.phone,
-        role: kp.role
-    }) AS キーパーソン,
-    collect(DISTINCT {
-        name: hosp.name,
-        specialty: hosp.specialty,
-        phone: hosp.phone,
-        doctor: coalesce([(hosp)-[:HAS_DOCTOR]->(hd:Doctor) | hd.name][0], hosp.doctor)
-    }) AS 医療機関
+MATCH (c:Client {displayCode: $code})
+OPTIONAL MATCH (c)-[:HAS_CONDITION]->(cd:Condition) WHERE cd.status IN ['Active', 'Pending']
+WITH c, collect(DISTINCT {name: cd.name, status: cd.status}) AS conditions
+OPTIONAL MATCH (s:SupportLog)-[:ABOUT]->(c) WHERE s.status IN ['Active', 'Pending']
+WITH conditions, s ORDER BY s.date DESC
+RETURN conditions, collect({date: s.date, situation: s.situation, action: s.action, effectiveness: s.effectiveness,
+       nextAction: s.nextAction})[0..5] AS recentLogs
 ```
 
-### Step 4: 直近の支援記録の確認
-
-前回訪問からの変化や申し送り事項を把握する。
+### 3. 支える人・関わっている機関・更新期限
 
 ```cypher
-MATCH (s:Supporter)-[:LOGGED]->(log:SupportLog)-[:ABOUT]->(c:Client)
-WHERE c.name CONTAINS $clientName
-RETURN
-    log.date AS 日付,
-    s.name AS 支援者,
-    log.situation AS 状況,
-    log.action AS 対応,
-    log.effectiveness AS 効果,
-    log.note AS メモ
-ORDER BY log.date DESC
-LIMIT 5
+MATCH (c:Client {displayCode: $code})
+OPTIONAL MATCH (p:Person)-[rt:RELATED_TO]->(c) WHERE rt.status IN ['Active', 'Pending'] AND rt.until IS NULL
+WITH c, collect(DISTINCT {personId: p.personId, kind: rt.kind, rank: rt.rank}) AS people
+OPTIONAL MATCH (i:Involvement)-[:CONCERNS]->(c) WHERE i.status IN ['Active', 'Pending'] AND i.howEnded = 'Ongoing'
+OPTIONAL MATCH (o:Organization)-[:HAS_INVOLVEMENT]->(i)
+WITH c, people, collect(DISTINCT {kind: i.kind, service: i.serviceTypeName, orgId: o.orgId}) AS involvements
+OPTIONAL MATCH (c)-[:HAS_CERTIFICATE]->(ct:Certificate)
+  WHERE ct.status = 'Active' AND ct.nextRenewalDate <= date() + duration({days: $days})
+RETURN people, involvements, collect(DISTINCT {type: ct.type, nextRenewalDate: ct.nextRenewalDate}) AS renewals
 ```
 
-### Step 5: 効果的ケアパターンの確認
+機関の名前（`orgId` から）：
 
-繰り返し効果があった対応方法を抽出する。
+```cypher-resource
+MATCH (o:Organization)
+WHERE o.orgId IN $orgIds
+RETURN o.orgId AS orgId, o.name AS name
+```
+
+### 4. 確認の状況（0 件のとき）
 
 ```cypher
-MATCH (s:Supporter)-[:LOGGED]->(log:SupportLog)-[:ABOUT]->(c:Client)
-WHERE c.name CONTAINS $clientName
-  AND (toLower(toString(log.effectiveness)) STARTS WITH 'effective'
-       OR toString(log.effectiveness) CONTAINS '効果')
-WITH log.action AS 対応方法, count(*) AS 回数,
-    collect(DISTINCT log.situation) AS 状況一覧
-WHERE 回数 >= 2
-RETURN 対応方法, 回数, 状況一覧
-ORDER BY 回数 DESC
+MATCH (v:Review)-[:ABOUT]->(c:Client {displayCode: $code})
+WHERE v.status = 'Active' AND v.domain IN ['NgAction', 'CarePreference', 'KeyPerson']
+RETURN v.domain AS domain, max(v.reviewedAt) AS lastReviewedAt, collect(DISTINCT v.informantKind) AS informantKinds
 ```
 
-> 訂正（2026-07-12）: 旧クエリは `STARTS WITH 'excellent'` も判定に含めていたが、
-> `effectiveness` の正式な値域（SEMANTIC_MODEL ENU-02）に `Excellent` は
-> 存在しないため削除した（DRIFT-03）。
+## ブリーフィングの形
 
-### Step 6: 更新期限のチェック
-
-訪問時に手続きの話をすべき証明書があるか確認する。
-
-```cypher
-MATCH (c:Client)-[:HAS_CERTIFICATE|HOLDS]->(cert:Certificate)
-WHERE c.name CONTAINS $clientName
-  AND cert.nextRenewalDate IS NOT NULL
-WITH c, cert,
-     duration.inDays(date(), cert.nextRenewalDate).days AS 残り日数
-WHERE 残り日数 <= 90 AND 残り日数 >= 0
-RETURN
-    cert.type AS 証明書種類,
-    cert.grade AS 等級,
-    cert.nextRenewalDate AS 更新期限,
-    残り日数
-ORDER BY 残り日数 ASC
-```
-
-### Step 7: ブリーフィングシートの出力
-
-以下の形式で整形して表示する。**禁忌事項は必ず最初に配置**すること。
-**禁忌0件のときの書き方は BRS-12 に従う（「なし」と書いてはならない）。**
-
-```markdown
+```text
 ## 訪問前ブリーフィング
-**対象:** [クライアント名]（[年齢]歳）
-**訪問日:** [日付]
-**訪問目的:** [目的]（ユーザーから聞き取り）
+対象：C-……　訪問日：……　目的：……（職員から聞いた言葉のまま）
 
----
-
-### 絶対に避けること
-[riskLevel順: LifeThreatening → Panic → Discomfort]
-- [禁忌事項] — 理由: [reason]
-
-（禁忌0件かつ Review なしの場合は、代わりに以下を表示）
-> 🚨 **禁忌未確認**
-> 登録が無いだけで、避けるべきことが無いとは確認されていません。
-> 今回の訪問でキーパーソンに聞き取り、Review を登録してください。
-
-（禁忌0件かつ Review ありの場合）
-> ✅ 禁忌なし（2026-03-10、母親に確認済み）
+### 絶対に避けること（生命に関わる → パニックを招く → 不快・ストレス）
+- ……（根拠の確度：……、未確定なら「未確定」）
+（0 件で確認が無いとき）🚨 禁忌は未確認。避けることが無いとは確かめられていない。今回の訪問で聞き取る
+（0 件で確認があるとき）✅ 確認済み（0 件）— 確認の日・情報源
 
 ### 効果的な関わり方
-- [推奨ケアリスト]
-- [効果的ケアパターン（複数回効果実証済み）]
+- 推奨ケア（優先度の順）／効果のあった支援記録
 
-### 特性・診断
-- [Conditionリスト]
-
-### 緊急時の連絡先
-1. [キーパーソン1]（[続柄]）TEL: [電話番号]
-2. [キーパーソン2]（[続柄]）TEL: [電話番号]
-   かかりつけ: [病院名] TEL: [電話番号]
-
-### 前回からの申し送り
-[直近5件の支援記録の要点]
-
-### 確認すべき期限
-[90日以内に更新期限が来る証明書]
+### 特性
+### 支える人・関わっている機関（連絡先は連絡網で確かめる）
+### 前回からの申し送り（直近 5 件）
+### 確認すべき期限（90 日以内の更新）
 ```
 
----
+## 同行の追加の確認（外出・同行支援のとき）
 
-## 同行支援（外出）の場合の追加確認
+- パニックの引き金：禁忌の `context`（`IN_CONTEXT` の特性）から外出に関わるもの
+- 落ち着ける方法：推奨ケアから、パニックのときの関わり方
+- 持ち物（薬・緊急連絡カード・好きな物）は職員に確かめるよう書く。DB から推し量らない
 
-訪問目的が外出や同行支援の場合は、以下も確認して追記する。
+## 出力
 
-- **パニックの引き金**: 禁忌事項からIN_CONTEXTの関連で外出に関わるものを抽出
-- **落ち着ける方法**: CarePreferenceからcategory = 'パニック' を抽出
-- **持ち物チェック**: 薬、緊急連絡先カード、好きなアイテム
-- **最寄り医療機関**: Hospital情報
-
----
-
-## PDF/HTML出力
-
-ブリーフィングシートをファイルとして出力する場合は、以下の連携スキルを使用する。
-
-| 形式 | スキル |
-|------|--------|
-| PDF | `html-to-pdf` スキル（HTML作成→Chrome印刷） |
-| HTML | 直接HTMLファイルを生成 |
-
----
+ファイルにするときは `html-to-pdf`。ファイルを外のサービスに上げない。
 
 ## 関連スキル
 
-| スキル | 連携 |
-|--------|------|
-| `emergency-protocol` | 訪問中に緊急事態が発生した場合 |
-| `neo4j-support-db` | Cypherテンプレートの参照元 |
-| `ecomap-generator` | 支援ネットワークの可視化が必要な場合 |
-
-## 証拠・鮮度モデル（Track A Phase 1・2026-08-08 正典収載）
-
-SCHEMA_CONVENTION **v3.4 §7.9** / SEMANTIC_MODEL **v1.6 BRS-13**（河原氏承認 2026-08-08）で
-NgAction / CarePreference に `source`（ENU-17 語彙）/ `sourceDetail` / `status`（Active・Pending・
-Inactive の3値制限）/ `lastConfirmedAt` / `staleAfter` が、リレーション `CONTRADICTS`（矛盾の保留・
-追記専用）/ `CONFIRMS`（Review→事実の個別確認）が正典収載された。
-
-本スキルへの影響（挙動実装は Phase 1 ステップ4以降）:
-- ブリーフィングに鮮度・状態の注記を追加する: 期限超過（`coalesce(staleAfter,
-  freshnessDefaults)` 超え）は「この推奨ケアは最終確認から◯日経過」、未解決 CONTRADICTS は
-  「係争中」、`Pending` は「未確定」。**いずれも禁忌の警告自体は消さない**（BRS-13 非対称ルール）。
-- 再確認キューの抽出クエリは data-quality-agent と共用（技術仕様 §5）。
+`neo4j-support-db`（詳しい照会）、`emergency-protocol`（緊急時）、`resilience-checker`（親なき後の診断）

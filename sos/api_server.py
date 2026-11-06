@@ -3,12 +3,13 @@ nest SOS - APIサーバー
 知的障害のある方が緊急時にSOSを送信するためのAPIサーバー
 
 機能:
-- SOSリクエストを受信
-- Neo4jからクライアント情報を取得
-- LINE Messaging APIでグループLINEに通知
+- SOSリクエストを受信し、LINE Messaging APIでグループLINEに通知（NEXT-05 の歯止めを通す。文を作るのに DB を読まない）
+- 本人の確認（GET /api/client/{displayCode}）：仮名だけで受け、読み取りの包み（nest.mcp_guard）を通して
+  個人の側を読み、仮名と「いるか」だけを返す。名前は返さない。DB に直につながない（計画 N-36）
 """
 
 import os
+import re
 import sys
 import httpx
 from datetime import datetime
@@ -18,21 +19,18 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from neo4j import GraphDatabase
 
-# 親ディレクトリをパスに追加（lib/からインポートするため）
+# 親ディレクトリをパスに追加（nest/ からインポートするため）
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lib.db_operations import resolve_client_raw, get_display_name, run_query
-from lib.auth import require_auth, set_session_cookie, verify_token
+from nest.auth import require_auth, set_session_cookie, verify_token
+from nest import egress
+from nest.ids import DISPLAY_ALPHABET
 
 # 環境変数読み込み
 load_dotenv()
 
 # --- 設定 ---
-NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7688")  # 個人層。値は lib.db_operations の import 時に neo4j-personal.env から入る
-NEO4J_USERNAME = os.getenv("NEO4J_USERNAME", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
 LINE_GROUP_ID = os.getenv("LINE_GROUP_ID", "")
 
@@ -40,12 +38,6 @@ LINE_GROUP_ID = os.getenv("LINE_GROUP_ID", "")
 # 例: "https://example.com,https://app.example.com"
 # 変数名は field-ui と統一して CORS_ALLOW_ORIGINS。旧 CORS_ORIGINS も後方互換で読む。
 CORS_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", os.getenv("CORS_ORIGINS", ""))
-
-# --- Neo4j接続 ---
-# lib/db_operations.py から run_query を使用するため、ここでは定義不要
-# 古い関数が呼ばれている箇所があれば run_query に置き換える
-
-
 
 # --- FastAPI ---
 app = FastAPI(
@@ -74,7 +66,7 @@ else:
 
 # --- リクエストモデル ---
 class SOSRequest(BaseModel):
-    client_id: str  # クライアント識別子（名前またはID）
+    client_id: str  # 仮名（displayCode）。仮名の形でなくても送る（緊急の導線は止めない）が、文には書かない
     latitude: float | None = None
     longitude: float | None = None
     accuracy: float | None = None
@@ -108,6 +100,13 @@ async def send_line_message(message: str) -> bool:
 
     _mock_mode = False
     url = "https://api.line.me/v2/bot/message/push"
+    # 送信の歯止め（N-02・external-api NEXT-05）。鍵があっても、機能の設定と契約の確認の記録が
+    # そろわなければ送らない。
+    try:
+        egress.ensure("NEXT-05", url)
+    except egress.EgressDenied as e:
+        print(f"LINE送信を止めました（NEXT-05 不許可）: {e}")
+        return False
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {token}"
@@ -131,173 +130,29 @@ async def send_line_message(message: str) -> bool:
         return False
 
 
-# --- クライアント情報取得 ---
-def get_client_info(client_id: str) -> dict | None:
-    """
-    Neo4jからクライアント情報を取得（仮名化対応）
-
-    対応する識別子:
-    - clientId (c-xxxx)
-    - displayCode (A-001)
-    - name (山田健太)
-    """
-    # まず仮名化対応の解決を試みる
-    resolved = resolve_client_raw(client_id)  # 緊急照会は実名が必須
-
-    if resolved:
-        # 仮名化スキーマで見つかった場合
-        client_name = resolved.get('name')
-        client_id_internal = resolved.get('clientId')
-
-        # キーパーソンを取得（clientId または name で検索）
-        if client_id_internal:
-            kp_results = run_query("""
-                MATCH (c:Client {clientId: $clientId})
-                OPTIONAL MATCH (c)-[r:HAS_KEY_PERSON]->(kp:KeyPerson)
-                WITH kp, r
-                ORDER BY r.rank
-                RETURN collect({
-                    name: kp.name,
-                    relationship: kp.relationship,
-                    phone: kp.phone,
-                    rank: r.rank
-                }) as keyPersons
-            """, {"clientId": client_id_internal})
-        else:
-            kp_results = run_query("""
-                MATCH (c:Client {name: $name})
-                OPTIONAL MATCH (c)-[r:HAS_KEY_PERSON]->(kp:KeyPerson)
-                WITH kp, r
-                ORDER BY r.rank
-                RETURN collect({
-                    name: kp.name,
-                    relationship: kp.relationship,
-                    phone: kp.phone,
-                    rank: r.rank
-                }) as keyPersons
-            """, {"name": client_name})
-
-        return {
-            "name": client_name,
-            "clientId": client_id_internal,
-            "displayCode": resolved.get('displayCode'),
-            "dob": resolved.get('dob'),
-            "keyPersons": kp_results[0]['keyPersons'] if kp_results else []
-        }
-
-    # 後方互換性: 旧スキーマでの検索（完全一致のみ。CONTAINS は名前列挙オラクルになる）
-    results = run_query("""
-        MATCH (c:Client)
-        WHERE c.name = $name OR c.id = $name
-        OPTIONAL MATCH (c)-[r:HAS_KEY_PERSON]->(kp:KeyPerson)
-        WITH c, kp, r
-        ORDER BY r.rank
-        RETURN c.name as name,
-               c.dob as dob,
-               collect({
-                   name: kp.name,
-                   relationship: kp.relationship,
-                   phone: kp.phone,
-                   rank: r.rank
-               }) as keyPersons
-        LIMIT 1
-    """, {"name": client_id})
-
-    if results:
-        return results[0]
-    return None
-
-
-def get_client_cautions(client_identifier: str) -> list:
-    """
-    クライアントの禁忌事項（注意点）を取得（仮名化対応）
-
-    Args:
-        client_identifier: clientId, displayCode, または name
-    """
-    # まず仮名化対応の解決を試みる
-    resolved = resolve_client_raw(client_identifier)  # 緊急照会は実名が必須
-
-    if resolved and resolved.get('clientId'):
-        # clientId で検索
-        results = run_query("""
-            MATCH (c:Client {clientId: $clientId})-[:MUST_AVOID]->(ng:NgAction)
-            WHERE ng.riskLevel IN ['LifeThreatening', 'Panic']
-            RETURN ng.action as action, ng.riskLevel as risk
-            ORDER BY CASE ng.riskLevel
-                WHEN 'LifeThreatening' THEN 1
-                WHEN 'Panic' THEN 2
-                ELSE 3 END
-            LIMIT 3
-        """, {"clientId": resolved['clientId']})
-        return results
-
-    # 後方互換性: name で検索
-    client_name = resolved.get('name') if resolved else client_identifier
-    results = run_query("""
-        MATCH (c:Client {name: $name})-[:MUST_AVOID]->(ng:NgAction)
-        WHERE ng.riskLevel IN ['LifeThreatening', 'Panic']
-        RETURN ng.action as action, ng.riskLevel as risk
-        ORDER BY CASE ng.riskLevel
-            WHEN 'LifeThreatening' THEN 1
-            WHEN 'Panic' THEN 2
-            ELSE 3 END
-        LIMIT 3
-    """, {"name": client_name})
-
-    return results
-
-
 # --- SOSメッセージ作成 ---
+# N-28（ADR-001 D11-3、external-api NEXT-05）：LINE に送るのは SOS・誰のことか（仮名）・位置・確かめる先だけ。
+# 電話・禁忌・実名・キーパーソンの名前は送らない。文を作るのに DB を読まない。
+DISPLAY_CODE = re.compile(r"C-[%s]{6}" % DISPLAY_ALPHABET)
+CONFIRM_LINE = "📇 連絡先と注意することは、手元の緊急連絡カードと SOS の画面で確かめてください"
+
+
 def create_sos_message(
-    client_name: str,
-    key_persons: list,
-    cautions: list,
+    code: str,
     latitude: float | None = None,
     longitude: float | None = None,
-    accuracy: float | None = None
+    accuracy: float | None = None,
 ) -> str:
-    """
-    SOSメッセージを作成
-    """
+    """SOS の文。誰のことかは仮名（displayCode）の形のときだけ書く"""
     now = datetime.now().strftime("%Y/%m/%d %H:%M")
-
-    # 基本メッセージ
-    message = f"""🆘【緊急SOS】
-
-{client_name}さんから助けを求めています！
-
-⏰ 発信時刻: {now}
-"""
-
-    # 位置情報
-    if latitude and longitude:
-        map_url = f"https://www.google.com/maps?q={latitude},{longitude}"
+    who = code if isinstance(code, str) and DISPLAY_CODE.fullmatch(code) else "（仮名の形でない ID のため書かない）"
+    message = f"🆘【緊急SOS】\n\n対象: {who}\n⏰ 発信時刻: {now}\n"
+    if latitude is not None and longitude is not None:
         acc_text = f"（精度: 約{int(accuracy)}m）" if accuracy else ""
-        message += f"""
-📍 現在地:
-{map_url}
-{acc_text}
-"""
+        message += f"\n📍 現在地:\nhttps://www.google.com/maps?q={latitude},{longitude}\n{acc_text}\n"
     else:
-        message += "\n📍 位置情報: 取得できませんでした\n"
-
-    # キーパーソン（緊急連絡先）
-    if key_persons and key_persons[0].get('name'):
-        message += "\n📞 緊急連絡先:\n"
-        for kp in key_persons[:3]:  # 上位3名まで
-            if kp.get('name'):
-                rel = kp.get('relationship', '')
-                phone = kp.get('phone', '番号未登録')
-                message += f"　・{kp['name']}（{rel}）{phone}\n"
-
-    # 注意事項（禁忌事項）
-    if cautions:
-        message += "\n⚠️ 対応時の注意:\n"
-        for c in cautions:
-            risk_mark = "🔴" if c.get('risk') == 'LifeThreatening' else "🟠"
-            message += f"　{risk_mark} {c['action']}\n"
-
+        message += "\n📍 位置: 取得できませんでした\n"
+    message += "\n" + CONFIRM_LINE + "\n"
     return message
 
 
@@ -313,63 +168,23 @@ async def receive_sos(request: SOSRequest):
     """
     SOSリクエストを受信し、LINEグループに通知
     """
-    print(f"SOS受信: {request.client_id}")
-
-    # クライアント情報を取得
-    client_info = get_client_info(request.client_id)
-
-    if not client_info:
-        # クライアントが見つからない場合も通知は送る
-        message = f"""🆘【緊急SOS】
-
-不明なユーザー（ID: {request.client_id}）からSOSがありました。
-
-⏰ 発信時刻: {datetime.now().strftime("%Y/%m/%d %H:%M")}
-"""
-        if request.latitude and request.longitude:
-            message += f"\n📍 現在地:\nhttps://www.google.com/maps?q={request.latitude},{request.longitude}"
-
-        await send_line_message(message)
-
-        # 登録有無を漏らさないため、登録済みと同一のメッセージ・形状で返す
-        return SOSResponse(
-            success=True,
-            message="SOSを送信しました",
-            received_id=request.client_id,
-        )
-
-    client_name = client_info['name']
-    key_persons = client_info.get('keyPersons', [])
-
-    # 禁忌事項を取得
-    cautions = get_client_cautions(client_name)
-
-    # メッセージ作成
     message = create_sos_message(
-        client_name=client_name,
-        key_persons=key_persons,
-        cautions=cautions,
+        request.client_id,
         latitude=request.latitude,
         longitude=request.longitude,
-        accuracy=request.accuracy
+        accuracy=request.accuracy,
     )
-
-    print(f"Generated SOS Message:\n{message}")
-
-    # LINE送信
-    success = await send_line_message(message)
-
-    if success:
+    # 登録の有無で文の形も応答も変えない（登録有無オラクル封じ）。DB は読まない
+    if await send_line_message(message):
         return SOSResponse(
             success=True,
             message="SOSを送信しました",
             received_id=request.client_id,
         )
-    else:
-        raise HTTPException(
-            status_code=500,
-            detail="LINE送信に失敗しました"
-        )
+    raise HTTPException(
+        status_code=500,
+        detail="LINE送信に失敗しました"
+    )
 
 
 class LoginInput(BaseModel):
@@ -388,22 +203,27 @@ async def login(data: LoginInput, response: Response):
 @app.get("/api/client/{client_id}")
 async def get_client(client_id: str, user: str = Depends(require_auth)):
     """
-    クライアント情報を取得（アプリ起動時の確認用）。
-
-    非対称設計: SOS 送信（POST /api/sos）は無認証だが、情報取得は認証必須。
+    本人の確認（アプリ起動時）。認証必須（非対称設計：SOS 送信は無認証）。
+    仮名（displayCode）だけで受け、仮名と「いるか」だけを返す。名前は返さない（計画 N-36、台帳 G-66）。
     """
-    client_info = get_client_info(client_id)
+    if not DISPLAY_CODE.fullmatch(client_id):
+        raise HTTPException(status_code=400, detail="仮名（C-で始まる 8 文字）で指定してください")
+    try:
+        found = lookup_client(client_id)
+    except Exception:
+        # 包みが読まない（NEXT-02 の歯止めがそろわない）・DB が止まっている。中身は返さない
+        raise HTTPException(status_code=503, detail="いまは本人の確認ができません（SOS の送信はできます）")
+    return {"displayCode": client_id, "found": found}
 
-    if client_info:
-        return {
-            "found": True,
-            "name": client_info['name']
-        }
-    else:
-        return {
-            "found": False,
-            "name": None
-        }
+
+def lookup_client(code: str) -> bool:
+    """個人の側に、その仮名の本人がいるか。読み取りの包み（nest.mcp_guard）を通して読む"""
+    from nest import connections, mcp_guard
+    with connections.driver("personal") as d:
+        mcp_guard.require_personal_allowed(d, caller="screen")
+        rows = mcp_guard.run_read(d, "MATCH (c:Client {displayCode: $code}) RETURN count(c) AS n", {"code": code},
+                                  personal=True)
+    return bool(rows and rows[0]["n"])
 
 
 # --- 静的ファイル配信（スマホアプリ） ---
@@ -421,10 +241,9 @@ if __name__ == "__main__":
     print("=" * 50)
     print("nest SOS API サーバー")
     print("=" * 50)
-    print(f"Neo4j: {NEO4J_URI}")
     print(f"LINE設定: {'設定済み' if LINE_CHANNEL_ACCESS_TOKEN else '未設定'}")
     print("=" * 50)
-    print("アプリURL: http://localhost:8000/app/?id=クライアント名")
+    print("アプリURL: http://localhost:8000/app/?id=仮名（C-……）")
     print("API URL: http://localhost:8000/api/sos")
     print("=" * 50)
 

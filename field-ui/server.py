@@ -1,49 +1,51 @@
 """
 nest-support 現場UI サーバー
 
-現場スタッフ・管理者向けのWebインターフェースを提供するFastAPIサーバー。
-Claude Desktop を使わなくても、スマホやPCから直接操作できる。
+現場の職員向けの Web の画面を出す FastAPI のサーバー。
 
 画面:
   /                  → トップ（メニュー）
-  /record            → A. 支援記録入力フォーム
-  /dashboard         → B. 管理者ダッシュボード
-  /voice             → C. 音声ワンタップ録音
+  /record            → A. 支援記録の入力
+  /dashboard         → B. ダッシュボード（今は閉じている。推移は insight-agent スキルで見る）
+  /voice             → C. 音声の録音（文字起こしまで）
 
-前提条件:
-  - Neo4j が起動していること (docker compose up -d)
-  - GEMINI_API_KEY が設定されていること（音声処理に必要）
+決まり（計画 N-37。2026-11-06 河原さん）:
+  - 認証は職員ごとのトークン（nest.auth.require_staff）。ゲートに渡す職員 ID はトークンから決める
+  - 読むのは読み取りの包み（nest.mcp_guard）を通してだけ。本人は ID と仮名で扱い、名前を返さない
+  - 支援記録はゲート（nest.gate.write.submit）に依頼として渡す。DB に直に書かない
+  - 音声は文字起こし（docs/external-api.md NEXT-03 の歯止めを通す）まで。構造化も登録もしない。
+    書き込みの案は、職員が文字起こしを原文にして narrative-extractor と intake で作る
+  - 文字起こしができた音声は nest_voice_data/ に「文字起こしの sha256（＝ documentHash）＋ 拡張子」で置く。
+    承認されたら・遅くとも 30 日で scripts/purge_voice.py が消す
 
 起動:
-  cd field-ui
-  uv run uvicorn server:app --host 0.0.0.0 --port 8001 --reload
+  uv run python field-ui/server.py      # 既定は 127.0.0.1:8001
 """
 
 import os
 import sys
-import json
 import tempfile
-from datetime import date, datetime
+import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, ConfigDict
 from dotenv import load_dotenv
 
 # プロジェクトルートを sys.path に追加
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-from lib.db_operations import run_query, register_to_database
-from lib.auth import require_auth, set_session_cookie, verify_token
+from nest.auth import require_staff, set_session_cookie, staff_of
+from nest import auth, voice
 
 app = FastAPI(
     title="nest-support 現場UI",
-    description="支援記録入力・ダッシュボード・音声録音",
-    version="1.0.0",
+    description="支援記録の入力・音声の録音",
+    version="2.0.0",
 )
 
 # CORS は既定で無効（同一オリジン運用・リバースプロキシ配下を想定）。
@@ -63,14 +65,43 @@ if CORS_ORIGINS:
 # 音声アップロード上限・許可形式
 MAX_AUDIO_BYTES = int(os.getenv("MAX_AUDIO_MB", "25")) * 1024 * 1024
 ALLOWED_AUDIO_EXT = {".webm", ".ogg", ".oga", ".mp3", ".m4a", ".mp4", ".wav", ".aac", ".flac"}
+VOICE_ROOT = voice.VOICE_DIR  # 音声の置き場所（nest/voice.py。権限 700、Time Machine の対象外）
+DASHBOARD_CLOSED = "ダッシュボードは閉じています（計画 N-37）。支援記録の推移は insight-agent スキルで見てください"
 
 
-def _client_exists(name: str) -> bool:
-    """既存 Client かを確認（ゴースト Client の量産を防ぐ存在チェック）。"""
-    if not name or not name.strip():
-        return False
-    rows = run_query("MATCH (c:Client {name: $name}) RETURN count(c) AS n", {"name": name})
+# =============================================================================
+# DB：読むのは包み、書くのはゲート
+# =============================================================================
+
+def read_personal(query: str, params: dict | None = None) -> list[dict]:
+    """個人の側を読み取りの包みで読む（画面の経路：NEXT-02 の歯止めは通さない。読み取りだけ、実名などは返さない。台帳 G-85）。"""
+    from nest import connections, mcp_guard
+    with connections.driver("personal") as d:
+        mcp_guard.require_personal_allowed(d, caller="screen")
+        return mcp_guard.run_read(d, query, params, personal=True)
+
+
+def submit_to_gate(req: dict) -> dict:
+    """ゲートに依頼を渡す（検証・職員の役割の確かめ・監査の記録はゲートが行う）。"""
+    from nest import connections
+    from nest.gate import write as gw
+    with connections.driver("personal") as d:
+        return gw.submit(req, d)
+
+
+def _client_exists(client_id: str) -> bool:
+    """既にいる本人か（ゲートに渡す前・文字起こしの前に弾く）。読めなければ 503。"""
+    try:
+        rows = read_personal("MATCH (c:Client {clientId: $id}) RETURN count(c) AS n", {"id": client_id})
+    except Exception:
+        raise HTTPException(status_code=503, detail="いまは本人を確かめられません（DB を読めない）")
     return bool(rows and rows[0].get("n", 0) > 0)
+
+
+def _require_client(client_id: str) -> None:
+    if not _client_exists(client_id):
+        raise HTTPException(status_code=404, detail="いない本人です（%s）。本人の登録は Claude の外で行います" % client_id)
+
 
 # 静的ファイル配信
 STATIC_DIR = Path(__file__).parent / "static"
@@ -111,152 +142,106 @@ class LoginInput(BaseModel):
 
 @app.post("/api/login")
 async def api_login(data: LoginInput, response: Response):
-    if not verify_token(data.token):
+    try:
+        staff_id = staff_of(data.token)
+    except auth.StaffTableError:
+        raise HTTPException(status_code=503, detail="認証が未設定です（職員のトークンの表を作ってください）")
+    if staff_id is None:
         raise HTTPException(status_code=401, detail="トークンが正しくありません")
     set_session_cookie(response, data.token)
     return {"status": "ok"}
 
 
 # =============================================================================
-# API: クライアント一覧
+# API: 本人の一覧（ID と仮名だけ）
 # =============================================================================
 
 @app.get("/api/clients")
-async def api_clients(user: str = Depends(require_auth)):
-    rows = run_query("MATCH (c:Client) RETURN c.name AS name ORDER BY c.name")
-    return [r["name"] for r in rows]
+async def api_clients(staff: str = Depends(require_staff)):
+    """本人の一覧（ID と仮名だけ）。登録の新しい順。包みの上限（mcp_guard.MAX_ROWS）で切れたら、黙らずに印を付ける
+    （truncated と全体の件数。2026-11-06 河原さん。台帳 G-86）。"""
+    try:
+        clients = read_personal("MATCH (c:Client) WHERE c.status = 'Active' "
+                                "RETURN c.clientId AS clientId, c.displayCode AS displayCode "
+                                "ORDER BY c.registeredAt DESC, c.displayCode")
+        total = read_personal("MATCH (c:Client) WHERE c.status = 'Active' RETURN count(c) AS total")[0]["total"]
+    except Exception:
+        raise HTTPException(status_code=503, detail="いまは本人の一覧を読めません")
+    return {"clients": clients, "total": total, "truncated": total > len(clients)}
 
 
 # =============================================================================
-# API: 支援記録の登録
+# API: 支援記録の登録（ゲートを通す）
 # =============================================================================
 
 class SupportLogInput(BaseModel):
-    clientName: str
-    supporterName: str
+    """正典の SupportLog の項目だけ（docs/SCHEMA.md）。ほかの欄があれば 422。"""
+    model_config = ConfigDict(extra="forbid")
+    clientId: str
     date: str
     situation: str
-    action: str
-    effectiveness: str
-    emotion: str
-    triggerTag: str = ""
-    context: str = ""
-    note: str = ""
+    action: str | None = None
+    effectiveness: str | None = None
+    note: str | None = None
+    nextAction: str | None = None
+
+
+def support_log_request(staff_id: str, data: SupportLogInput, request_id: str) -> dict:
+    """支援記録を書く依頼。人が入れた記録なので origin は Human。空の欄は送らない。値の検証はゲートが行う。"""
+    props = {k: v for k, v in data.model_dump(exclude={"clientId"}).items() if v not in (None, "")}
+    return {"requestId": request_id, "actorStaffId": staff_id,
+            "nodes": [{"ref": "log", "label": "SupportLog", "origin": "Human", "properties": props}],
+            "relationships": [
+                {"type": "ABOUT", "from": "log", "to": {"label": "Client", "id": data.clientId}, "properties": {}},
+                {"type": "AUTHORED_BY", "from": "log", "to": {"label": "Staff", "id": staff_id}, "properties": {}}]}
+
 
 @app.post("/api/support-log")
-async def api_create_support_log(data: SupportLogInput, user: str = Depends(require_auth)):
-    # 存在しないクライアント名での記録は、typo によるゴースト Client を量産する。
-    # 新規登録は onboarding-wizard に限定し、記録フォームは既存クライアントのみ許可する。
-    if not _client_exists(data.clientName):
-        raise HTTPException(
-            status_code=404,
-            detail=f"未登録のクライアントです: '{data.clientName}'。先に新規登録を行ってください。",
-        )
-    graph = {
-        "nodes": [
-            {"temp_id": "c1", "label": "Client", "properties": {"name": data.clientName}},
-            {"temp_id": "s1", "label": "Supporter", "properties": {"name": data.supporterName}},
-            {"temp_id": "log1", "label": "SupportLog", "properties": {
-                "date": data.date,
-                "situation": data.situation,
-                "action": data.action,
-                "effectiveness": data.effectiveness,
-                "emotion": data.emotion,
-                "triggerTag": data.triggerTag,
-                "context": data.context,
-                "note": data.note,
-            }},
-        ],
-        "relationships": [
-            {"source_temp_id": "s1", "target_temp_id": "log1", "type": "LOGGED", "properties": {}},
-            {"source_temp_id": "log1", "target_temp_id": "c1", "type": "ABOUT", "properties": {}},
-        ],
-    }
-    # 監査ログの操作者は認証済みアイデンティティ由来（自己申告の supporterName ではない）
-    result = register_to_database(graph, user_name=f"field-ui:{user}")
-    return result
+async def api_create_support_log(data: SupportLogInput, staff: str = Depends(require_staff)):
+    _require_client(data.clientId)
+    req = support_log_request(staff, data, "field-ui-" + uuid.uuid4().hex)
+    try:
+        out = submit_to_gate(req)
+    except Exception:
+        raise HTTPException(status_code=503, detail="いまは登録できません（DB に届かない）")
+    if not out.get("ok"):
+        raise HTTPException(status_code=422, detail=out.get("errors", []))
+    return {"ok": True, "supportLogId": out["ids"]["log"]}
 
 
 # =============================================================================
-# API: ダッシュボード用データ
+# API: ダッシュボード（閉じている）
 # =============================================================================
 
 @app.get("/api/dashboard/summary")
-async def api_dashboard_summary(user: str = Depends(require_auth)):
-    """全クライアントの感情サマリー"""
-    rows = run_query("""
-        MATCH (c:Client)<-[:ABOUT]-(log:SupportLog)
-        WHERE date(log.date) >= date() - duration({days: 7})
-          AND log.emotion IS NOT NULL
-        WITH c.name AS clientName,
-             count(log) AS totalLogs,
-             count(CASE WHEN log.emotion IN ['Anger','Sadness','Fear','Disgust','Anxiety'] THEN 1 END) AS negativeLogs
-        WHERE totalLogs >= 1
-        RETURN clientName, totalLogs, negativeLogs
-        ORDER BY toFloat(negativeLogs)/totalLogs DESC
-    """)
-    results = []
-    for r in rows:
-        total = r.get("totalLogs", 0)
-        negative = r.get("negativeLogs", 0)
-        results.append({
-            "clientName": r["clientName"],
-            "totalLogs": total,
-            "negativeLogs": negative,
-            "negativeRate": round(negative / total * 100, 1) if total > 0 else 0,
-        })
-    return results
+async def api_dashboard_summary(staff: str = Depends(require_staff)):
+    raise HTTPException(status_code=503, detail=DASHBOARD_CLOSED)
 
 
-@app.get("/api/dashboard/alerts/{client_name}")
-async def api_dashboard_alerts(client_name: str, user: str = Depends(require_auth)):
-    """特定クライアントのインサイト分析"""
-    try:
-        from lib.insight_engine import generate_risk_assessment
-        result = generate_risk_assessment(client_name)
-        return JSONResponse(content=json.loads(json.dumps(result, default=str)))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/api/dashboard/alerts/{client_id}")
+async def api_dashboard_alerts(client_id: str, staff: str = Depends(require_staff)):
+    raise HTTPException(status_code=503, detail=DASHBOARD_CLOSED)
 
 
-@app.get("/api/dashboard/recent-logs/{client_name}")
-async def api_recent_logs(client_name: str, user: str = Depends(require_auth)):
-    """直近の支援記録"""
-    rows = run_query("""
-        MATCH (c:Client {name: $name})<-[:ABOUT]-(log:SupportLog)
-        OPTIONAL MATCH (s:Supporter)-[:LOGGED]->(log)
-        RETURN log.date AS date, log.situation AS situation,
-               log.action AS action, log.emotion AS emotion,
-               log.triggerTag AS triggerTag, log.effectiveness AS effectiveness,
-               log.context AS context, s.name AS supporter
-        ORDER BY log.date DESC
-        LIMIT 20
-    """, {"name": client_name})
-    return [
-        {k: str(v) if v is not None else "" for k, v in r.items()}
-        for r in rows
-    ]
+@app.get("/api/dashboard/recent-logs/{client_id}")
+async def api_recent_logs(client_id: str, staff: str = Depends(require_staff)):
+    raise HTTPException(status_code=503, detail=DASHBOARD_CLOSED)
 
 
 # =============================================================================
-# API: 音声アップロード → 構造化 → 登録
+# API: 音声アップロード → 文字起こし
 # =============================================================================
 
 @app.post("/api/voice/upload")
 async def api_voice_upload(
     audio: UploadFile = File(...),
-    clientName: str = Form(...),
-    supporterName: str = Form(""),
-    user: str = Depends(require_auth),
+    clientId: str = Form(...),
+    staff: str = Depends(require_staff),
 ):
-    """音声ファイルをアップロードし、文字起こし→構造化→登録"""
-    # 存在しないクライアントでの登録はゴースト Client を生むため先に弾く
-    # （文字起こし等の高コスト処理に入る前に検証する）。
-    if not _client_exists(clientName):
-        raise HTTPException(
-            status_code=404,
-            detail=f"未登録のクライアントです: '{clientName}'。先に新規登録を行ってください。",
-        )
+    """音声ファイルをアップロードし、文字起こしの全文と documentHash を返す（NEXT-03）。構造化と登録はしない（N-05・ADR-001 D6）。
+    全文を返すのは、職員がそのまま原文にすると documentHash が音声の名前と合い、承認で音声を消せるため。"""
+    # いない本人は、文字起こし（外への送信）の前に弾く
+    _require_client(clientId)
 
     # 形式・拡張子の検証（想定外ファイルの処理・保存を防ぐ）
     suffix = Path(audio.filename or "audio.webm").suffix.lower() or ".webm"
@@ -289,36 +274,20 @@ async def api_voice_upload(
         raise HTTPException(status_code=422, detail="空の音声ファイルです")
 
     try:
-        # Step 1: 文字起こし
-        from lib.embedding import transcribe_audio
-        transcript = transcribe_audio(tmp_path)
+        from nest import genai
+        transcript = genai.transcribe_audio(tmp_path)
         if not transcript:
-            raise HTTPException(status_code=422, detail="音声の文字起こしに失敗しました")
-
-        # Step 2: 構造化
-        from scripts.multi_importer import structurize_with_gemini
-        graph_data = structurize_with_gemini(
-            text=transcript,
-            client_name=clientName,
-            supporter_name=supporterName or None,
-            source_file=audio.filename or "voice_recording",
-        )
-        if not graph_data:
-            raise HTTPException(status_code=422, detail="テキストの構造化に失敗しました")
-
-        # Step 3: 登録
-        result = register_to_database(
-            graph_data,
-            user_name=f"voice-ui:{user}",
-        )
-
+            raise HTTPException(status_code=422, detail="音声の文字起こしに失敗しました（送信が許されていないときも）")
+        digest = voice.store(tmp_path, transcript, suffix, VOICE_ROOT)
         return {
-            "status": result.get("status", "unknown"),
-            "transcript": transcript[:500],
-            "nodes_registered": result.get("count", result.get("registered_count", 0)),
+            "status": "transcribed",
+            "transcript": transcript,
+            "documentHash": digest,
+            "nodes_registered": 0,
         }
     finally:
-        os.unlink(tmp_path)
+        if os.path.exists(tmp_path):  # 置き場所へ移せなかったとき・文字起こしできなかったときは残さない
+            os.unlink(tmp_path)
 
 
 if __name__ == "__main__":

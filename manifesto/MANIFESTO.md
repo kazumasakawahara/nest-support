@@ -31,7 +31,7 @@
 
 ## 2. データモデルの7本柱 (The 7 Data Pillars)
 
-v4.0では、中核Skills（neo4j-support-db / provider-search / emergency-protocol / ecomap-generator）が扱う領域を統一的に整理した。その後 narrative-extractor / visit-prep / resilience-checker / onboarding-wizard / data-quality-agent / insight-agent / wamnet-provider-sync / inheritance-calculator / html-to-pdf を追加し、現在は計14 Skills（最新は `CLAUDE.md` を参照）。以下の7本柱はこれら全Skillに通底するデータモデルである。
+v4.0では、中核Skills（neo4j-support-db / provider-search / emergency-protocol / ecomap-generator）が扱う領域を統一的に整理した。その後 narrative-extractor / visit-prep / resilience-checker / onboarding-wizard / data-quality-agent / insight-agent / inheritance-calculator / html-to-pdf を追加した（最新は `CLAUDE.md` を参照）。以下の7本柱はこれら全Skillに通底するデータモデルである。
 
 ### 第1の柱：本人性 (Identity & Narrative)
 「その人は誰か」を定義する。属性だけでなく、人生の物語を含む。
@@ -51,28 +51,25 @@ v4.0では、中核Skills（neo4j-support-db / provider-search / emergency-proto
 ### 第3の柱：危機管理ネットワーク (Safety Net)
 「誰が守るか」を定義する。緊急時の指揮命令系統と法的権限。
 
-- **主要ノード:** `:KeyPerson`, `:Guardian`, `:Hospital`, `:Doctor`
+- **主要ノード:** `:Person`（`RELATED_TO` の `kind` が `KeyPerson`・`PrimaryDoctor` など）、`:Involvement`（`kind` が `Medical`・`Guardianship`・`AgencyContract` など）
 - **マニフェスト価値:** 安全 (Safety)
 
-> 訂正（2026-07-12・DRIFT-02）: かかりつけ医は SCHEMA_CONVENTION v3.2 で
-> `Hospital.doctor` 文字列プロパティから独立した `:Doctor` ノード
-> （`(:Hospital)-[:HAS_DOCTOR]->(:Doctor)`）へ昇格済み。旧版の主要ノードには
-> `:Hospital` のみ記載されていた。
+> 2026-11-06（計画 E-3）：主要ノードを正典 `docs/SCHEMA.md` v0.10 に合わせた。前の版の `:KeyPerson`・`:Guardian`・`:Hospital`・`:Doctor` は、支える人（`Person` と `RELATED_TO`）と関わり（`Involvement`）にまとめられた。
 
 ### 第4の柱：法的基盤 (Legal Basis)
 「何の権利があるか」を定義する。支援を受けるための資格と行政の決定。
 
-- **主要ノード:** `:Certificate`, `:PublicAssistance`, `:Organization`
+- **主要ノード:** `:Certificate`, `:PublicAssistance`, `:Involvement`（後見・任意代理）
 - **マニフェスト価値:** 権利擁護 (Advocacy)
 
 ### 第5の柱：親の機能と移行 (Parental Transition)
 「親が担っている機能は何か」を定義し、その移転先を管理する。
 
-- **主要ノード:** `:Relative`, `:CareRole`, `:Service`, `:Supporter`
+- **主要ノード:** `:Person`（親）、`:CareRole`、`:Involvement`（代わりのサービス）
 - **リレーション:**
-  - `(:Relative)-[:PERFORMS]->(:CareRole)` 親がその役割を担っている
-  - `(:CareRole)-[:CAN_BE_PERFORMED_BY]->(:Service)` 代替サービスがある
-  - `(:CareRole)-[:CAN_BE_PERFORMED_BY]->(:Supporter)` 代替人物がいる
+  - `(:Person)-[:PERFORMS]->(:CareRole)-[:ROLE_FOR]->(:Client)` 親がその役割を担っている
+  - `(:CareRole)-[:CAN_BE_PERFORMED_BY]->(:Involvement)` 代わりのサービスがある
+  - `(:CareRole)-[:CAN_BE_PERFORMED_BY]->(:Person)` 代わりの人がいる
 - **マニフェスト価値:** 強靭性 (Resilience)
 
 ### 第6の柱：金銭的安全 (Financial Safety)
@@ -96,9 +93,9 @@ v4.0では、中核Skills（neo4j-support-db / provider-search / emergency-proto
 
 1. **禁忌事項 (NgAction / NgApproach)** - 二次被害を防ぐため
 2. **具体的対処 (CarePreference / EffectiveApproach)** - その場を落ち着かせるため
-3. **緊急連絡先 (KeyPerson)** - rank 順（rank 1 が最優先）
-4. **かかりつけ医 (Doctor / Hospital)**
-5. **法的代理人 (Guardian)**
+3. **支える人（キーパーソン → 家族ほか）** - 順位の順（1 が最優先）。連絡先は Claude から出さず、手元の緊急連絡カードと SOS の画面で確かめる
+4. **医療**（医療の関わりと主治医の続柄の人）
+5. **後見・任意代理**
 
 → 詳細: `protocols/emergency.md`
 
@@ -111,8 +108,8 @@ v4.0では、中核Skills（neo4j-support-db / provider-search / emergency-proto
 ### ルール2：親の機能不全トリガー (Parent Down Trigger)
 「母が入院した」「父が認知症になった」という入力があった場合、AIは直ちに以下を実行すること。
 
-1. その親 (:Relative) が担っていたタスク (:CareRole) を特定する
-2. そのタスクに紐づく代替手段 (:Service, :Supporter) を提示する
+1. その親（`:Person`）が担っていたタスク（`:CareRole`）を特定する
+2. そのタスクに紐づく代わり（`CAN_BE_PERFORMED_BY` の先の関わり・人）を提示する
 3. 代替手段が未登録の場合は、「緊急の支援調整が必要です」と警告する
 
 → 詳細: `protocols/parent_down.md`
@@ -127,23 +124,25 @@ v4.0では、中核Skills（neo4j-support-db / provider-search / emergency-proto
 
 ---
 
-## 4. Skills & Neo4j MCP 構成
+## 4. Skills と DB の構成
 
-このシステムは複数のSkills（現在14個）と汎用Neo4j MCP（`neo4j`, port 7687）で構成される。データモデルの中心を担う代表的なSkillを以下に示す（全Skillの一覧・ルーティング判断フローは `CLAUDE.md` を正典とする）。
+（2026-11-06 計画 N-29 で書き直した。ADR-001 の作り直しに合わせた）
 
-| スキル | 対象業務 | 柱の対応 | Neo4j ポート |
+DB は二つ。どちらも使う人の Mac の中だけで動く。
+
+- **個人の側**：本人・家族・支援の記録。Claude は読み取りだけの包み（MCP `nest-personal`）で読む。包みは実名・電話・住所・生年月日を返さず、本人は仮名（`displayCode`）で呼ぶ。書き込みはゲート（`nest/gate/`）だけが行い、AI が作ったものは未確定で入って職員が承認する
+- **資源の側**：事業所・窓口などの公開情報（tsunagu-net の写し）。MCP `nest-resource` で読むだけ
+
+| スキル | 対象業務 | 柱の対応 | 読む側 |
 |--------|----------|---------|-------------|
-| **neo4j-support-db** | 計画相談支援（障害福祉サービス） | 第1〜5の柱 | 7688（個人層） |
-| **provider-search** | 事業所検索・口コミ管理 | 第4の柱（法的基盤） | 7687（共有層） |
-| **emergency-protocol** | 緊急時対応プロトコル | 第2の柱（ケアの暗黙知） | — |
-| **ecomap-generator** | 支援ネットワーク可視化 | 第3の柱（危機管理） | — |
+| **neo4j-support-db** | 計画相談支援（障害福祉サービス） | 第1〜5の柱 | 個人の側 |
+| **provider-search** | 事業所を探す（公開情報） | 第7の柱（多機関連携） | 資源の側（本人の関わりは個人の側） |
+| **emergency-protocol** | 緊急時対応 | 第2・3の柱 | 個人の側 |
+| **ecomap-generator** | 支援ネットワークの図（Mermaid） | 第3の柱（危機管理） | 個人の側（機関の名前は資源の側） |
 
-（上記に加え narrative-extractor / visit-prep / resilience-checker / onboarding-wizard / data-quality-agent / insight-agent / wamnet-provider-sync / inheritance-calculator / html-to-pdf がある）
+（上記に加え narrative-extractor / visit-prep / resilience-checker / onboarding-wizard / data-quality-agent / insight-agent / inheritance-calculator / html-to-pdf がある）
 
-**Neo4j MCP:**
-- `neo4j`（port 7687）: neo4j-support-db, provider-search スキル用
-
-→ 全Skillの使い分けとルーティング判断フロー: `CLAUDE.md`「Skills 一覧と使い分けガイド」
+→ 全Skillの使い分け: `CLAUDE.md`
 
 ---
 

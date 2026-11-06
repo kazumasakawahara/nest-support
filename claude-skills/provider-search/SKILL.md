@@ -1,454 +1,114 @@
 ---
 name: provider-search
-description: 福祉サービス事業所の検索・管理・口コミ評価を行うスキル。WAM NETから取得した事業所情報（ServiceProvider）と支援者による口コミ（ProviderFeedback）をNeo4jグラフデータベース（port 7687）で管理する。「事業所を探す」「事業所検索」「サービス事業所」「事業所の口コミ」「事業所の評価」「空き状況」「〇〇市の事業所」「通所先を探す」などの発言時に必ずこのスキルを使用すること。汎用neo4j MCPツール（execute_query）でCypherを実行する。
+description: 事業所・機関の公開情報（名前・種別・所在・電話・提供するサービス・対象の区域）を、tsunagu-net の資源の DB から読むスキル。本人（仮名 displayCode）が関わっている機関の一覧と、同じ区域で同じサービスを出している別の事業所（代わりの候補）も示す。「事業所を探して」「近くの〇〇」「どこが使える」「代わりの事業所」「この事業所の連絡先」などの発言時に使う。読むだけ。
 ---
 
-# provider-search スキル
+# provider-search：事業所を探す（読むだけ）
 
-> **正本参照ルール（2026-07-12 追記・検収指摘対応）**: 業務的意味・運用原則・
-> 指標の解釈は、まず `docs/SEMANTIC_MODEL.md` を読むこと（プロジェクト内は
-> 同期コピー。正は `~/Dev-Work/shared-schema/SEMANTIC_MODEL.md`。特に ENU-07〜09・
-> ENU-14 の列挙値の意味と MET-08 評価スコア）。リレーション名・列挙値・命名は
-> `docs/SCHEMA_CONVENTION.md` が正。本スキルは索引に徹し、定義を二重化しない。
+## なぜ要るか
 
-## 概要
-福祉サービス事業所の検索・管理・口コミ評価を行うスキル。WAM NETから取得した事業所情報（ServiceProvider）と支援者による口コミ（ProviderFeedback）をNeo4jグラフデータベースで管理する。
+親が倒れたとき、今の事業所が受けられないとき、職員は「同じ区域で同じサービスを出しているところ」をすぐに知りたい。事業所の情報は公開情報なので、tsunagu-net の資源の DB にまとめて持ち、nest は読むだけにする（計画 N-27i）。
 
-## 対象Neo4jインスタンス
-- **共有層 support-db-neo4j**: `bolt://localhost:7687`（HTTP: 7474）。MCP は **`neo4j-shared`** を使う（`neo4j` は個人層 7688 で ServiceProvider が無い）。このスキルの実体は neo4j-agno-agent にあり、ここにあるのは写し
-- neo4j MCPの `execute_query`（読み書き兼用の単一ツール。`query` に Cypher、任意で `params`）を使用
+## 決まり
 
-## データモデル
+- **資源の側（事業所の公開情報）は MCP `nest-resource` の `read_resource_cypher` で読む**（下の ```` ```cypher-resource ```` の照会）。tsunagu-net の正典 §5 のとおりで、nest からは書かない
+- **本人の側（誰がどこに関わっているか）は MCP `nest-personal` の `read_personal_cypher` で読む**（下の ```` ```cypher ```` の照会）。本人は仮名（`displayCode`）で呼ぶ
+- 二つの DB はまたげない。本人の側で関わりの `orgId` を取り、それを資源の側の照会に `$orgIds` として渡す
+- 事業所の電話・所在地は公開情報なので示してよい。本人や家族の電話は、このスキルでは出さない（個人の側の包みが止める）
+- **前の版の口コミ（評価・コメント）と、空き状況の更新・利用の紐付けの書き込みは、やめた。** 口コミは個人の評価を含み、正典に置き場所が無い。利用の関わり（`Involvement`）を足すのは、職員がゲートを通して行う
+- 資源の DB の情報は確かめた日（`checkedOn`）とともに示す。古ければ「電話で確かめてから」と添える。空き状況はこの DB に無い。必ず電話で確かめる
 
-### ノード
+## 照会
 
-#### ServiceProvider（福祉サービス事業所）
+### 1. 名前で探す（資源の側。`$name` は空白を除いた名前の一部）
 
-**重要**: WAM NETインポート時期により**2種類のプロパティ命名規則**が混在している。
-
-| 新形式（camelCase）| 旧形式（snake_case）| 説明 | 件数目安 |
-|-------------------|---------------------|------|---------
-| name | office_name | 事業所名 | 新1002件 / 旧128件 / 空1496件 |
-| corporateName | corp_name | 法人名 | |
-| serviceType | service_type | サービス種類 | |
-| city | ― | 市区町村 | 両形式共通 |
-| address | address | 住所 | 両形式共通 |
-| phone | phone | 電話番号 | 両形式共通 |
-| fax | ― | FAX番号 | |
-| fullAddress | ― | 完全住所 | 新形式のみ |
-| postalCode | ― | 郵便番号 | 新形式のみ |
-| capacity | ― | 定員 | 約1084件のみ |
-| currentUsers | ― | 現在利用者数 | ほぼ未設定 |
-| availability | ― | 空き状況 | 997件が'未確認'、残りはnull |
-| targetDisability | ― | 対象障害種別 | ほぼ未設定 |
-| features | ― | 特色・特徴 | ほぼ未設定 |
-| closedDays | closed_days | 休日 | |
-| hoursWeekday | hours_weekday | 平日営業時間 | |
-| hoursSaturday | ― | 土曜営業時間 | 新形式のみ |
-| hoursSunday | ― | 日曜営業時間 | 新形式のみ |
-| hoursHoliday | ― | 祝日営業時間 | 新形式のみ |
-| providerId | office_number | WAM NET事業所番号 | |
-| wamnetId | ― | WAM NET ID | 新形式のみ |
-| prefecture | ― | 都道府県 | 新形式のみ |
-| municipalityCode | city_code | 市区町村コード | |
-| serviceTypeCode | ― | サービス種類コード | 新形式のみ |
-| serviceCategory | ― | サービスカテゴリ | 新形式のみ |
-| latitude | latitude | 緯度 | 両形式共通 |
-| longitude | longitude | 経度 | 両形式共通 |
-| url | ― | Webサイト | 新形式のみ |
-| dataSource | data_source | データソース（WAM_NET） | |
-| updatedAt | updated_at | 最終更新日 | |
-
-**名前解決パターン**: 事業所名の表示には必ず以下のCOALESCEを使うこと:
-```cypher
-COALESCE(sp.name, sp.office_name, sp.corporateName, sp.corp_name, '名称未登録') AS displayName
-```
-
-**サービス種類の解決**:
-```cypher
-COALESCE(sp.serviceType, sp.service_type, '') AS serviceType
-```
-
-#### ProviderFeedback（口コミ・評価）
-| プロパティ | 型 | 説明 |
-|-----------|------|------|
-| feedbackId | String | フィードバックID（UUID） |
-| category | String | カテゴリ（行動障害対応/コミュニケーション/環境/送迎/食事/医療連携/その他） |
-| content | String | 口コミ内容 |
-| rating | String | 評価（◎良い / ○普通 / △課題あり / ×不可） |
-| source | String | 情報源（支援者名 or 匿名） |
-| date | String | 登録日（ISO形式） |
-| isConfirmed | Boolean | 確認済みフラグ |
-
-**注意**: ProviderFeedbackノードは運用で登録するもの。初期状態では0件。
-
-### リレーションシップ
-
-```
-(:Client)-[:USES_SERVICE {startDate, endDate, status, note}]->(:ServiceProvider)
-(:ServiceProvider)-[:HAS_FEEDBACK]->(:ProviderFeedback)
-```
-
-**USES_SERVICE プロパティ:**
-- `startDate`: 利用開始日
-- `endDate`: 利用終了日
-- `status`: Active（利用中）/ Pending（調整中）/ Inactive（利用終了）
-- `note`: 備考
-
-> 訂正（2026-07-12 河原氏決定）: 利用終了の status は旧 `Ended` から `Inactive` へ
-> 統一（DRIFT-06）。`Ended` は SCHEMA_CONVENTION §7.6 の status 値域に無い独自値
-> だった。書き込みは `Inactive` のみ使用し、読み取りは旧データの `Ended` にも
-> 後方互換でマッチさせる。
-
-**注意**: USES_SERVICE関係も運用で作成するもの。初期状態では0件。
-
-## 評価スコア換算
-
-| rating | スコア |
-|--------|--------|
-| ◎良い | 4 |
-| ○普通 | 3 |
-| △課題あり | 2 |
-| ×不可 | 1 |
-
-## データ統計（2026年1月時点）
-
-| 項目 | 件数 |
-|------|------|
-| ServiceProvider総数 | 2621 |
-| 名前あり（新形式） | 1002 |
-| 名前あり（旧形式） | 128 |
-| 名前なし | 1496 |
-| capacity設定済み | 1084 |
-| availability設定済み | 997（すべて'未確認'） |
-| ProviderFeedback | 0（運用後に蓄積） |
-| USES_SERVICE関係 | 0（運用後に作成） |
-
-## Cypherテンプレート
-
-### ── 読み取り系（execute_query / 読み取りクエリ） ──
-
-### テンプレート1: 事業所検索（基本）
-
-サービス種類・地域で絞り込む。名前があるレコードのみ返す。
-条件は任意で組み合わせ可能（不要なWHERE行を削除して使う）。
-
-```cypher
-MATCH (sp:ServiceProvider)
-WHERE (sp.name IS NOT NULL AND sp.name <> '')
-  AND COALESCE(sp.serviceType, sp.service_type, '') CONTAINS $serviceType
-  AND sp.city CONTAINS $city
-RETURN COALESCE(sp.name, sp.office_name) AS name,
-       COALESCE(sp.corporateName, sp.corp_name, '') AS corporateName,
-       COALESCE(sp.serviceType, sp.service_type, '') AS serviceType,
-       sp.city AS city,
-       COALESCE(sp.address, sp.fullAddress, '') AS address,
-       sp.phone AS phone,
-       sp.capacity AS capacity,
-       COALESCE(sp.availability, '未確認') AS availability,
-       COALESCE(sp.closedDays, sp.closed_days, '') AS closedDays,
-       sp.hoursWeekday AS hoursWeekday
-ORDER BY
-  CASE COALESCE(sp.availability, '未確認')
-    WHEN '空きあり' THEN 1
-    WHEN '要相談' THEN 2
-    WHEN '未確認' THEN 3
-    WHEN '満員' THEN 4
-    ELSE 5
-  END,
-  COALESCE(sp.name, sp.office_name)
+```cypher-resource
+MATCH (o:Organization {status: 'Active'})
+WITH o, replace(replace(normalize(o.name, NFKC), ' ', ''), '　', '') AS own
+OPTIONAL MATCH (o)-[:HAS_NAME]->(x:OrgName)
+WITH o, own, collect(replace(replace(normalize(x.name, NFKC), ' ', ''), '　', '')) AS aliases
+WHERE own CONTAINS $name OR any(a IN aliases WHERE a CONTAINS $name)
+RETURN o.orgId AS orgId, o.name AS name, o.kind AS kind, o.checkedOn AS checkedOn
+ORDER BY name, orgId
 LIMIT $limit
 ```
 
-**使い方**: 条件を自由に組み合わせる。
+### 2. 区域とサービスの種類で探す（資源の側。`$areaCode` は区域の番号、`$serviceType` はサービスの名前の一部）
 
-- **サービス種類のみ**: `AND COALESCE(sp.serviceType, sp.service_type, '') CONTAINS '生活介護'` のWHERE行のみ残す
-- **地域のみ**: `AND sp.city CONTAINS '北九州'` のWHERE行のみ残す
-- **キーワード検索追加**: `AND (COALESCE(sp.name, sp.office_name, '') CONTAINS $keyword OR COALESCE(sp.corporateName, sp.corp_name, '') CONTAINS $keyword)`
-- **空き状況絞り込み**: `AND COALESCE(sp.availability, '未確認') = '空きあり'`
-- **旧形式も含める**: `WHERE (sp.name IS NOT NULL AND sp.name <> '') OR (sp.office_name IS NOT NULL AND sp.office_name <> '')`
-
-パラメータ:
-- `$serviceType`: サービス種類（部分一致、例: '生活介護', 'グループホーム', '就労継続支援B型'）
-- `$city`: 市区町村（部分一致、例: '北九州', '久留米'）
-- `$limit`: 取得件数（デフォルト20）
-
-### テンプレート2: クライアントの利用事業所一覧
-
-```cypher
-MATCH (c:Client)-[r:USES_SERVICE]->(sp:ServiceProvider)
-WHERE c.name CONTAINS $clientName
-RETURN COALESCE(sp.name, sp.office_name, sp.corporateName, '名称未登録') AS providerName,
-       COALESCE(sp.serviceType, sp.service_type, '') AS serviceType,
-       sp.phone AS phone,
-       r.status AS status,
-       r.startDate AS startDate,
-       r.endDate AS endDate,
-       r.note AS note
-ORDER BY
-  CASE r.status
-    WHEN 'Active' THEN 1
-    WHEN 'Pending' THEN 2
-    WHEN 'Inactive' THEN 3
-    WHEN 'Ended' THEN 3  // 旧値の後方互換（2026-07-12 訂正: 書き込みは Inactive のみ）
-    ELSE 4
-  END,
-  r.startDate DESC
-```
-
-パラメータ:
-- `$clientName`: クライアント名（部分一致）
-
-**注意**: USES_SERVICE関係が存在しない場合は空の結果が返る。
-
-### テンプレート3: 代替事業所検索
-
-現在利用中のサービスと同種の事業所で、まだ利用していないものを検索する。
-
-```cypher
-MATCH (c:Client)-[r:USES_SERVICE]->(current:ServiceProvider)
-WHERE c.name CONTAINS $clientName
-  AND r.status = 'Active'
-WITH c, collect(COALESCE(current.name, current.office_name)) AS currentNames,
-     collect(DISTINCT COALESCE(current.serviceType, current.service_type)) AS serviceTypes
-UNWIND serviceTypes AS st
-MATCH (alt:ServiceProvider)
-WHERE COALESCE(alt.serviceType, alt.service_type, '') = st
-  AND COALESCE(alt.name, alt.office_name, '') <> ''
-  AND NOT COALESCE(alt.name, alt.office_name) IN currentNames
-RETURN COALESCE(alt.name, alt.office_name) AS name,
-       COALESCE(alt.corporateName, alt.corp_name, '') AS corporateName,
-       COALESCE(alt.serviceType, alt.service_type, '') AS serviceType,
-       alt.city AS city,
-       alt.phone AS phone,
-       COALESCE(alt.availability, '未確認') AS availability,
-       alt.capacity AS capacity
-ORDER BY
-  CASE COALESCE(alt.availability, '未確認')
-    WHEN '空きあり' THEN 1
-    WHEN '要相談' THEN 2
-    WHEN '未確認' THEN 3
-    WHEN '満員' THEN 4
-    ELSE 5
-  END,
-  COALESCE(alt.name, alt.office_name)
-LIMIT 20
-```
-
-パラメータ:
-- `$clientName`: クライアント名（部分一致）
-
-### テンプレート4: 事業所の口コミ取得
-
-```cypher
-MATCH (sp:ServiceProvider)-[:HAS_FEEDBACK]->(f:ProviderFeedback)
-WHERE COALESCE(sp.name, sp.office_name, sp.corporateName, '') CONTAINS $providerName
-RETURN f.category AS category,
-       f.content AS content,
-       f.rating AS rating,
-       f.source AS source,
-       f.date AS date
-ORDER BY f.date DESC
+```cypher-resource
+MATCH (a:Area {areaCode: $areaCode})-[:PART_OF*0..2]->(x:Area)<-[r:SERVES]-(o:Organization {status: 'Active'})
+MATCH (o)-[:PROVIDES]->(s:Service {status: 'Active'})
+WHERE s.serviceTypeName CONTAINS $serviceType
+RETURN DISTINCT o.orgId AS orgId, o.name AS name, o.kind AS kind, s.serviceTypeName AS service,
+       s.capacity AS capacity, r.basis AS servesBasis, coalesce(r.partOfArea, false) AS partOfArea,
+       x.areaCode <> $areaCode AS viaParent, o.checkedOn AS checkedOn
+ORDER BY viaParent, name, orgId
 LIMIT $limit
 ```
 
-パラメータ:
-- `$providerName`: 事業所名（部分一致）
-- `$limit`: 取得件数（デフォルト20）
+区域を受け持つ（`SERVES`）ことが分からない事業所は、所在（`LOCATED_IN`）で探す。
 
-**カテゴリ絞り込み**: `AND f.category = $category` をWHEREに追加。
-
-### テンプレート5: 事業所の評価サマリー
-
-```cypher
-MATCH (sp:ServiceProvider)-[:HAS_FEEDBACK]->(f:ProviderFeedback)
-WHERE COALESCE(sp.name, sp.office_name, sp.corporateName, '') CONTAINS $providerName
-WITH sp,
-     count(f) AS totalFeedbacks,
-     sum(CASE WHEN f.rating STARTS WITH '◎' THEN 1 ELSE 0 END) AS excellent,
-     sum(CASE WHEN f.rating STARTS WITH '○' THEN 1 ELSE 0 END) AS good,
-     sum(CASE WHEN f.rating STARTS WITH '△' THEN 1 ELSE 0 END) AS fair,
-     sum(CASE WHEN f.rating STARTS WITH '×' THEN 1 ELSE 0 END) AS poor,
-     avg(CASE
-       WHEN f.rating STARTS WITH '◎' THEN 4.0
-       WHEN f.rating STARTS WITH '○' THEN 3.0
-       WHEN f.rating STARTS WITH '△' THEN 2.0
-       WHEN f.rating STARTS WITH '×' THEN 1.0
-       ELSE 0.0
-     END) AS avgScore
-RETURN COALESCE(sp.name, sp.office_name, sp.corporateName) AS providerName,
-       totalFeedbacks,
-       excellent, good, fair, poor,
-       round(avgScore * 100) / 100 AS avgScore
-```
-
-パラメータ:
-- `$providerName`: 事業所名（部分一致）
-
-### テンプレート6: 口コミ評価で事業所検索
-
-特定カテゴリの口コミが良い事業所を探す。
-
-```cypher
-MATCH (sp:ServiceProvider)-[:HAS_FEEDBACK]->(f:ProviderFeedback)
-WHERE f.category = $category
-WITH sp,
-     count(f) AS feedbackCount,
-     avg(CASE
-       WHEN f.rating STARTS WITH '◎' THEN 4.0
-       WHEN f.rating STARTS WITH '○' THEN 3.0
-       WHEN f.rating STARTS WITH '△' THEN 2.0
-       WHEN f.rating STARTS WITH '×' THEN 1.0
-       ELSE 0.0
-     END) AS avgScore,
-     collect(f.content)[0..3] AS topExamples
-WHERE feedbackCount >= 1
-RETURN COALESCE(sp.name, sp.office_name, sp.corporateName) AS providerName,
-       COALESCE(sp.serviceType, sp.service_type, '') AS serviceType,
-       sp.city AS city,
-       COALESCE(sp.availability, '未確認') AS availability,
-       feedbackCount,
-       round(avgScore * 100) / 100 AS avgScore,
-       topExamples
-ORDER BY avgScore DESC, feedbackCount DESC
+```cypher-resource
+MATCH (o:Organization {status: 'Active'})-[:LOCATED_IN]->(a:Area {areaCode: $areaCode})
+MATCH (o)-[:PROVIDES]->(s:Service {status: 'Active'})
+WHERE s.serviceTypeName CONTAINS $serviceType
+RETURN DISTINCT o.orgId AS orgId, o.name AS name, o.kind AS kind, s.serviceTypeName AS service, o.checkedOn AS checkedOn
+ORDER BY name, orgId
 LIMIT $limit
 ```
 
-パラメータ:
-- `$category`: 口コミカテゴリ（行動障害対応/コミュニケーション/環境/送迎/食事/医療連携）
-- `$limit`: 取得件数（デフォルト20）
+### 3. 事業所の詳しい公開情報（資源の側。`$orgIds`）
 
-**追加フィルタ**:
-- 評価絞り込み: `AND f.rating STARTS WITH '◎'`
-- サービス種類: `AND COALESCE(sp.serviceType, sp.service_type, '') CONTAINS $serviceType`
-- 地域: `AND sp.city CONTAINS $city`
-
-### ── 書き込み系（execute_query / 書き込みクエリ） ──
-
-### テンプレート7: クライアントと事業所の紐付け
-
-```cypher
-MATCH (c:Client {name: $clientName})
-MATCH (sp:ServiceProvider {name: $providerName})
-MERGE (c)-[r:USES_SERVICE]->(sp)
-ON CREATE SET
-  r.startDate = $startDate,
-  r.status = $status,
-  r.note = $note
-ON MATCH SET
-  r.status = $status,
-  r.note = $note,
-  r.endDate = CASE WHEN $status = 'Inactive' THEN toString(date()) ELSE r.endDate END
-RETURN c.name AS client, sp.name AS provider, r.status AS status, r.startDate AS startDate
+```cypher-resource
+MATCH (o:Organization)
+WHERE o.orgId IN $orgIds
+OPTIONAL MATCH (o)-[:PROVIDES]->(s:Service)
+WHERE s.status IN ['Active', 'Pending']
+RETURN o.orgId AS orgId, o.name AS name, o.kind AS kind, o.status AS status, o.corporateName AS corporateName,
+       o.address AS address, o.phone AS phone, o.sourceUrl AS sourceUrl, o.checkedOn AS checkedOn,
+       collect(DISTINCT s.serviceTypeName) AS services
+ORDER BY name
 ```
 
-パラメータ:
-- `$clientName`: クライアント名
-- `$providerName`: 事業所名（既存のServiceProvider.nameと完全一致させること）
-- `$startDate`: 利用開始日（YYYY-MM-DD、空の場合は事前にdate().toString()をセット）
-- `$status`: 利用状況（Active / Pending / Inactive、デフォルト: Active。
-  旧 `Ended` は書き込み禁止 — 2026-07-12 訂正、DRIFT-06）
-- `$note`: 備考（任意）
+`status` が `Active` でない事業所は「廃止・休止の届けがあった」と添える。
 
-**注意**: `MERGE` ではなく `MATCH` を使う。`MERGE (c:Client {name:...})` は氏名のタイプミス時に
-幽霊クライアント/事業所を新規作成してしまう。両端は既存ノードでなければならないため、
-必ず `MATCH` で照合する。**該当が無ければクエリは 0 行を返し紐付けは作られない**ので、
-事前にテンプレート1/2で `$clientName` と `$providerName`（完全一致）を確定してから実行すること。
-返り値が空だった場合は「クライアントまたは事業所が見つからない」とユーザーに知らせる。
-
-### テンプレート8: 口コミ・評価の登録
+### 4. 本人が関わっている機関（本人の側）
 
 ```cypher
-MATCH (sp:ServiceProvider {providerId: $providerId})
-CREATE (f:ProviderFeedback {
-  feedbackId: randomUUID(),
-  category: $category,
-  content: $content,
-  rating: $rating,
-  source: $source,
-  date: toString(date()),
-  isConfirmed: false
-})
-CREATE (sp)-[:HAS_FEEDBACK]->(f)
-RETURN COALESCE(sp.name, sp.office_name, sp.corporateName) AS provider,
-       f.feedbackId AS feedbackId,
-       f.category AS category,
-       f.rating AS rating
+MATCH (o:Organization)-[:HAS_INVOLVEMENT]->(i:Involvement)-[:CONCERNS]->(c:Client {displayCode: $code})
+WHERE i.status IN ['Active', 'Pending'] AND i.endDate IS NULL
+RETURN o.orgId AS orgId, i.kind AS kind, i.serviceTypeName AS service, i.startDate AS startDate,
+       i.status = 'Pending' AS unconfirmed
+ORDER BY kind
 ```
 
-パラメータ:
-- `$providerId`: 事業所の一意ID（テンプレート1/2の検索結果から取得する）
-- `$category`: カテゴリ（行動障害対応/コミュニケーション/環境/送迎/食事/医療連携/その他）
-- `$content`: 口コミ内容
-- `$rating`: 評価（◎良い / ○普通 / △課題あり / ×不可、デフォルト: ○普通）
-- `$source`: 情報源（支援者名 or 匿名、デフォルト: 匿名）
+ここで得た `orgId` を照会 3 に渡して、名前と連絡先を示す。`unconfirmed` が真のものは「未確定」と書く。
 
-**注意**: 旧テンプレートは `CONTAINS`＋`WITH sp LIMIT 1`（ORDER BY なし）で、部分一致が複数
-ヒットすると**どの事業所に口コミが付くか不定**だった。必ず `providerId` で一意に特定する。
-名前しか分からない場合は先にテンプレート1/2で完全一致検索し、`providerId` を確定すること。
+### 5. 代わりの候補
 
-### テンプレート9: 事業所の空き状況更新
+照会 4 で今のサービス（`service`）と `orgId` を得て、本人の住む区域（職員に聞く）で照会 2 を流し、今の事業所（`$orgIds`）を除いて示す。
 
-```cypher
-MATCH (sp:ServiceProvider {providerId: $providerId})
-SET sp.availability = $availability,
-    sp.updatedAt = toString(datetime())
-WITH sp, $currentUsers AS newUsers
-FOREACH (_ IN CASE WHEN newUsers >= 0 THEN [1] ELSE [] END |
-  SET sp.currentUsers = newUsers
-)
-RETURN COALESCE(sp.name, sp.office_name, sp.corporateName) AS provider,
-       sp.availability AS availability,
-       sp.currentUsers AS currentUsers,
-       sp.updatedAt AS updatedAt
+```cypher-resource
+MATCH (a:Area {areaCode: $areaCode})-[:PART_OF*0..2]->(x:Area)<-[:SERVES]-(o:Organization {status: 'Active'})
+WHERE NOT o.orgId IN $orgIds
+MATCH (o)-[:PROVIDES]->(s:Service {status: 'Active'})
+WHERE s.serviceTypeName = $serviceType
+RETURN DISTINCT o.orgId AS orgId, o.name AS name, s.capacity AS capacity, x.areaCode <> $areaCode AS viaParent,
+       o.checkedOn AS checkedOn
+ORDER BY viaParent, name
+LIMIT $limit
 ```
 
-パラメータ:
-- `$providerId`: 事業所の一意ID（テンプレート1/2の検索結果から取得する。部分一致の
-  `LIMIT 1` では対象事業所が不定になるため、必ず ID で一意特定する）
-- `$availability`: 空き状況（空きあり / 要相談 / 満員 / 未確認）
-- `$currentUsers`: 現在利用者数（-1の場合は更新しない）
+## 示し方
 
-## 運用ガイドライン
+```text
+### 事業所の候補（区域：…／サービス：…）
+| 名前 | 種別 | 定員 | 電話 | 確かめた日 |
+- 空き状況はこの DB に無い。電話で確かめる
+- 確かめた日が古いものは、そう添える
+- 0 件なら「この区域・この名前では見つからなかった」と書く（「無い」と言い切らない。区域を広げる、名前を変える）
+```
 
-### 検索のベストプラクティス
+## 関連スキル
 
-1. **名前付きレコードのみ検索**: 最初のWHERE句に `sp.name IS NOT NULL AND sp.name <> ''` を入れる
-2. **旧形式も含める場合**: `(sp.name <> '' OR sp.office_name <> '')` に変更
-3. **COALESCEを必ず使う**: 表示名とサービス種類は両形式に対応するCOALESCEが必須
-4. **空き優先ソート**: availability は null が多いため `COALESCE(sp.availability, '未確認')` でnull安全に
-5. **LIMIT必須**: 2621件のデータがあるため必ずLIMITを付ける
-
-### 口コミ評価のカテゴリ
-
-| カテゴリ | 観点 |
-|---------|------|
-| 行動障害対応 | パニック・他害・自傷等への対応力 |
-| コミュニケーション | 意思疎通の工夫、家族との連携 |
-| 環境 | 施設設備、衛生、バリアフリー |
-| 送迎 | 送迎の柔軟性、時間帯、対応範囲 |
-| 食事 | 食事の質、アレルギー対応、嚥下配慮 |
-| 医療連携 | 医療機関との連携、服薬管理 |
-| その他 | 上記に当てはまらないもの |
-
-### サービス種類一覧（主要なもの）
-
-| サービス種類 | 件数 |
-|------------|------|
-| 就労継続支援B型 | 494 |
-| 生活介護 | 329 |
-| 計画相談支援 | 325 |
-| 放課後等デイサービス | 299 |
-| グループホーム | 174 |
-| 共同生活援助 | 167 |
-| 重度訪問介護 | 138 |
-| 障害児相談支援 | 127 |
-| 同行援護 | 88 |
-
-### 注意事項
-
-- **データ混在**: 新形式（camelCase）と旧形式（snake_case）が混在。テンプレートのCOALESCEパターンを必ず使うこと
-- **名前なしレコード**: 約1500件は名前が空。検索時は名前のフィルタを入れること
-- **availability**: 初期状態では '未確認' または null。運用中にテンプレート9で更新する
-- **ProviderFeedback**: 初期状態では0件。運用中にテンプレート8で蓄積する
-- **USES_SERVICE**: 初期状態では0件。運用中にテンプレート7で作成する
+`neo4j-support-db`（本人の関わり）、`resilience-checker`（親の役割の代わり）、`emergency-protocol`

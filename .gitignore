@@ -23,6 +23,8 @@ neo4j_data/
 neo4j_logs/
 neo4j_plugins/
 neo4j_backup/
+# 新しい Neo4j のデータとログ（N-18。架空のフィクスチャだけを入れる）
+nest_neo4j_*/
 
 # IDE
 .idea/
@@ -54,3 +56,4 @@ docs/viz/
 .serena/
 .superpowers/
 docs/superpowers/
+nest_voice_data/

@@ -25,19 +25,16 @@
 <div class="container">
     <a href="/" class="nav-back">&larr; メニューに戻る</a>
     <h1 style="font-size:20px; margin: 8px 0 16px;">支援記録を入力</h1>
+    <p class="hint" style="margin-bottom:12px;">本人は仮名（C-……）で選びます。記録者はログインしたあなたです（名前の入力は要りません）。</p>
 
     <form id="record-form">
-        <!-- クライアント選択 -->
+        <!-- 本人と日付 -->
         <div class="card">
             <div class="form-group">
-                <label>クライアント名</label>
-                <select id="clientName" required>
+                <label>本人（仮名）</label>
+                <select id="clientId" required>
                     <option value="">選択してください</option>
                 </select>
-            </div>
-            <div class="form-group">
-                <label>記録者（あなたの名前）</label>
-                <input type="text" id="supporterName" placeholder="例: 鈴木" required>
             </div>
             <div class="form-group">
                 <label>日付</label>
@@ -45,7 +42,7 @@
             </div>
         </div>
 
-        <!-- 状況と対応 -->
+        <!-- 場面と対応 -->
         <div class="card">
             <div class="form-group">
                 <label>場面</label>
@@ -64,59 +61,32 @@
             </div>
 
             <div class="form-group">
-                <label>対応内容</label>
+                <label>対応（任意）</label>
                 <div class="hint">何をしましたか？</div>
-                <textarea id="action" placeholder="例: 静かな別室に移動させた" required></textarea>
-            </div>
-        </div>
-
-        <!-- 感情と効果 -->
-        <div class="card">
-            <div class="form-group">
-                <label>ご本人の感情</label>
-                <div class="hint">一番近いものを選んでください</div>
-                <div class="chip-group" id="emotionChips">
-                    <span class="chip" data-value="Joy" style="--c:#FFD700">&#128522; 嬉しい</span>
-                    <span class="chip" data-value="Calm" style="--c:#66BB6A">&#128524; 穏やか</span>
-                    <span class="chip" data-value="Anger" style="--c:#FF5252">&#128544; 怒り</span>
-                    <span class="chip" data-value="Sadness" style="--c:#42A5F5">&#128546; 悲しみ</span>
-                    <span class="chip" data-value="Fear" style="--c:#AB47BC">&#128552; 恐怖</span>
-                    <span class="chip" data-value="Anxiety" style="--c:#FF7043">&#128556; 不安</span>
-                    <span class="chip" data-value="Neutral" style="--c:#9E9E9E">&#128528; 普通</span>
-                </div>
-                <input type="hidden" id="emotion" required>
+                <textarea id="action" placeholder="例: 静かな別室に移った"></textarea>
             </div>
 
             <div class="form-group">
-                <label>対応の効果</label>
+                <label>対応の効果（任意）</label>
                 <div class="chip-group" id="effectivenessChips">
                     <span class="chip" data-value="Effective">&#9989; 効果的</span>
                     <span class="chip" data-value="Neutral">&#10134; どちらでもない</span>
                     <span class="chip" data-value="Ineffective">&#10060; 効果なし</span>
+                    <span class="chip" data-value="Unknown">&#10067; 分からない</span>
                 </div>
-                <input type="hidden" id="effectiveness" required>
+                <input type="hidden" id="effectiveness">
             </div>
         </div>
 
-        <!-- きっかけと文脈 -->
+        <!-- メモと次の対応 -->
         <div class="card">
             <div class="form-group">
-                <label>きっかけ（任意）</label>
-                <div class="hint">何がきっかけでしたか？</div>
-                <div class="chip-group" id="triggerChips">
-                    <span class="chip" data-value="大きな音">大きな音</span>
-                    <span class="chip" data-value="環境変化">環境変化</span>
-                    <span class="chip" data-value="人間関係">人間関係</span>
-                    <span class="chip" data-value="体調不良">体調不良</span>
-                    <span class="chip" data-value="スケジュール変更">予定変更</span>
-                    <span class="chip" data-value="感覚過敏">感覚過敏</span>
-                </div>
-                <input type="text" id="triggerTag" placeholder="または自由入力" style="margin-top:8px;">
+                <label>メモ（任意）</label>
+                <textarea id="note" placeholder="例: 隣のフロアで工事が始まった"></textarea>
             </div>
-
             <div class="form-group">
-                <label>背景メモ（任意）</label>
-                <textarea id="context" placeholder="例: 隣のフロアで工事が始まった"></textarea>
+                <label>次の対応（任意）</label>
+                <textarea id="nextAction" placeholder="例: 工事の日程を家族に伝える"></textarea>
             </div>
         </div>
 
@@ -128,51 +98,44 @@
 </div>
 
 <div class="toast toast-success" id="toast-ok">登録しました</div>
-<div class="toast toast-error" id="toast-err">エラーが発生しました</div>
+<div class="toast toast-error" id="toast-err">登録できませんでした</div>
 
 <script>
 // 今日の日付をデフォルトに
 document.getElementById('logDate').value = new Date().toISOString().split('T')[0];
 
-// クライアント一覧を取得
+// 本人の一覧（ID と仮名だけ。名前は来ない。登録の新しい順。上限で切れたら truncated と件数が来る）
 fetch('/api/clients')
-    .then(r => r.json())
-    .then(clients => {
-        const sel = document.getElementById('clientName');
-        clients.forEach(name => {
+    .then(r => r.ok ? r.json() : {clients: [], total: 0, truncated: false})
+    .then(data => {
+        const sel = document.getElementById('clientId');
+        if (data.truncated) {
+            const note = document.createElement('p');
+            note.className = 'list-cut';
+            note.textContent = '本人が ' + data.total + ' 人います。登録の新しい順に ' + data.clients.length + ' 人だけ出しています（古い本人は出ていません）';
+            sel.parentNode.insertBefore(note, sel.nextSibling);
+        }
+        data.clients.forEach(c => {
             const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = name;
+            opt.value = c.clientId;
+            opt.textContent = c.displayCode;
             sel.appendChild(opt);
         });
     });
-
-// 記録者名をローカルストレージから復元
-const savedName = localStorage.getItem('supporterName');
-if (savedName) document.getElementById('supporterName').value = savedName;
 
 // チップ選択ロジック
 document.querySelectorAll('.chip-group').forEach(group => {
     group.querySelectorAll('.chip').forEach(chip => {
         chip.addEventListener('click', () => {
-            // 同じグループ内のチップを解除
             group.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
             chip.classList.toggle('selected');
-
-            // hidden input に値をセット
-            const hiddenId = group.id.replace('Chips', '');
-            const hidden = document.getElementById(hiddenId);
+            const hidden = document.getElementById(group.id.replace('Chips', ''));
             if (hidden) hidden.value = chip.dataset.value;
-
-            // triggerTag はテキスト入力にも反映
-            if (hiddenId === 'trigger') {
-                document.getElementById('triggerTag').value = chip.dataset.value;
-            }
         });
     });
 });
 
-// フォーム送信
+// フォーム送信（ゲートを通して登録する。止められたら理由を出す）
 document.getElementById('record-form').addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -181,19 +144,14 @@ document.getElementById('record-form').addEventListener('submit', async (e) => {
     btn.disabled = true;
     spinner.style.display = 'block';
 
-    // 記録者名を保存
-    localStorage.setItem('supporterName', document.getElementById('supporterName').value);
-
     const body = {
-        clientName: document.getElementById('clientName').value,
-        supporterName: document.getElementById('supporterName').value,
+        clientId: document.getElementById('clientId').value,
         date: document.getElementById('logDate').value,
         situation: document.getElementById('situation').value,
         action: document.getElementById('action').value,
         effectiveness: document.getElementById('effectiveness').value,
-        emotion: document.getElementById('emotion').value,
-        triggerTag: document.getElementById('triggerTag').value,
-        context: document.getElementById('context').value,
+        note: document.getElementById('note').value,
+        nextAction: document.getElementById('nextAction').value,
     };
 
     try {
@@ -202,14 +160,17 @@ document.getElementById('record-form').addEventListener('submit', async (e) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
         });
-        if (!res.ok) throw new Error('Server error');
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            const detail = Array.isArray(err.detail) ? err.detail.map(d => d.msg || d).join(' / ') : (err.detail || '');
+            document.getElementById('toast-err').textContent = '登録できませんでした' + (detail ? '：' + detail : '');
+            throw new Error('Server error');
+        }
 
         showToast('toast-ok');
-        // フォームリセット（クライアント名と記録者名は維持）
-        document.getElementById('action').value = '';
-        document.getElementById('context').value = '';
+        // フォームリセット（本人と日付は残す）
+        ['action', 'note', 'nextAction', 'situation', 'effectiveness'].forEach(id => document.getElementById(id).value = '');
         document.querySelectorAll('.chip.selected').forEach(c => c.classList.remove('selected'));
-        ['situation', 'emotion', 'effectiveness'].forEach(id => document.getElementById(id).value = '');
     } catch (err) {
         showToast('toast-err');
     } finally {
@@ -221,7 +182,7 @@ document.getElementById('record-form').addEventListener('submit', async (e) => {
 function showToast(id) {
     const el = document.getElementById(id);
     el.style.display = 'block';
-    setTimeout(() => el.style.display = 'none', 2500);
+    setTimeout(() => el.style.display = 'none', 4000);
 }
 </script>
 </body>

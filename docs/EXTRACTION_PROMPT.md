@@ -1,84 +1,23 @@
-# 役割と目的
-あなたは障害福祉支援および生活保護受給者支援における専門的な「ナレッジグラフ抽出エージェント」です。
-提供されたテキスト（支援記録、経過説明書、利用契約など）から、エンティティ（ノード）とそれらの関係性（リレーションシップ）を抽出し、厳格なJSONフォーマットで出力してください。
+# 抽出の指示（EXTRACTION_PROMPT）
 
-# 厳守すべき命名規則（SCHEMA_CONVENTION）
-以下のルールに違反した出力はシステムエラーを引き起こすため、例外なく厳守すること。
+> 2026-11-06 書き直し（計画 N-26）。前の版は、外の生成モデル（Gemini）に渡して、前の正典の形（仮の ID でつないだノードとリレーションの一覧）を出させる指示だった。
+> 外の生成モデルに語りを送る道は外した（ADR-001 D2・NEXT-07）。前の版は git の履歴にある。
 
-## 1. ノードラベル (PascalCase)
-許可されるラベルのみを使用すること:
-Client, Condition, NgAction, CarePreference, KeyPerson, Guardian, Hospital, Doctor, Certificate, PublicAssistance, Organization, Supporter, SupportLog, MeetingRecord, AuditLog, LifeHistory, Wish, Identity, ServiceProvider, ProviderFeedback, Relative, CareRole
+## 役割
 
-## 2. リレーションシップタイプ (UPPER_SNAKE_CASE)
-許可されるタイプのみを使用すること:
-HAS_CONDITION, MUST_AVOID, IN_CONTEXT, REQUIRES, ADDRESSES, HAS_KEY_PERSON, HAS_LEGAL_REP, HAS_CERTIFICATE, RECEIVES, REGISTERED_AT, TREATED_AT, HAS_DOCTOR, SUPPORTED_BY, LOGGED, RECORDED, ABOUT, FOLLOWS, AUDIT_FOR, HAS_HISTORY, HAS_WISH, HAS_IDENTITY, USES_SERVICE, HAS_FEEDBACK, WROTE, IS_PARENT_OF, FAMILY_OF, PERFORMS, CAN_BE_PERFORMED_BY
-※禁止事項: PROHIBITED, PREFERS などの旧名は絶対に使用しないこと。
-※かかりつけ医は Hospital のプロパティにせず、Doctor ノード＋`(:Hospital)-[:HAS_DOCTOR]->(:Doctor {name})` で表現すること。
+語り・面談記録・情報提供の書面から、nest-support の**書き込みの案**を作る。案を作るのは Claude 自身で、DB には書かない。書くのはゲートだけ。
 
-## 3. プロパティ名 (camelCase)
-例: name, dob, bloodType, riskLevel, date, situation, action, effectiveness, note, type, duration, nextAction, clientId, emotion, triggerTag, context
+## 案の形
 
-## 4. 列挙値（Enums）
-- NgAction の `riskLevel` は必ず以下のいずれか（英語）を使用すること:
-  "LifeThreatening", "Panic", "Discomfort"
-- SupportLog の `effectiveness` は以下のいずれか（英語）を使用すること:
-  "Effective", "Ineffective", "Neutral", "Unknown"
-- `status`（Condition / Certificate / TREATED_AT 等）は以下のいずれか（英語 PascalCase）を使用すること:
-  "Active", "Inactive", "Pending", "Completed", "Suspended", "Monitoring"
-  （"Monitoring" は経過観察中など継続監視状態。小文字 "active" 等は使わない）
-- SupportLog の `emotion`（感情）は以下のいずれか（英語）を使用すること:
-  "Joy", "Anger", "Sadness", "Fear", "Surprise", "Disgust", "Calm", "Anxiety", "Confusion", "Neutral"
-  テキストから本人の感情状態を読み取り、最も近い値を選択する。明確でない場合は "Neutral" とする。
-- SupportLog の `triggerTag`（きっかけタグ）は、出来事の引き金となった要因を短い日本語タグで表現する:
-  例: "大きな音", "環境変化", "人間関係", "体調不良", "スケジュール変更", "感覚過敏", "コミュニケーション困難"
-- SupportLog の `context`（文脈）は、出来事が起きた状況の背景を自由記述（日本語）で記録する:
-  例: "昼食時、外で工事が始まった", "新しい利用者が加わった初日"
-- SupportLog の `situation` や CarePreference の `category` は日本語を許容する（例: "食事", "入浴", "パニック時"）。
+案の形・例・手順は `claude-skills/narrative-extractor/SKILL.md` に一本化する。ここには写さない（二か所に置くと食い違う）。
+入口の点検は `nest/gate/intake.py`、正典は `docs/SCHEMA.md` §6。
 
-# モデリングのルール（Reification）
-- 支援記録や出来事は、単なる状態の更新ではなく必ず `SupportLog` ノードとして独立させること。
-- 「誰が記録したか」は `(Supporter)-[:LOGGED]->(SupportLog)` で表現する。
-- 「誰についての記録か」は `(SupportLog)-[:ABOUT]->(Client)` で表現する。
-- テキスト内にクライアント（支援対象者）の名前がある場合は、必ず `Client` ノードを含めること。
+## 守ること（SKILL.md と同じ。ここで足したり緩めたりしない）
 
-# 出力JSONフォーマット
-以下のJSONスキーマに従い、JSONのみを出力すること。Markdownの ```json などのブロック記法は絶対に含めないこと。
-
-{
-  "nodes": [
-    {
-      "temp_id": "内部リンク用のユニークな仮ID（例: c1, s1, log1）",
-      "label": "許可されたノードラベル",
-      "properties": { "キー": "値" }
-    }
-  ],
-  "relationships": [
-    {
-      "source_temp_id": "起点となるノードのtemp_id",
-      "target_temp_id": "終点となるノードのtemp_id",
-      "type": "許可されたリレーションシップタイプ",
-      "properties": { "キー": "値" }
-    }
-  ]
-}
-
-# 抽出例（Few-Shot Example）
-入力テキスト:
-"2026年3月9日、山田太郎さん（本人）の支援記録。鈴木支援員が対応。昼食の際、外で大きな工事音が鳴りパニックになった。パニック時は静かな別室に移動させることが効果的だった。今後は突然の大きな音を避けるよう配慮が必要（リスク：パニック）。"
-
-出力JSON:
-{
-  "nodes": [
-    { "temp_id": "c1", "label": "Client", "properties": { "name": "山田太郎" } },
-    { "temp_id": "s1", "label": "Supporter", "properties": { "name": "鈴木" } },
-    { "temp_id": "log1", "label": "SupportLog", "properties": { "date": "2026-03-09", "situation": "食事", "action": "静かな別室に移動させた", "effectiveness": "Effective", "emotion": "Fear", "triggerTag": "大きな音", "context": "昼食時、外で工事が始まった", "note": "昼食の際、外で大きな工事音が鳴りパニックになった。" } },
-    { "temp_id": "ng1", "label": "NgAction", "properties": { "action": "突然の大きな音", "reason": "パニックを誘発するため", "riskLevel": "Panic" } },
-    { "temp_id": "cp1", "label": "CarePreference", "properties": { "category": "パニック時", "instruction": "静かな別室に移動させる", "priority": "High" } }
-  ],
-  "relationships": [
-    { "source_temp_id": "s1", "target_temp_id": "log1", "type": "LOGGED", "properties": {} },
-    { "source_temp_id": "log1", "target_temp_id": "c1", "type": "ABOUT", "properties": {} },
-    { "source_temp_id": "c1", "target_temp_id": "ng1", "type": "MUST_AVOID", "properties": {} },
-    { "source_temp_id": "c1", "target_temp_id": "cp1", "type": "REQUIRES", "properties": {} }
-  ]
-}
+- 原文に無い値を書かない。分からない項目は書かない。決まった値（「不明なら Neutral」など）で埋めない
+- 感情・きっかけ・効果のような、原文に書かれていない評価を読み取って足さない
+- 引用（`quote`）は原文からそのまま写す。言い換え（`text`）に、引用に無い数字を足さない
+- 確度は原文の【…】の印で決める。上げも下げもしない
+- 人は役割の名前で書く（母・主治医・担当の相談員）。名前で既にいる人に結び付けない
+- 禁忌・推奨ケアの候補は、同じ案の中の事実の引用を根拠に指す。根拠が案に無ければ候補にせず、職員に知らせる（台帳 G-63）
+- 案はゲートが AI 由来として `Pending` で書き、職員が一つずつ承認する

@@ -1,71 +1,85 @@
 ---
 name: ecomap-generator
-description: クライアントの支援ネットワークや現在の状態を、D3.jsを用いたインタラクティブなグラフ（エコマップ・インサイトグラフ）として可視化するスキル。ノードをドラッグして動かしたり、詳細を確認したりできるHTMLを出力する。「エコマップ」「関係図」「今の状態を視覚化」「インサイトグラフ」「ビジュアルで確認」などの話題で必ずこのスキルを使用すること。
+description: 本人（仮名 displayCode）を真ん中に、禁忌・推奨ケア・特性・支える人・関わっている機関・親の担っている役割を、個人の側の DB から読んでエコマップ（Mermaid の図）にするスキル。「エコマップ」「関係図」「支援ネットワーク図」「ビジュアルで確認」などの話題で使う。読むだけ。
 ---
 
-# エコマップ・インサイト生成スキル (ecomap-generator)
+# ecomap-generator：エコマップ
 
-## このスキルの意義
-知的障害者支援において、本人を取り巻く「関係性」や、日々の「感情の変化」を直感的に把握することは極めて重要です。このスキルは、Neo4j内の複雑な繋がりを、物理シミュレーションを用いた生き生きとしたビジュアル（HTML形式）に変換し、支援チームの共通理解を助けます。
+## 意義
 
-## 使用するMCPツール
-| ツール | 用途 |
-|--------|------|
-| `neo4j:execute_query` | 可視化に必要なデータの読み取り（読み取り専用利用） |
-| Bash（シェルコマンド実行） | 可視化HTML生成スクリプトの実行（Claude Code の Bash ツール等、環境のシェル実行手段を使う） |
+本人を取り巻く関係と、安全に関わる情報を一枚の図にして、支援チームの共通の理解を助ける（計画 N-27g）。
 
-## 主な可視化内容
-1. **本人の中心性:** クライアントを中央に、周囲に支援情報を配置。
-2. **禁忌・推奨事項:** 安全に関わる「絶対にやってはいけないこと」や「効果的なケア」を色分けして表示。
-3. **最新の感情インサイト:** 直近の支援記録に基づき、喜び（Joy）や怒り（Anger）の状態をアニメーション効果で強調。
-4. **インタラクティブ性:** 各ノードをクリックして詳細プロパティ（背景、具体的な状況など）を確認可能。
+## 決まり
 
-## 実行手順
+- 道具は MCP `nest-personal` の `read_personal_cypher`（機関の名前は `nest-resource` の `read_resource_cypher`）。読むだけ
+- 本人は仮名（`displayCode`）で示す。人は続柄と `personId` の末尾 4 字で示す（実名・電話は包みが返さない）
+- **DB に無いものを図に足さない。** 見本の人・見本の機関で埋めない。照会が 0 件なら、その枝は描かず、図の下に「未確認」「登録なし」を書き分ける（`neo4j-support-db` の「読み方の決まり」4）
+- 未確定（`Pending`）の項目は点線でつなぎ、ラベルに「未確定」と添える
+- 図のラベルは DB の文字をそのまま使うが、Mermaid の記号（`"`・`[`・`]`・`{`・`}`・`|`・`<`・`>`）は全角に置き換えてから入れる
+- 前の版の D3 の動く図（HTML）、感情の推移のグラフ、リスクのバッジは外した（感情の項目は正典に無い。前の DB と前の分析の部品につながっていた）。動く図が要るなら、DB につながない描画の部品として作り直す（その計画はまだ無い）
 
-### Step 1: データの確認と抽出
-対象のクライアント名に基づき、必要な情報が揃っているか確認します。
+## 照会
 
-### Step 2: ビューの生成
+### 1. 図に載せるもの
 
-#### ハイブリッド・インサイト・ビュー（推奨）
-感情時系列チャート + 物理グラフ + AI相談プロンプト機能を統合したダッシュボード。
-
-```bash
-uv run python claude-skills/ecomap-generator/scripts/generate_html.py "[クライアント名]" hybrid
+```cypher
+MATCH (c:Client {displayCode: $code})
+OPTIONAL MATCH (c)-[:MUST_AVOID]->(n:NgAction) WHERE n.status IN ['Active', 'Pending']
+WITH c, collect(DISTINCT {action: n.action, riskLevel: n.riskLevel, status: n.status}) AS ngActions
+OPTIONAL MATCH (c)-[:REQUIRES]->(p:CarePreference) WHERE p.status IN ['Active', 'Pending']
+WITH c, ngActions, collect(DISTINCT {category: p.category, instruction: p.instruction, status: p.status}) AS carePreferences
+OPTIONAL MATCH (c)-[:HAS_CONDITION]->(cd:Condition) WHERE cd.status IN ['Active', 'Pending']
+WITH c, ngActions, carePreferences, collect(DISTINCT {name: cd.name, status: cd.status}) AS conditions
+OPTIONAL MATCH (pp:Person)-[rt:RELATED_TO]->(c) WHERE rt.status IN ['Active', 'Pending'] AND rt.until IS NULL
+WITH c, ngActions, carePreferences, conditions,
+     collect(DISTINCT {personId: pp.personId, kind: rt.kind, rank: rt.rank, status: rt.status}) AS people
+OPTIONAL MATCH (i:Involvement)-[:CONCERNS]->(c) WHERE i.status IN ['Active', 'Pending'] AND i.howEnded IN ['Ongoing', 'Unknown']
+OPTIONAL MATCH (o:Organization)-[:HAS_INVOLVEMENT]->(i)
+WITH c, ngActions, carePreferences, conditions, people,
+     collect(DISTINCT {kind: i.kind, service: i.serviceTypeName, orgId: o.orgId, status: i.status}) AS involvements
+OPTIONAL MATCH (r:CareRole)-[:ROLE_FOR]->(c) WHERE r.status IN ['Active', 'Pending']
+OPTIONAL MATCH (doer:Person)-[pf:PERFORMS]->(r) WHERE pf.until IS NULL
+RETURN ngActions, carePreferences, conditions, people, involvements,
+       collect(DISTINCT {name: r.name, performedBy: doer.personId, status: r.status}) AS careRoles
 ```
 
-**機能:**
-- **左パネル**: 感情ポジティブ率の時系列折れ線グラフ（30日間）、Emotion Drift アラート、成功パターン一覧
-- **右パネル**: D3.js物理シミュレーションによるノードグラフ
-- **ノードクリック**: 詳細プロパティ表示 + AI相談プロンプトのワンクリックコピー
-- **リスクバッジ**: insight-engine の総合リスク評価（高/中/低）をヘッダーに表示
+### 2. 機関の名前
 
-#### クラシックエコマップ
-従来の物理グラフのみのビュー。
-
-```bash
-uv run python claude-skills/ecomap-generator/scripts/generate_html.py "[クライアント名]" classic
+```cypher-resource
+MATCH (o:Organization)
+WHERE o.orgId IN $orgIds
+RETURN o.orgId AS orgId, o.name AS name, o.kind AS kind
 ```
 
-### Step 3: ユーザーへの提示
-生成されたファイルのパスを提示し、ブラウザで開くよう案内します。
-例：「[クライアント名]さんのインサイトグラフを生成しました。以下のファイルを開くと、現在の感情の変化や禁忌事項を動的なグラフで確認できます。」
+### 3. 確認の状況（0 件の枝の書き分け）
 
-### AI相談プロンプト機能
-グラフ上のノードをクリックすると詳細パネルが開き、「Claude に相談するプロンプトをコピー」ボタンが表示されます。
-ボタンを押すとノードタイプに応じた相談プロンプトがクリップボードにコピーされ、そのまま Claude Desktop に貼り付けて相談できます。
+```cypher
+MATCH (v:Review)-[:ABOUT]->(c:Client {displayCode: $code})
+WHERE v.status = 'Active'
+RETURN collect(DISTINCT v.domain) AS reviewed
+```
 
-| ノードタイプ | 生成されるプロンプト |
-|------------|-------------------|
-| NgAction | 禁忌事項への安全な対応手順と初動対応の相談 |
-| CarePreference | ケア方法の改善とバリエーション提案 |
-| SupportLog | 記録の分析と今後の支援方針改善 |
-| Condition | 特性への日常的な支援ポイント相談 |
+## 図の形
 
----
+```text
+flowchart LR
+  C(("C-……"))
+  C -- 禁忌 --> NG1["🔴 生命に関わる：……"]
+  C -. 禁忌（未確定） .-> NG2["🟡 パニックを招く：……（未確定）"]
+  C -- 推奨ケア --> CP1["✅ ……"]
+  C -- 特性 --> CD1["……"]
+  P1["キーパーソン（1）…a1b2"] -- 支える --> C
+  O1["相談：〇〇区役所"] -- 関わり --> C
+  R1["食事の用意（母）"] -- 親の役割 --> C
+```
+
+- 色の目安：禁忌は赤・黄・緑（生命に関わる・パニックを招く・不快・ストレス）、推奨ケアは青、支える人は灰、機関は緑
+- 図は `.md` のファイル（Mermaid のブロック）にして渡す。外のサービスに上げない。PDF にするときは `html-to-pdf`
 
 ## 活用場面
-- **ケース会議:** ハイブリッドビューで感情トレンドとネットワークを同時に俯瞰。
-- **新人研修・引き継ぎ:** 禁忌事項ノードをクリックし、AI相談プロンプトで具体的な対応方法を学ぶ。
-- **リスクモニタリング:** 感情チャートの警戒ライン割れとアラートで悪化兆候を早期発見。
-- **現場での即時相談:** ノードクリック → プロンプトコピー → Claude に貼り付けて即相談。
+
+ケース会議、担当の引き継ぎ、親なき後の備えの話し合い（`resilience-checker` と並べる）。
+
+## 関連スキル
+
+`neo4j-support-db`、`resilience-checker`、`visit-prep`

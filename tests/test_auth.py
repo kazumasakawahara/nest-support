@@ -1,13 +1,12 @@
 """
 P0-2: FastAPI サービス（field-ui / sos）の認証層の回帰テスト。
 
-- 保護エンドポイント（/api/*）はトークンなしで 401、APP_ACCESS_TOKEN 未設定で 503。
+- 保護エンドポイント（/api/*）はトークンなしで 401、APP_ACCESS_TOKEN 未設定で 503（sos。field-ui は職員ごとのトークン。N-37）。
 - SOS 送信（POST /api/sos）は非対称設計により無認証で成功する。
 - SOS の情報取得（GET /api/client/*）は認証必須。
 - ログインは HttpOnly セッション Cookie を発行する。
 """
 
-import importlib.util
 from pathlib import Path
 
 import pytest
@@ -15,23 +14,14 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
-import lib.auth as auth
+import nest.auth as auth
 
 _ROOT = Path(__file__).resolve().parent.parent
 TOKEN = "test-secret-token"
 
 
-def _load_field_ui():
-    spec = importlib.util.spec_from_file_location(
-        "field_ui_server", _ROOT / "field-ui" / "server.py"
-    )
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
 # ---------------------------------------------------------------------------
-# lib/auth 単体
+# nest/auth 単体（計画 N-35 で lib/auth.py から移した）
 # ---------------------------------------------------------------------------
 
 def test_verify_token(monkeypatch):
@@ -74,45 +64,8 @@ def test_proxy_header_trusted_when_enabled(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# field-ui
+# field-ui は職員ごとのトークンに替えた（N-37）。試験は tests/test_field_ui_guards.py と tests/test_staff_auth.py
 # ---------------------------------------------------------------------------
-
-def test_field_ui_requires_auth(monkeypatch):
-    monkeypatch.setenv("APP_ACCESS_TOKEN", TOKEN)
-    mod = _load_field_ui()
-    monkeypatch.setattr(mod, "run_query", lambda q, p=None: [{"name": "山田太郎"}])
-    client = TestClient(mod.app)
-
-    # トークンなし → 401
-    assert client.get("/api/clients").status_code == 401
-    # 正規トークン → 200
-    ok = client.get("/api/clients", headers={"Authorization": f"Bearer {TOKEN}"})
-    assert ok.status_code == 200
-
-
-def test_field_ui_fail_closed_when_unset(monkeypatch):
-    monkeypatch.delenv("APP_ACCESS_TOKEN", raising=False)
-    mod = _load_field_ui()
-    client = TestClient(mod.app)
-    # APP_ACCESS_TOKEN 未設定 → 503（fail-closed）
-    assert client.get("/api/clients").status_code == 503
-
-
-def test_field_ui_login_sets_cookie(monkeypatch):
-    monkeypatch.setenv("APP_ACCESS_TOKEN", TOKEN)
-    monkeypatch.setenv("SESSION_COOKIE_SECURE", "false")
-    import importlib
-    importlib.reload(auth)  # SESSION_COOKIE_SECURE を反映
-    mod = _load_field_ui()
-    client = TestClient(mod.app)
-
-    bad = client.post("/api/login", json={"token": "wrong"})
-    assert bad.status_code == 401
-
-    good = client.post("/api/login", json={"token": TOKEN})
-    assert good.status_code == 200
-    assert auth.SESSION_COOKIE in good.cookies
-    importlib.reload(auth)  # 後続テストへ影響しないよう戻す
 
 
 # ---------------------------------------------------------------------------
@@ -132,18 +85,27 @@ def sos_mod(monkeypatch):
 def test_sos_send_is_unauthenticated(sos_mod, monkeypatch):
     """SOS 送信は APP_ACCESS_TOKEN 設定下でも無認証で成功する（非対称設計）。"""
     monkeypatch.setenv("APP_ACCESS_TOKEN", TOKEN)
-    monkeypatch.setattr(sos_mod, "get_client_info", lambda cid: None)
     client = TestClient(sos_mod.app)
     resp = client.post("/api/sos", json={"client_id": "誰か"})
     assert resp.status_code == 200
 
 
 def test_sos_client_lookup_requires_auth(sos_mod, monkeypatch):
-    """情報取得（GET /api/client/*）は認証必須。"""
+    """情報取得（GET /api/client/*）は認証必須。認証すれば仮名と「いるか」だけを返す（N-36。名前は返さない）。"""
     monkeypatch.setenv("APP_ACCESS_TOKEN", TOKEN)
-    monkeypatch.setattr(sos_mod, "get_client_info", lambda cid: {"name": "山田太郎"})
+    monkeypatch.setattr(sos_mod, "lookup_client", lambda code: True)
     client = TestClient(sos_mod.app)
 
-    assert client.get("/api/client/山田太郎").status_code == 401
-    ok = client.get("/api/client/山田太郎", headers={"Authorization": f"Bearer {TOKEN}"})
-    assert ok.status_code == 200
+    assert client.get("/api/client/C-ZZZZZZ").status_code == 401
+    ok = client.get("/api/client/C-ZZZZZZ", headers={"Authorization": f"Bearer {TOKEN}"})
+    assert ok.status_code == 200 and ok.json() == {"displayCode": "C-ZZZZZZ", "found": True}
+
+
+def test_auth_lives_in_nest_and_services_use_it():
+    """N-35：認証の部品は nest/auth.py だけにあり、sos・field-ui はそこから読む"""
+    assert not (_ROOT / "lib" / "auth.py").exists()
+    for service, line in (("sos/api_server.py", "from nest.auth import require_auth, set_session_cookie, verify_token"),
+                          ("field-ui/server.py", "from nest.auth import require_staff, set_session_cookie, staff_of")):
+        text = (_ROOT / service).read_text(encoding="utf-8")
+        assert line in text
+        assert "lib.auth" not in text

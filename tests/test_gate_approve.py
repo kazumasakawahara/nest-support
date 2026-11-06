@@ -1,0 +1,45 @@
+"""N-21：承認の操作（ADR-001 D9）。DB を使わない部分。
+
+- 承認は書き込みとは別の操作。対象は一件ずつ（{label, id}）
+- AI 由来のものをまとめて承認しない（approve_many は 2 件以上の AI 由来を、何も変えずに断る。DB の試験で確かめる）
+- 一人で使う人の自己承認を認め、selfApproval に残す（DB の試験）
+- 承認の出力に、事実ごとの原文の引用を並べる（DB の試験）
+DB に書く試験は tests/test_gate_approve_live.py（NEST_LIVE_DB=1 のときだけ）。
+"""
+import pytest
+
+from nest.gate import approve as ga
+
+STAFF = "STF-" + "0" * 26
+REC = "REC-" + "1" * 26
+
+
+@pytest.mark.parametrize("target", [None, {}, {"label": "Record"}, {"label": "Record", "id": "x"},
+                                    {"label": "AuditLog", "id": "AUD-" + "1" * 26},
+                                    {"label": "Staff", "id": STAFF},
+                                    {"label": "Record", "id": REC, "name": "架空"}])
+def test_bad_target_is_refused_without_touching_the_driver(target):
+    out = ga.approve(None, STAFF, target, "req-1")
+    assert out["ok"] is False and out["errors"]
+
+
+@pytest.mark.parametrize("actor", [None, "", "PER-" + "0" * 26])
+def test_actor_must_be_staff(actor):
+    out = ga.approve(None, actor, {"label": "Record", "id": REC}, "req-1")
+    assert out["ok"] is False and any("actorStaffId" in e for e in out["errors"])
+
+
+def test_request_id_is_required():
+    out = ga.approve(None, STAFF, {"label": "Record", "id": REC}, "")
+    assert out["ok"] is False and any("requestId" in e for e in out["errors"])
+
+
+def test_approve_takes_one_target_not_a_list():
+    out = ga.approve(None, STAFF, [{"label": "Record", "id": REC}], "req-1")
+    assert out["ok"] is False
+
+
+def test_approve_many_refuses_duplicates_and_empty():
+    assert ga.approve_many(None, STAFF, [], "req-1")["ok"] is False
+    dup = [{"label": "Record", "id": REC}, {"label": "Record", "id": REC}]
+    assert ga.approve_many(None, STAFF, dup, "req-1")["ok"] is False
