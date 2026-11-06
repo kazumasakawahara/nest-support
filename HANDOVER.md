@@ -1,15 +1,15 @@
-# HANDOVER — 2026-11-06 redesign/adr-001（ADR-001 の作り直し。段階 A〜D 済み、段階 E の途中。止まる点 E-3 で止まっている）
+# HANDOVER — 2026-11-06 redesign/adr-001（ADR-001 の作り直し。段階 A〜E 済み。E-3 の判断 1〜4 を入れた。段階 F の案を河原さんに出して止まっている）
 
 > 前の HANDOVER（2026-08-03 main。WAM NET スキル整合）は git 履歴（ce627d9）にある。そこに書かれた
 > `~/.config/nest/neo4j.env`・ポート 7687・`nest-support-neo4j` は**前の構成**で、この枝では使わない。
 
-## 再開コマンド（2026-11-06 07:44、止まる点 E-3 で確かめた）
+## 再開コマンド（2026-11-06 09:57 に確かめた）
 
 ```bash
 cd ~/Dev-Work/project/nest-support && git switch redesign/adr-001
-uv run pytest -q                       # 788 passed, 111 skipped（DB を使う試験は skip）
+uv run pytest -q                       # 804 passed, 111 skipped（DB を使う試験は skip）
 uv run python scripts/check_drift.py   # ずれ 0 件
-./scripts/doctor.sh                    # 環境の点検（今は wamnet-provider-sync のリンクの残りで 1 件 FAIL）
+./scripts/doctor.sh                    # 環境の点検：25 passed, 0 failed
 ```
 
 DB を使う試験（結合試験のタスクのときだけ。終わったら必ず止める）：
@@ -28,7 +28,7 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 
 | 想定 | 確かめ方 | 最終確認日 |
 |---|---|---|
-| 枝 `redesign/adr-001` は origin に push 済み（河原さんが 2026-11-06 に打った。`origin/redesign/adr-001` = 34f2577）。その後、河原さんが b0b2177 まで push。河原さんが 960e8d9 まで push。**056d02e からこの HANDOVER の直しまでの 5 件が未 push（push が要る）** | `git status -sb`（`ahead N` が未 push の数） | 2026-11-06 |
+| 枝 `redesign/adr-001` は origin に push 済み（河原さんが 2026-11-06 に打った。`origin/redesign/adr-001` = 34f2577）。その後、河原さんが b0b2177 まで push。河原さんが dac9e09 まで push。**8ba3e66・8b199e1・04bd8a5・56fe9a8 とこの HANDOVER の直しの 5 件が未 push（push が要る）** | `git status -sb`（`ahead N` が未 push の数） | 2026-11-06 |
 | **push は河原さんが打つ。** Claude は報告に「push が要る」と書くだけ。PR は作らない・main に合流させない | — | 2026-11-06 |
 | 前の DB（コンテナ `nest-support-neo4j`、`neo4j_data/` ほか）は止まっている。**実データが入っているものとして扱い、開かない・起動しない・消さない** | `docker ps -a`（Exited のまま） | 2026-11-06 |
 | `support-db-neo4j`（neo4j-agno-agent の共有層 7687）は restart=no で止まっている | `docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' support-db-neo4j` → `no` | 2026-11-06 |
@@ -63,8 +63,9 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
   - [x] G-65：wamnet-provider-sync を外し、inheritance-calculator に架空の印（056d02e）。G-67：照会 15 の範囲を一行で（58f1b7a）
   - [x] N-29：利用者向けの文書を今の構成に合わせて書き直した（55c839c。台帳 G-68）
   - [x] N-30：doctor.sh を新しい構成の点検に（2290041。台帳 G-69）
-  - [ ] **止まる点 E-3**（段階 E の外したもの・残したものと、未照合の一覧を河原さんが見る）
-  - [ ] N-31（任意）。G-68 の「まだ直していない文書」、未決（音声の保存の期間・バックアップ・廃棄）
+  - [x] 止まる点 E-3 の判断（2026-11-06）：.env.example の試験（8ba3e66。G-70）、SOS の本人の入口を閉じて 503（8b199e1。G-66）、実務の文書を直し配布の文書 5 本を外した（04bd8a5。G-71）、廃棄 N-32・バックアップ N-33 を計画に足し仮の既定を書いた（56fe9a8。G-72。N-31 が埋まっていたので 33）
+  - [ ] **段階 F の案を河原さんが見る**（計画に段階 F の節と止まる点がまだ無い。案は会話で報告した。承認の後に計画へ書く）
+  - [ ] N-31（任意）。N-32 廃棄・N-33 バックアップ・音声の保存の期間は段階 F の止まる点で決める
   - [ ] N-05a 前の DB の処分（河原さんが中身を確かめるまで手を付けない）
 
 ## グレーな判断
@@ -85,13 +86,13 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 - 開発と試験は架空の事例だけ。実案件のデータをリポジトリに入れない。パスワードはリポジトリにもチャットにも書かない
 - 条番号は e-Gov で照合してから書く。照合できないものは【未照合】
 - rtk の hook が Bash の出力を切り詰める。長い出力・JSON・日本語を含む処理は Python のスクリプトにして流す
-- 前の DB を指すコードの残り（G-49）：`lib/db_operations.py`・`sos/api_server.py`・`scripts/doctor.sh`・`scripts/rotate_password.py`・`setup.sh`・`installer/*`・`claude-skills/ecomap-generator/scripts/generate_mermaid.py`。消した script の名前を書いた文書（`CLAUDE.md`・`docs/PRIVACY_GUIDELINES.md`）は N-29
+- 前の構成のまま残るコード（G-49。新しい DB を指さないことを `tests/test_old_db_code_isolated.py` で固定）：`lib/`（`field-ui/server.py` が db_operations・auth を、`sos/api_server.py` が auth を使う）・`field-ui/`・`sos/api_server.py`（本人の入口は 503）・`scripts/rotate_password.py`・`scripts/backup.sh`・`scripts/multi_importer.py`・`setup.sh`・`setup.ps1`・`installer/*`（外した文書へのリンクが残る。G-71）
 - 試験の数の目安：DB なし 749 passed・84 skipped、DB つき 833 passed（2026-11-06 止まる点 E-1）
 - 段階 E の止まる点は E-1（N-27 の後）・E-2（N-28 の後）・E-3（N-30 の後）。計画の表にある
 - 読み取りの包みは、実名・住所などの項目の名前を部分の一致で拒否する。正典の `ADDRESSES` も拒否される（台帳 G-64。決まるまでスキルで使わない）
 
 ## 次タスク（優先度順）
 
-- A：止まる点 E-1 の河原さんの判断（スキル 8 本、G-64）
-- B：N-28 SOS の中身 → 止まる点 E-2
-- C：N-29 文書、N-30 `doctor.sh` → 止まる点 E-3
+- A：段階 F の案の河原さんの判断（行・止まる点・順）。承認を得てから計画に書き、最初の行へ
+- B：N-32・N-33・音声の保存の期間を、段階 F の止まる点で決める
+- C：未照合（手帳・年金・手当の条番号）は N-27 の SEMANTICS の行の「照合して書く」のまま。急がない
