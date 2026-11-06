@@ -86,6 +86,8 @@
 | N-30 | `doctor.sh` を新しい構成に合わせる | doctor.sh が新しい構成で全項目を通る |  ✅ 2026-11-06 doctor.sh を新しい構成の点検に（前の DB・待ち受け・設定の権限・.mcp.json・スキルのリンク・正典のずれ）。試験 tests/test_doctor.py（偽の HOME と docker）。台帳 G-69 |
 | **止まる点 E-3** | 段階 E の終わり | | |
 | N-31（任意） | エコマップの動く図：DB につながず、Claude が出した Mermaid か JSON を読むだけの描画の部品（2026-11-06 河原さん。要るときだけ） | 描画の部品が DB・ネットワークにつながらない | |
+| N-32 | 本人のデータの廃棄の手順（2026-11-06 河原さん）。tsunagu-net の保存の判断（`RetentionDecision`。tsunagu-net `docs/SCHEMA.md` v0.29〜0.30、`docs/proposals/2026-11-05-purge-draft.md`、`scripts/retention_due.py`、`tests/test_gate_purge.py`）を手本に読む。廃棄は未確定（Pending）を経ず、人の操作だけで行い、操作の記録（AuditLog）に残す。正典に足すラベル・項目は河原さんの承認を得てから | 架空のデータで：廃棄が AI の案からは通らない・人の操作だけで消える・AuditLog が残る・ほかの本人に触れない | 段階 F の止まる点で決める |
+| N-33 | 個人の側の DB のバックアップの手順（2026-11-06 河原さん。河原さんは N-31 と書いたが、N-31 はエコマップの動く図に使っていたので 33 にした）。置き場所は Mac の中、権限 700、Time Machine の対象外。外のサービスには置かない（`docs/external-api.md` に行を足さない） | 架空のデータで、取る・戻すの両方。置き場所の権限が 700、Time Machine の除外が付いている | 段階 F の止まる点で決める |
 
 ## 付録　neo4j-agno-agent の共有層（7687）・shared-schema に頼っている箇所（2026-11-05 時点）
 
