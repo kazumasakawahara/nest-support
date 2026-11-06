@@ -1,4 +1,4 @@
-# HANDOVER — 2026-11-06 redesign/adr-001（ADR-001 の作り直し。段階 A〜E 済み。E-3 の判断 1〜4 を入れた。段階 F の案を河原さんに出して止まっている）
+# HANDOVER — 2026-11-06 redesign/adr-001（ADR-001 の作り直し。段階 A〜E 済み。段階 F の N-34 まで済み。止まる点 F-1 で止まっている）
 
 > 前の HANDOVER（2026-08-03 main。WAM NET スキル整合）は git 履歴（ce627d9）にある。そこに書かれた
 > `~/.config/nest/neo4j.env`・ポート 7687・`nest-support-neo4j` は**前の構成**で、この枝では使わない。
@@ -28,7 +28,7 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 
 | 想定 | 確かめ方 | 最終確認日 |
 |---|---|---|
-| 枝 `redesign/adr-001` は origin に push 済み（河原さんが 2026-11-06 に打った。`origin/redesign/adr-001` = 34f2577）。その後、河原さんが b0b2177 まで push。河原さんが dac9e09 まで push。**8ba3e66・8b199e1・04bd8a5・56fe9a8 とこの HANDOVER の直しの 5 件が未 push（push が要る）** | `git status -sb`（`ahead N` が未 push の数） | 2026-11-06 |
+| 枝 `redesign/adr-001` は origin に push 済み（河原さんが 2026-11-06 に打った。`origin/redesign/adr-001` = 34f2577）。その後、河原さんが b0b2177 まで push。河原さんが E-3 の直しまで push。**1e49ff9（段階 F の計画）・3d9ff96（N-34）とこの HANDOVER の直しの 3 件が未 push（push が要る）** | `git status -sb`（`ahead N` が未 push の数） | 2026-11-06 |
 | **push は河原さんが打つ。** Claude は報告に「push が要る」と書くだけ。PR は作らない・main に合流させない | — | 2026-11-06 |
 | 前の DB（コンテナ `nest-support-neo4j`、`neo4j_data/` ほか）は止まっている。**実データが入っているものとして扱い、開かない・起動しない・消さない** | `docker ps -a`（Exited のまま） | 2026-11-06 |
 | `support-db-neo4j`（neo4j-agno-agent の共有層 7687）は restart=no で止まっている | `docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' support-db-neo4j` → `no` | 2026-11-06 |
@@ -64,8 +64,10 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
   - [x] N-29：利用者向けの文書を今の構成に合わせて書き直した（55c839c。台帳 G-68）
   - [x] N-30：doctor.sh を新しい構成の点検に（2290041。台帳 G-69）
   - [x] 止まる点 E-3 の判断（2026-11-06）：.env.example の試験（8ba3e66。G-70）、SOS の本人の入口を閉じて 503（8b199e1。G-66）、実務の文書を直し配布の文書 5 本を外した（04bd8a5。G-71）、廃棄 N-32・バックアップ N-33 を計画に足し仮の既定を書いた（56fe9a8。G-72。N-31 が埋まっていたので 33）
-  - [ ] **段階 F の案を河原さんが見る**（計画に段階 F の節と止まる点がまだ無い。案は会話で報告した。承認の後に計画へ書く）
-  - [ ] N-31（任意）。N-32 廃棄・N-33 バックアップ・音声の保存の期間は段階 F の止まる点で決める
+  - [x] 段階 F を計画に書いた（承認 2026-11-06。1e49ff9）
+  - [x] N-34：F-1 の材料（`docs/proposals/2026-11-06-f1-decisions.md`。3d9ff96。台帳 G-73）
+  - [ ] **止まる点 F-1**：音声の保存の期間・バックアップ・廃棄・正典のラベル・前の DB の処分（N-05a）と移すかを河原さんが決める
+  - [ ] F-1 の後：N-32 廃棄・N-33 バックアップ → N-35 → N-36・N-37 → F-2 → N-38 → F-3。N-31（任意）は段階の外
   - [ ] N-05a 前の DB の処分（河原さんが中身を確かめるまで手を付けない）
 
 ## グレーな判断
@@ -93,6 +95,6 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 
 ## 次タスク（優先度順）
 
-- A：段階 F の案の河原さんの判断（行・止まる点・順）。承認を得てから計画に書き、最初の行へ
-- B：N-32・N-33・音声の保存の期間を、段階 F の止まる点で決める
+- A：止まる点 F-1 の河原さんの判断（提案の文書の 1〜5）
+- B：決定どおりに N-32・N-33（正典を足すなら v0.11 と §10・JSON・check_drift を同時に）
 - C：未照合（手帳・年金・手当の条番号）は N-27 の SEMANTICS の行の「照合して書く」のまま。急がない
