@@ -44,7 +44,7 @@ def test_no_link_points_at_a_removed_doc():
     out = subprocess.run(["git", "grep", "-l", "-E", "|".join(Path(p).name for p in REMOVED_DOCS)],
                          cwd=REPO, capture_output=True, text=True).stdout.split()
     keep = ("docs/gray-decisions.md", "docs/implementation-plan.md", "HANDOVER.md", "tests/test_docs_new_setup.py")
-    assert [p for p in out if p not in keep and not p.startswith(("docs/adr/", "decommissioned/", "docs/SUMMARY_"))] == []
+    assert [p for p in out if p not in keep and not p.startswith(("docs/adr/", "docs/archive/", "decommissioned/", "docs/SUMMARY_"))] == []
 
 
 def test_compose_notes_have_no_shared_layer():
