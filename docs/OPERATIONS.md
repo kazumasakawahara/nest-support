@@ -56,6 +56,19 @@ uv run python scripts/bootstrap_admin.py --name "事務局"    # 職員 ID（STF
 
 点検：人が確かめる（職員 ID が出たこと。もう一度打つと止まること）
 
+### 二人目からの職員を登録する（new_staff）
+
+管理者が手元で打ちます。職員はゲートを通って作られ、操作の記録は打った管理者に結ばれます。管理者でない職員の ID では止まります。
+
+```bash
+uv run python scripts/new_staff.py --admin STF-… --name "呼び名"                          # 職員（Staff）を作る。職員 ID（STF-…）が出る
+uv run python scripts/new_staff.py --admin STF-… --name "呼び名" --role Administrator     # 管理者を足すとき
+```
+
+- 出力の最後の行が、そのまま打てる次のコマンドです（`uv run python scripts/staff_token.py add STF-…`。3 の段）
+
+点検：人が確かめる（職員 ID が出たこと）
+
 ## 3. 職員のトークンを出す（staff_token）
 
 現場の画面（field-ui）に入るための、職員ごとのトークンです。
@@ -200,6 +213,5 @@ doctor の項目：[1] 前の DB は動いていない、[2] 新しい DB の待
 
 ## 道具がまだ無いこと・決まっていないこと
 
-1. **二人目からの職員の登録**：管理者がゲートで登録しますが、手元で打つ道具はまだありません
-2. **書き込みの案を通す・承認する**：`narrative-extractor` の案を点検に通し（`nest/gate/intake.py`）、未確定のものを承認する（`nest/gate/approve.py`）操作に、手元で打つ道具はまだありません。実データでは、Claude に渡せない間（台帳 G-80）この段は使いません
-3. **音声を消す日**：決めていません（6）
+1. **書き込みの案を通す・承認する**：`narrative-extractor` の案を点検に通し（`nest/gate/intake.py`）、未確定のものを承認する（`nest/gate/approve.py`）操作に、手元で打つ道具はまだありません。実データでは、Claude に渡せない間（台帳 G-80）この段は使いません
+2. **音声を消す日**：決めていません（6）
