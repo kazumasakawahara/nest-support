@@ -56,6 +56,19 @@ uv run python scripts/bootstrap_admin.py --name "事務局"    # 職員 ID（STF
 
 点検：人が確かめる（職員 ID が出たこと。もう一度打つと止まること）
 
+### 二人目からの職員を登録する（new_staff）
+
+管理者が手元で打ちます。職員はゲートを通って作られ、操作の記録は打った管理者に結ばれます。管理者でない職員の ID では止まります。
+
+```bash
+uv run python scripts/new_staff.py --admin STF-… --name "呼び名"                          # 職員（Staff）を作る。職員 ID（STF-…）が出る
+uv run python scripts/new_staff.py --admin STF-… --name "呼び名" --role Administrator     # 管理者を足すとき
+```
+
+- 出力の最後の行が、そのまま打てる次のコマンドです（`uv run python scripts/staff_token.py add STF-…`。3 の段）
+
+点検：人が確かめる（職員 ID が出たこと）
+
 ## 3. 職員のトークンを出す（staff_token）
 
 現場の画面（field-ui）に入るための、職員ごとのトークンです。
@@ -103,6 +116,24 @@ cd sos && PORT=8010 uv run python api_server.py     # SOS：http://127.0.0.1:801
 
 点検：人が確かめる（画面が 127.0.0.1 で開き、トークンで入れること。doctor は画面のサーバーを見ません）
 
+### 書き込みの案を点検して承認する（review_proposals）
+
+AI が作ったもの（`narrative-extractor` の案など）は未確定（Pending）で入ります。職員が一つずつ見て、承認するか差し戻します。
+
+```bash
+uv run python scripts/review_proposals.py list                                   # 未確定の一覧（古い順）。本人は仮名で出る
+uv run python scripts/review_proposals.py show --id REC-…                        # 一件の根拠の引用を見る
+uv run python scripts/review_proposals.py approve --staff STF-… --id REC-…       # 承認する（Active になる）
+uv run python scripts/review_proposals.py reject --staff STF-… --id REC-…        # 差し戻す（Inactive になる）
+```
+
+- `--id` には一覧に出た ID（`REC-…`・`NGA-…`・`CPF-…` など）を一つだけ書きます。まとめての承認はしません
+- 承認・差し戻しは AuditLog に残ります。自分で登録したものを承認すると「自己承認」と出て、`selfApproval` が付きます
+- 承認する前に、`show` で根拠の引用を読みます。引用が無いもの・引用と中身が合わないものは差し戻します
+- 実データでは、Claude に渡せない間（台帳 G-80）AI の案が無いので、この段は使いません
+
+点検：人が確かめる（一覧が古い順で、根拠の引用を読んでから決めたこと）
+
 ## 6. 音声を扱う（録音・文字起こし・purge_voice）
 
 - 録音は field-ui の「音声の録音」（`/voice`）で行います。録音は `nest_voice_data/` に置かれます（権限 700・Time Machine の対象外）
@@ -112,12 +143,8 @@ cd sos && PORT=8010 uv run python api_server.py     # SOS：http://127.0.0.1:801
 
 音声は、文字起こしの記録が承認されたら消し、遅くとも 30 日で消します。道具は自動では動かないので、人が流します。
 
-```bash
-uv run python scripts/purge_voice.py            # 数えるだけ（消さない）
-uv run python scripts/purge_voice.py --write    # 消す
-```
-
-- 流す日は事業所で決めます（まだ決めていません。Claude の案：承認をした日の作業の終わり）
+- **流す日は、週に一度、バックアップを取る日です**（2026-11-06 河原さん。計画 N-45）。曜日は金曜日（書き込みが無ければ、その週の最後に書き込んだ日。7 の段）。コマンドは 7 の枠にあります（DB を起こして流し、DB を止めてからバックアップを取る）
+- DB が起きていないと、承認済みの音声を見分けられず、30 日を過ぎたものだけを消します（道具は「DB を読めない」と知らせます）
 
 点検：[9] 置き場所が 700・Time Machine の対象外・30 日を過ぎた音声が無い（あれば FAIL）。文字起こしの設定は [3]（`external-api-features.json`・`external-api-record.json` が無ければ WARN。今は無いのが正しい状態）
 
@@ -125,11 +152,18 @@ uv run python scripts/purge_voice.py --write    # 消す
 
 **DB に書き込んだ日の作業の終わりに、DB を止めてから取ります**（止まる点 F-1 で決めた周期）。世代は 4 つで、古いものは道具が消します。
 
+**週に一度、金曜日のバックアップで、音声も消します**（6。計画 N-45・台帳 G-90）。金曜日に書き込みが無ければ（バックアップを取らない日なら）、その週の最後に書き込んだ日に流します。その日は、DB が起きているうちに purge_voice を流してから DB を止めます。ほかの日は purge_voice の 2 行を飛ばします。
+
 ```bash
+docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d          # 止めていたら起こす（音声を消すため）
+uv run python scripts/purge_voice.py                                         # 週に一度の日：消す音声を数える（消さない）
+uv run python scripts/purge_voice.py --write                                 # 週に一度の日：消す
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down
 uv run python scripts/backup.py dump       # ~/nest-backup/<日時>/neo4j.dump
 uv run python scripts/backup.py list       # 世代の一覧
 ```
+
+- 音声を先に消してからバックアップを取ります。バックアップに音声は入りません（音声は `nest_voice_data/` にあり、DB の外です）
 
 戻すとき（今の個人の側を、その世代で置き換えます）：
 
@@ -200,6 +234,4 @@ doctor の項目：[1] 前の DB は動いていない、[2] 新しい DB の待
 
 ## 道具がまだ無いこと・決まっていないこと
 
-1. **二人目からの職員の登録**：管理者がゲートで登録しますが、手元で打つ道具はまだありません
-2. **書き込みの案を通す・承認する**：`narrative-extractor` の案を点検に通し（`nest/gate/intake.py`）、未確定のものを承認する（`nest/gate/approve.py`）操作に、手元で打つ道具はまだありません。実データでは、Claude に渡せない間（台帳 G-80）この段は使いません
-3. **音声を消す日**：決めていません（6）
+- 今は無し（段階 I で、職員の登録・書き込みの案の承認・purge_voice を流す日を埋めた。2026-11-06）
