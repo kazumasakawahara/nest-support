@@ -5,7 +5,7 @@
 # 確かめること:
 #   1. 前の DB のコンテナが動いていない（前の DB は起動しない）
 #   2. 新しい二つのコンテナは、動いていれば 127.0.0.1 だけで待ち受けている（止まっているのは正しい状態）
-#   3. 接続の設定のファイルがあり、権限が 600（中身は読まない）。ほかの設定のファイル（field-ui-staff.json・external-api-record.json・external-api-features.json）は、あれば 600（N-38）
+#   3. 接続の設定のファイルがあり、権限が 600（中身は読まない）。ほかの設定のファイル（field-ui-staff.json・external-api-record.json・external-api-features.json）は、あれば 600、無ければ WARN（N-38・F-3）
 #   4. .mcp.json が nest-personal・nest-resource を持ち、前の MCP（neo4j・neo4j-shared）を持たない
 #   5. ~/.claude/skills/ のリンクが、このリポジトリの claude-skills を指している。外したスキルのリンクが残っていない
 #   6. 正典のずれが 0 件（scripts/check_drift.py）
@@ -15,7 +15,8 @@
 #      30 日を過ぎた音声が残っていれば FAIL（遅くとも 30 日で消す約束。消す道具は自動では動かないため。G-77）
 #  10. Claude Desktop の設定（知らせるだけ）
 #
-# 結果は OK / FAIL / INFO で表示する。FAIL が一つでもあれば 1 を返す。
+# 結果は OK / FAIL / WARN / INFO で表示する。FAIL が一つでもあれば 1 を返す。
+# WARN は FAIL にしないが見落とさない段（新しい Mac では出て当然、設定済みの Mac で出たら壊れている印。止まる点 F-3）。
 
 set -u
 
@@ -29,8 +30,10 @@ REMOVED_SKILLS=(wamnet-provider-sync livelihood-support)
 
 PASS=0
 FAIL=0
+WARN=0
 ok()   { printf "  \033[32mOK\033[0m   %s\n" "$1"; PASS=$((PASS+1)); }
 fail() { printf "  \033[31mFAIL\033[0m %s\n" "$1"; FAIL=$((FAIL+1)); }
+warn() { printf "  \033[1;33mWARN\033[0m %s\n" "$1"; WARN=$((WARN+1)); }
 info() { printf "  \033[33mINFO\033[0m %s\n" "$1"; PASS=$((PASS+1)); }
 to_lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
@@ -90,7 +93,7 @@ for name in field-ui-staff.json external-api-record.json external-api-features.j
     mode="$(stat -f %Lp "${f}" 2>/dev/null || stat -c %a "${f}" 2>/dev/null)"
     if [ "${mode}" = "600" ]; then ok "~/.config/nest/${name}: 権限 600"; else fail "~/.config/nest/${name} の権限が ${mode}（600 にする: chmod 600）"; fi
   else
-    info "~/.config/nest/${name} は無い（使うときに作る）"
+    warn "~/.config/nest/${name} が無い（新しい Mac なら使うときに作る。設定済みの Mac なら壊れている印）"
   fi
 done
 
@@ -196,5 +199,5 @@ else
 fi
 
 echo ""
-echo "=== Summary: ${PASS} passed, ${FAIL} failed ==="
+echo "=== Summary: ${PASS} passed, ${WARN} warned, ${FAIL} failed ==="
 [ "${FAIL}" -eq 0 ] && exit 0 || exit 1

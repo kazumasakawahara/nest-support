@@ -197,11 +197,19 @@ def test_recent_voice_and_other_files_are_fine(tmp_path):
 CONFIG_FILES = ("field-ui-staff.json", "external-api-record.json", "external-api-features.json")
 
 
-def test_other_config_files_absent_are_only_info(tmp_path):
+def test_other_config_files_absent_are_warned(tmp_path):
+    """無いのは新しい Mac では当然だが、設定済みの Mac では壊れている印。INFO ではなく WARN（止まる点 F-3、河原さん）。FAIL にはしない"""
     out = _run(tmp_path, [])
     assert out.returncode == 0, out.stdout
+    lines = out.stdout.splitlines()
     for name in CONFIG_FILES:
-        assert name in out.stdout
+        assert any("WARN" in line and name in line for line in lines), out.stdout
+    assert "3 warned" in out.stdout
+
+
+def test_no_warning_when_the_other_config_files_are_there(tmp_path):
+    out = _run(tmp_path, [], config_files={n: 0o600 for n in CONFIG_FILES})
+    assert "0 warned" in out.stdout and not any("WARN" in l and ".json" in l for l in out.stdout.splitlines())
 
 
 def test_other_config_files_pass_when_600(tmp_path):
