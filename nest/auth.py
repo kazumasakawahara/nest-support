@@ -13,12 +13,21 @@ Basic 認証はリバースプロキシに委譲する（判断ポイント: 127
   `X-Authenticated-User` を付与する構成でのみ、`TRUST_PROXY_HEADERS=true` を
   設定するとそのヘッダを採用する。既定で信頼しないのは、トークン保持者が任意の
   操作者名を監査ログに刻める（監査証跡のなりすまし）のを防ぐため。
+- field-ui は職員ごとのトークンを使う（計画 N-37。2026-11-06 河原さん）。表 ~/.config/nest/field-ui-staff.json
+  （権限 600。リンクは読まない）に、職員 ID とトークンの sha256 だけを置く。ログインに使ったトークンから
+  職員 ID を決め、ゲートの actorStaffId にする（自己申告にしない）。表を作るのは scripts/staff_token.py
 """
 
+import hashlib
 import hmac
+import json
 import os
+import stat
+from pathlib import Path
 
 from fastapi import HTTPException, Request, Response
+
+from nest import ids
 
 APP_ACCESS_TOKEN_ENV = "APP_ACCESS_TOKEN"
 SESSION_COOKIE = "nest_session"
@@ -88,3 +97,65 @@ def set_session_cookie(response: Response, token: str) -> None:
         secure=_COOKIE_SECURE,
         max_age=60 * 60 * 12,  # 12 時間
     )
+
+
+# --- field-ui の職員ごとのトークン（N-37） ---
+DEFAULT_STAFF_TOKENS = Path.home() / ".config" / "nest" / "field-ui-staff.json"
+
+
+class StaffTableError(Exception):
+    """職員のトークンの表が無い・読めない・権限が 600 でない。"""
+
+
+def staff_tokens_path():
+    return DEFAULT_STAFF_TOKENS
+
+
+def token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def load_staff_table(path=None) -> dict:
+    """{職員 ID: トークンの sha256}。表が正しくなければ StaffTableError。"""
+    path = Path(path or staff_tokens_path())
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        raise StaffTableError("職員のトークンの表が無い（%s。scripts/staff_token.py add で作る）" % path)
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
+        raise StaffTableError("職員のトークンの表がふつうのファイルでない（%s）" % path)
+    if stat.S_IMODE(st.st_mode) != 0o600:
+        raise StaffTableError("職員のトークンの表の権限が 600 でない（%s）" % path)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        raise StaffTableError("職員のトークンの表が JSON として読めない（%s）" % path)
+    staff = data.get("staff") if isinstance(data, dict) and data.get("version") == 1 else None
+    if not isinstance(staff, dict) or not all(
+            ids.is_valid_id(k, "STF") and isinstance(v, str) and len(v) == 64 for k, v in staff.items()):
+        raise StaffTableError("職員のトークンの表の形が違う（version 1、staff は 職員 ID → sha256）")
+    return staff
+
+
+def staff_of(token: str):
+    """トークンに合う職員 ID。合わなければ None。表が正しくなければ StaffTableError。"""
+    staff = load_staff_table()
+    if not token:
+        return None
+    presented = token_hash(token)
+    found = None
+    for staff_id, digest in staff.items():  # 早く抜けない（どの職員かで時間を変えない）
+        if hmac.compare_digest(presented, digest):
+            found = staff_id
+    return found
+
+
+def require_staff(request: Request) -> str:
+    """field-ui の認証。ログインに使ったトークンから職員 ID（STF-…）を返す。プロキシのヘッダは使わない。"""
+    try:
+        staff_id = staff_of(_presented_token(request))
+    except StaffTableError:
+        raise HTTPException(status_code=503, detail="認証が未設定です（職員のトークンの表を作ってください）")
+    if staff_id is None:
+        raise HTTPException(status_code=401, detail="認証が必要です")
+    return staff_id
