@@ -166,3 +166,18 @@
 | `.env.example`・`README.md`・`docs/QUICK_START.md`・`docs/SETUP_GUIDE.md`・`docs/SETUP_GUIDE.html`・`docs/PRIVACY_GUIDELINES.md`・`CLAUDE.md`・`manifesto/MANIFESTO.md`・`manifesto/protocols/emergency.md`・`onboarding.md`・`docker-compose.yml` の注記 | 共有層・7687・neo4j-agno-agent の記述 | N-29 |
 | `tests/test_db_module_consolidation.py` | neo4j-agno-agent のファイルの場所への言及 | N-17 |
 | `~/Dev-Work/shared-schema/sync-schema.sh`（リポジトリの外） | `--write-prod` で nest-support の `docs/` に書き込む | 変えない（ADR 未決論点 3） |
+
+## 段階 J　運用の試走（2026-11-06 河原さん。枝 stage-j）
+
+- 段階 I の合流（main の merge commit。stage-i は残す）の後、新しい枝 `stage-j` で行う
+- 順：G-91 の実装 → N-46 → 止まる点 J-1。N-46 は河原さんの試走の報告を待ってから動く（待っている間は何も進めない）
+- 直しは手順書（`docs/OPERATIONS.md`）かコードのどちらか。どちらも試験を先に書いて赤を確かめてから緑にする
+- 前の DB は起動しない。tsunagu-net は変えない
+- 残る未決（河原さんの側）：G-80（Claude に実データを渡す契約の形）、療育手帳の通知の照合
+
+| # | タスク | 先に書く試験 | 済みの判定 |
+|---|---|---|---|
+| G-91 | 差し戻しの理由：AuditLog に `reason`（正典 v0.12）、`review_proposals.py reject --reason`、`show` と `list --rejected` で見える。tsunagu-net への提案は G-40 の行に | 理由が一行で残る・理由が無ければ項目を置かない・空や改行は止まる・承認は理由を受け取らない。手順書のコマンドをそのまま流して show と list --rejected に理由が出る | ✅ 2026-11-06（台帳 G-92） |
+| N-46 | 運用の試走：河原さんが `docs/OPERATIONS.md` を上から順に、架空のデータで実際に打つ。詰まった箇所（どの段の、どのコマンドで、何が出たか）を河原さんが知らせ、Mac が直す（Mac は横で見ない） | 知らせごとに、その詰まりを再現する試験（手順書のコマンドをそのまま流す形か、道具の試験） | |
+| **止まる点 J-1** | 詰まりが無くなった状態。ここで「実データの登録を、Claude に渡さない範囲で始められる」と宣言する | | |
+
