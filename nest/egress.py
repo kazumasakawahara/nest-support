@@ -40,6 +40,7 @@ DESTINATIONS = {
     "NEXT-09": Destination("github.com", "open"),
     "NEXT-10": Destination(None, "open"),
     "NEXT-11": Destination("registry.npmjs.org", "abolished"),
+    "NEXT-12": Destination(None, "abolished"),  # Neo4j の利用の情報。Python からは送らない（Neo4j が送る。compose で止めた。G-75）
 }
 
 # 契約の確認の記録の項目（external-api §0 の 5 項目を、機械が読む名前にしたもの）と、次に確かめる日

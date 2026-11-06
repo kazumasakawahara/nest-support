@@ -264,7 +264,7 @@ def test_unknown_row_denies():
         egress.authorize("NEXT-99")
 
 
-@pytest.mark.parametrize("row", ["NEXT-06", "NEXT-07", "NEXT-11"])
+@pytest.mark.parametrize("row", ["NEXT-06", "NEXT-07", "NEXT-11", "NEXT-12"])
 def test_abolished_rows_deny(row, fixed_paths):
     rec, feat = fixed_paths
     write(rec, {"version": 1, "destinations": {row: good_entry()}})
