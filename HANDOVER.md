@@ -1,4 +1,4 @@
-# HANDOVER — 2026-11-06 stage-i（ADR-001 の作り直し。段階 A〜H は main に合流済み（e62f214）。段階 I は止まる点 I-1 で止まっている）
+# HANDOVER — 2026-11-06 stage-i（ADR-001 の作り直し。段階 A〜H は main に合流済み（e62f214）。段階 I は止まる点 I-1 まで承認済み。main への合流を待っている）
 
 > 前の HANDOVER（2026-08-03 main。WAM NET スキル整合）は git 履歴（ce627d9）にある。そこに書かれた
 > `~/.config/nest/neo4j.env`・ポート 7687・`nest-support-neo4j` は**前の構成**で、この枝では使わない。
@@ -7,7 +7,7 @@
 
 ```bash
 cd ~/Dev-Work/project/nest-support && git switch stage-i
-uv run pytest -q                       # 913 passed, 141 skipped（DB を使う試験は skip）
+uv run pytest -q                       # 914 passed, 141 skipped（DB を使う試験は skip）
 uv run python scripts/check_drift.py   # ずれ 0 件
 ./scripts/doctor.sh                    # 環境の点検：29 passed, 2 warned, 0 failed（WARN は external-api の記録と設定のファイルが無いこと）
 ```
@@ -52,13 +52,16 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
   - [x] `docs/FIRST_5_OPERATIONS.md` を `docs/OPERATIONS.md` の「0. 最初の 5 つの操作」に取り込んで外した
   - [x] main への合流（河原さん。merge commit e62f214。redesign/adr-001 は残してある）
   - [x] 段階 I の N-43（`scripts/new_staff.py`）・N-44（`scripts/review_proposals.py`）・N-45（手順書の 7 に purge_voice）。枝 `stage-i`（d458397・65d5096・e523421・a55f6eb）。台帳 G-88〜G-90
-  - [ ] **止まる点 I-1**：河原さんが、道具 2 本を架空のデータで動かした結果（打ったコマンドと出力）を見る。push は河原さん
+  - [x] 止まる点 I-1（2026-11-06 河原さん承認。G-88〜G-90。音声を消すのは金曜日、書き込みが無ければその週の最後に書き込んだ日）
+  - [ ] **main への合流**：河原さんが PR（stage-i → main、merge commit）で合流する（Mac は合流しない）
+  - [ ] **段階 J（運用の試走）**：合流の後、新しい枝で計画に書く。N-46 河原さんが `docs/OPERATIONS.md` を上から順に架空のデータで打ち、詰まった箇所を Mac に知らせる（Mac は横で見ない）。Mac はそれを直す。止まる点 J-1：詰まりが無くなったら、実データの登録（Claude には渡さない範囲）を始められる状態とする
 
 ## グレーな判断
 
 - **G-85 の中**：知らない呼び出し元（`caller`）は拒否する（閉じる側）。Claude の判断
 - G-79・G-81〜G-85 は止まる点 H-1 で承認済み
-- **G-88〜G-90**（段階 I の Claude の判断）は止まる点 I-1 で承認を取る。とくに G-90 (a)：バックアップの周期は変えず、週に一度の日に purge_voice を足した
+- G-88〜G-90 は止まる点 I-1 で承認済み
+- **G-91 は提案だけ**（差し戻しの理由を AuditLog の `reason` に一行。tsunagu-net の AuditLog には note も理由も無い）。決めるのは河原さん
 
 ## 未決論点
 
@@ -83,6 +86,6 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 
 ## 次タスク（優先度順）
 
-- A：止まる点 I-1 の承認（G-88〜G-90）。河原さんが `stage-i` を push する
-- B：止まる点 I-1 の後の段は、まだ計画に無い（河原さんが決める）
-- C：療育手帳の通知の名前と年は河原さんが確かめる。tsunagu-net への提案（台帳 G-40：列挙値と、上限で切れた印）をどこから渡すかは決めていない
+- A：河原さんが PR（stage-i → main、merge commit）で合流する
+- B：合流の後、新しい枝で計画に段階 J（N-46・止まる点 J-1）を書き、河原さんの試走の詰まりを直す
+- C：残る未決は河原さんの側（G-80：Claude に実データを渡す契約の形、療育手帳の通知の照合）。tsunagu-net への提案（台帳 G-40：列挙値と、上限で切れた印）をどこから渡すかは決めていない
