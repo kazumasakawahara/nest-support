@@ -1,8 +1,27 @@
 # nest-support 導入ガイド
 
-- 版：2026-11-06（計画 N-29。ADR-001 の作り直しの構成に合わせて書き直した。前の版の「ワンクリックインストーラー」「Node.js の MCP」「二つの層の DB」の手順はやめた）
+- 版：2026-11-06（計画 N-38 で「0. 新しい Mac でゼロから」と最初の管理者・現場の画面の手順を足した。N-29 でADR-001 の作り直しの構成に合わせて書き直した。前の版の「ワンクリックインストーラー」「Node.js の MCP」「二つの層の DB」の手順はやめた）
 - 確かめた環境：Mac（Apple シリコン）。Windows の手順は、まだ確かめていない
 - この文書を一つの正とする（前にあった HTML の写しは外した）
+
+---
+
+## 0. 新しい Mac でゼロから（順に）
+
+配布物（インストーラー）はありません。次の順に手で進め、最後に `./scripts/doctor.sh` で結果を確かめます。
+
+1. FileVault を有効にする（システム設定 → プライバシーとセキュリティ。DB のデータとバックアップを守る）
+2. Docker Desktop・uv・Claude を入れる（2）
+3. リポジトリを取り、`uv sync` と DB を使わない試験（3）
+4. `~/.config/nest/neo4j-redesign.env` を作り、`chmod 600`（4）
+5. `docker compose … up -d` で DB を起動し、127.0.0.1 だけで待ち受けていることを確かめる（5）
+6. `uv run python scripts/apply_schema.py --write` で正典の制約、`scripts/load_resource.py` で資源のデータ（6）
+7. `uv run python scripts/bootstrap_admin.py --name "…"` で最初の管理者（8）
+8. field-ui を使う職員ごとに `uv run python scripts/staff_token.py add STF-…`（8）
+9. `claude-skills/` を `~/.claude/skills` にリンクする（7）
+10. `./scripts/doctor.sh` が FAIL 0 で終わることを確かめる（10）
+11. 現場の画面 `field-ui/server.py` と `sos` を起動して確かめる（8）
+12. DB に書いた日の終わりは、DB を止めてから `uv run python scripts/backup.py dump`（5）
 
 ---
 
@@ -111,7 +130,38 @@ for s in claude-skills/*/; do ln -sfn "$PWD/$s" ~/.claude/skills/"$(basename "$s
 
 ---
 
-## 8. 本人を作る・書き込む
+## 8. 最初の管理者・職員・本人・現場の画面
+
+### 最初の管理者
+
+個人の側に職員が一人もいないときだけ使えます。表示名は呼び名でかまいません。2 人目からは、管理者がゲートで登録します。
+
+```bash
+uv run python scripts/bootstrap_admin.py --name "事務局"    # 職員 ID（STF-…）が出る
+```
+
+### 職員ごとのトークン（field-ui）
+
+```bash
+uv run python scripts/staff_token.py add STF-…    # トークンは一度だけ画面に出る。職員に手で渡す
+uv run python scripts/staff_token.py list         # 職員 ID だけ
+uv run python scripts/staff_token.py remove STF-…
+```
+
+表は `~/.config/nest/field-ui-staff.json`（権限 600。職員 ID とトークンの sha256 だけ）。トークンはリポジトリにも会話にも書きません。
+
+### 現場の画面と SOS を起動する
+
+```bash
+uv run python field-ui/server.py          # http://127.0.0.1:8001/  （ほかで使っていれば PORT=… で変える）
+cd sos && uv run python api_server.py     # http://127.0.0.1:8000/app/?id=C-……（設定は sos/README.md）
+```
+
+- どちらも 127.0.0.1 だけで待ち受けます。DB は読みの包みとゲートを通して使います
+- https を通さずに手元で試すときだけ `SESSION_COOKIE_SECURE=false` を付けます
+- field-ui の音声は `nest_voice_data/` に置かれます（権限 700・Time Machine の対象外。`scripts/purge_voice.py --write` で消す。`docs/VOICE_RECORDING_GUIDE.md`）
+
+### 本人を作る・書き込む
 
 - 本人（氏名・生年月日）を作るのは、職員が Claude の外の入口で行い、仮名（`displayCode`）を受け取る
 - 聞いた話は `narrative-extractor` で書き込みの案（JSON）にし、職員が確かめてゲートに通す（`nest/gate/`）。AI が作ったものは未確定で入り、職員が一つずつ承認する
@@ -127,7 +177,7 @@ for s in claude-skills/*/; do ln -sfn "$PWD/$s" ~/.claude/skills/"$(basename "$s
 
 ## 10. うまくいかないとき
 
-まず `./scripts/doctor.sh` を流す。前の DB が動いていないこと、新しい DB の待ち受け、設定のファイルの権限、`.mcp.json`、スキルのリンク、正典のずれを確かめ、FAIL の行に直し方を出す。
+まず `./scripts/doctor.sh` を流す。前の DB が動いていないこと、新しい DB の待ち受け、`~/.config/nest/` の設定のファイルの権限（あれば 600）、FileVault、バックアップと音声の置き場所、`.mcp.json`、スキルのリンク、正典のずれを確かめ、FAIL の行に直し方を出す。
 
 
 | こと | 確かめること |

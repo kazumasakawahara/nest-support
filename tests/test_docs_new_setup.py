@@ -70,3 +70,19 @@ def test_privacy_article_numbers_are_checked_or_marked():
     for line in text.splitlines():
         if re.search(r"第\s*[0-9０-９一二三四五六七八九十百]+\s*条", line):
             assert "e-Gov で照合" in line or "【未照合】" in line, line
+
+
+# N-38：新しい Mac でゼロから動かす手順。順に並んでいて、doctor.sh で結果を点検できる
+FROM_ZERO = ["FileVault", "uv sync", "neo4j-redesign.env", "chmod 600", "docker compose", "apply_schema.py --write",
+             "load_resource.py", "bootstrap_admin.py", "staff_token.py add", "~/.claude/skills", "doctor.sh",
+             "field-ui/server.py", "sos", "backup.py dump"]
+
+
+def test_setup_guide_has_the_from_zero_steps_in_order():
+    text = (REPO / "docs" / "SETUP_GUIDE.md").read_text(encoding="utf-8")
+    assert "## 0. 新しい Mac でゼロから" in text
+    section = text.split("## 0. 新しい Mac でゼロから", 1)[1].split("\n## ", 1)[0]
+    section = section[section.index("\n1. "):]  # 番号の付いた手順の並び
+    at = [section.find(w) for w in FROM_ZERO]
+    assert -1 not in at, [w for w, i in zip(FROM_ZERO, at) if i == -1]
+    assert at == sorted(at), FROM_ZERO

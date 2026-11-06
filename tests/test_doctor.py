@@ -26,12 +26,16 @@ SKILLS = sorted(p.name for p in (REPO / "claude-skills").iterdir() if (p / "SKIL
 
 
 def _run(tmp_path, ps_lines, *, env_mode=0o600, extra_links=(), drop_link=None, filevault="On", backup_mode=None,
-         excluded=True, voice_mode=None, voice_ages=()):
+         excluded=True, voice_mode=None, voice_ages=(), config_files=None):
     home = tmp_path / "home"
     (home / ".config" / "nest").mkdir(parents=True)
     env_file = home / ".config" / "nest" / "neo4j-redesign.env"
     env_file.write_text("# 架空\n", encoding="utf-8")
     os.chmod(env_file, env_mode)
+    for name, mode in (config_files or {}).items():  # ~/.config/nest/ のほかの設定のファイル（N-38）
+        f = home / ".config" / "nest" / name
+        f.write_text("{}\n", encoding="utf-8")
+        os.chmod(f, mode)
     skills = home / ".claude" / "skills"
     skills.mkdir(parents=True)
     for s in SKILLS:
@@ -186,3 +190,27 @@ def test_recent_voice_and_other_files_are_fine(tmp_path):
     out = _run(tmp_path, [], voice_mode=0o700, voice_ages=[(H + ".webm", 2), ("README.txt", 90)])
     assert out.returncode == 0, out.stdout + out.stderr
     assert "30 日を過ぎた音声は無い" in out.stdout
+
+
+# ---- N-38：新しい Mac の手順の結果。~/.config/nest/ のほかの設定のファイル ----
+
+CONFIG_FILES = ("field-ui-staff.json", "external-api-record.json", "external-api-features.json")
+
+
+def test_other_config_files_absent_are_only_info(tmp_path):
+    out = _run(tmp_path, [])
+    assert out.returncode == 0, out.stdout
+    for name in CONFIG_FILES:
+        assert name in out.stdout
+
+
+def test_other_config_files_pass_when_600(tmp_path):
+    out = _run(tmp_path, [], config_files={n: 0o600 for n in CONFIG_FILES})
+    assert out.returncode == 0, out.stdout
+
+
+@pytest.mark.parametrize("name", CONFIG_FILES)
+def test_fails_when_an_other_config_file_is_readable_by_others(tmp_path, name):
+    out = _run(tmp_path, [], config_files={name: 0o644})
+    assert out.returncode == 1
+    assert any("FAIL" in line and name in line for line in out.stdout.splitlines()), out.stdout

@@ -5,7 +5,7 @@
 # 確かめること:
 #   1. 前の DB のコンテナが動いていない（前の DB は起動しない）
 #   2. 新しい二つのコンテナは、動いていれば 127.0.0.1 だけで待ち受けている（止まっているのは正しい状態）
-#   3. 接続の設定のファイルがあり、権限が 600（中身は読まない）
+#   3. 接続の設定のファイルがあり、権限が 600（中身は読まない）。ほかの設定のファイル（field-ui-staff.json・external-api-record.json・external-api-features.json）は、あれば 600（N-38）
 #   4. .mcp.json が nest-personal・nest-resource を持ち、前の MCP（neo4j・neo4j-shared）を持たない
 #   5. ~/.claude/skills/ のリンクが、このリポジトリの claude-skills を指している。外したスキルのリンクが残っていない
 #   6. 正典のずれが 0 件（scripts/check_drift.py）
@@ -81,6 +81,18 @@ if [ -f "${ENV_FILE}" ]; then
 else
   fail "~/.config/nest/neo4j-redesign.env が無い（docs/SETUP_GUIDE.md の 4）"
 fi
+# ほかの設定のファイル（N-38）。無いのは正しい状態。あれば権限 600
+for name in field-ui-staff.json external-api-record.json external-api-features.json; do
+  f="${HOME}/.config/nest/${name}"
+  if [ -L "${f}" ]; then
+    fail "~/.config/nest/${name} がリンク（実体のファイルにする）"
+  elif [ -f "${f}" ]; then
+    mode="$(stat -f %Lp "${f}" 2>/dev/null || stat -c %a "${f}" 2>/dev/null)"
+    if [ "${mode}" = "600" ]; then ok "~/.config/nest/${name}: 権限 600"; else fail "~/.config/nest/${name} の権限が ${mode}（600 にする: chmod 600）"; fi
+  else
+    info "~/.config/nest/${name} は無い（使うときに作る）"
+  fi
+done
 
 echo ""
 echo "[4] .mcp.json"
