@@ -71,3 +71,33 @@ def test_real_data_limits_are_stated():
     """実データを Claude に渡さないこと（G-80）と、画面が読む条件（NEXT-02 か架空の印）を書く"""
     t = _text()
     assert "G-80" in t and "NestLiveProbe" in t
+
+
+def _section_of(head):
+    t = _text()
+    i = t.index(head)
+    j = t.find("\n## ", i + 3)
+    return t[i:j if j > 0 else len(t)]
+
+
+def test_real_db_blocks_records_and_voice_too():
+    """最終レビュー：画面が止まるのは本人の一覧だけでなく、記録の入力（/record）と録音（/voice）も"""
+    limits = _section_of("**先に読むこと")
+    assert "/record" in limits and "/voice" in limits
+
+
+def test_marker_must_not_be_put_on_a_real_db():
+    """最終レビュー：架空の印を実データの DB に置けば G-80 の歯止めが外れる。置かないと書く"""
+    assert "実データの DB に架空の印（`NestLiveProbe`）を置かない" in _text()
+
+
+def test_voice_is_not_kept_while_transcription_is_off():
+    """最終レビュー：文字起こしが止まっている間、録音は保存されない（field-ui/server.py は文字起こしの後にだけ置く）"""
+    assert "録音は残りません" in _section_of("## 6.")
+
+
+def test_sos_signs_in_with_the_shared_token_and_http_needs_insecure_cookie():
+    """最終レビュー：SOS は職員のトークンでなく APP_ACCESS_TOKEN。127.0.0.1 の http では SESSION_COOKIE_SECURE=false が要る"""
+    s5 = _section_of("## 5.")
+    assert "APP_ACCESS_TOKEN" in s5
+    assert "試すときだけ" not in s5

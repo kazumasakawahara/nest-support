@@ -64,7 +64,7 @@ H-1 で見ていただく、Claude が決めたこと（台帳 `docs/gray-decisi
 
 ## 未決論点
 
-1. **field-ui と SOS が実データの DB を読む条件**（N-40 で見つけた）：二つとも Claude と同じ包みの歯止め（`require_personal_allowed`：NEXT-02 か架空の印 `NestLiveProbe`）を通る。G-80 のままだと、実データの DB では画面に本人の一覧が出ず、SOS も読めない。画面は Claude に送らないので、この歯止めを画面に当てるかを決め直す
+1. **field-ui と SOS が実データの DB を読む条件**（N-40 で見つけた）：二つとも Claude と同じ包みの歯止め（`require_personal_allowed`：NEXT-02 か架空の印 `NestLiveProbe`）を通る。G-80 のままだと、実データの DB では本人の一覧・支援記録の入力・録音が止まり、SOS も読めない（最終レビューで見つけた広がり）。実データの DB に架空の印を置けば Claude の照会も開くので、印は置かない（手順書に書いた）。画面は Claude に送らないので、この歯止めを画面に当てるかを決め直す
 2. **G-80**：実データを Claude に渡す経路を事業者向けの契約（API か Team/Enterprise）にするか【未決】
 3. **令和 8 年法律第 45 号の施行**：政令が出たら、後見・保佐を新しく使わないようゲートで止める（tsunagu-net の T-31a に合わせる。SEMANTICS SEM-GUARD-02）
 4. **手元で打つ道具が無い段**：二人目からの職員の登録、書き込みの案の点検と承認（`docs/OPERATIONS.md` の末尾）
