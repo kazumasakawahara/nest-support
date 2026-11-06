@@ -49,7 +49,8 @@ This file provides guidance to Claude Code / Claude Desktop when working with th
 ### 主なコード
 
 - `nest/`：新しいパッケージ。`gate/`（検査・書き込み・承認・入口の点検）、`mcp_guard.py`・`mcp_personal.py`・`mcp_resource.py`（読み取りの包み）、`canon.py`（正典の読み込み）、`semantics.py`（表示名）、`egress.py`（外への送信の歯止め）、`connections.py`
-- `lib/`・`field-ui/`・`sos/`・`setup.sh`・`installer/`・`scripts/doctor.sh` などは前の構成が残っている部分。置き換えるまで、新しい DB を指さないことを試験で固定している（`tests/test_old_db_code_isolated.py`）
+- `field-ui/`・`sos/`：現場の画面と SOS。新しい DB は包み（`nest/mcp_guard.py`）とゲートを通して使う。職員のトークンは `nest/auth.py`、音声は `nest/voice.py`、文字起こしは `nest/genai.py`
+- 前の構成の `lib/`・`setup.sh`・`setup.ps1`・`installer/` などは N-38 で外した。無いことを試験で固定している（`tests/test_old_db_code_isolated.py`）
 
 ---
 

@@ -1,7 +1,7 @@
 """N-05：multi_importer の Gemini による構造化（NEXT-07）を外す（ADR-001 D11-1）。
 
 - 構造化は NEXT-01（Claude）とゲートの経路だけ。Gemini で構造化して DB に書く経路を残さない
-- multi_importer は文書から文字を取り出すだけ。DB には書かない
+- multi_importer は N-38 で外した（tests/test_old_db_code_isolated.py）
 - field-ui の音声は文字起こし（NEXT-03）までで、構造化も登録もしない
 - 「GEMINI_API_KEY が未設定です」の文言は、鍵を実際に見る nest/genai.py だけに残る（台帳 G-29）
 """
@@ -31,21 +31,6 @@ def test_key_message_only_where_key_is_read():
     hits = [p for p in code_files() if p.endswith(".py")
             and "GEMINI_API_KEY が未設定です" in (REPO / p).read_text(encoding="utf-8")]
     assert hits == ["nest/genai.py"]
-
-
-def test_multi_importer_extracts_text_only(fake_genai, monkeypatch, tmp_path):
-    import lib.db_operations as dbo
-    import scripts.multi_importer as mi
-    written = []
-    monkeypatch.setattr(dbo, "register_to_database", lambda *a, **k: written.append(a) or {})
-    allow(fake_genai, *ALL_ROWS)
-    src = tmp_path / "fictional-memo.txt"
-    src.write_text("架空の記録。架空の人が散歩に出た。", encoding="utf-8")
-    result = mi.process_file(src)
-    assert result["status"] == "extracted"
-    assert result["text"] == "架空の記録。架空の人が散歩に出た。"
-    assert fake_genai["calls"] == []
-    assert written == []
 
 
 def test_field_ui_voice_transcribes_without_structuring(fake_genai, monkeypatch, tmp_path):

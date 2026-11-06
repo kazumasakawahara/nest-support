@@ -119,9 +119,9 @@ for s in claude-skills/*/; do ln -sfn "$PWD/$s" ~/.claude/skills/"$(basename "$s
 
 ---
 
-## 9. まだ置き換えていないもの
+## 9. 外した前の構成
 
-`field-ui/`・`sos/`・`lib/`・`setup.sh`・`setup.ps1`・`installer/`・`scripts/rotate_password.py` は前の構成のままで、新しい構成では使えません（計画の段階 E・F）。
+`lib/`・`setup.sh`・`setup.ps1`・`installer/`・`scripts/rotate_password.py`・`scripts/multi_importer.py` は外しました（計画 N-38）。`field-ui/`・`sos/` は新しい構成に作り直しました（N-36・N-37）。
 
 ---
 

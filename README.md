@@ -72,12 +72,10 @@ uv run python scripts/check_drift.py   # 正典の表と JSON のずれ
 
 読み取りのスキルは読むだけで、本人は仮名で呼びます。
 
-## まだ置き換えていないもの
+## 外した前の構成
 
-次は前の DB を読む作りのままで、新しい構成では使えません（計画の段階 E・F で置き換えるか外します）。どれも新しい DB を指さないことを試験で固定しています（`tests/test_old_db_code_isolated.py`）。
-
-- 現場の画面 `field-ui/`、SOS の通知 `sos/`（SOS の送る文は N-28 で直した。LINE は既定で使わない）
-- `lib/`（前の登録の部品）、`setup.sh`・`setup.ps1`・`installer/`、`scripts/rotate_password.py`
+現場の画面 `field-ui/` と SOS の通知 `sos/` は、新しい DB を読みの包みとゲートを通して使う形に作り直しました（計画 N-36・N-37）。
+前の構成の `lib/`・`setup.sh`・`setup.ps1`・`installer/`・`scripts/rotate_password.py`・`scripts/multi_importer.py` は外しました（N-38）。無いことを試験で固定しています（`tests/test_old_db_code_isolated.py`）。
 
 ## 文書
 
