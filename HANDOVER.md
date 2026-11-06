@@ -7,7 +7,7 @@
 
 ```bash
 cd ~/Dev-Work/project/nest-support && git switch redesign/adr-001
-uv run pytest -q                       # 886 passed, 132 skipped（DB を使う試験は skip）
+uv run pytest -q                       # 893 passed, 134 skipped（DB を使う試験は skip）
 uv run python scripts/check_drift.py   # ずれ 0 件
 ./scripts/doctor.sh                    # 環境の点検：29 passed, 2 warned, 0 failed（WARN は external-api の記録と設定のファイルが無いこと）
 ```
@@ -16,13 +16,14 @@ DB を使う試験（結合試験のタスクのときだけ。終わったら�
 
 ```bash
 docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d     # nest-redesign-personal（37474/37687）・nest-redesign-resource（38474/38687）
-NEST_LIVE_DB=1 uv run pytest -q                                       # 最後に流したのは 2026-11-06 15:00（合流前の直しの後）：1016 passed・1 failed（test_q13_pending_ai_record_listed。下の未決 1）
+uv run python tests/live_cleanup.py                                  # 試験の DB を片づける（架空の印のある DB でだけ動く。印は試験が一時に置くので、手で流すときは一時の印を置いてから）
+NEST_LIVE_DB=1 uv run pytest -q                                       # 最後に流したのは 2026-11-06 15:09（片づけの道具の後）：1027 passed（落ち 0・skip 0）
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove-orphans は使わない
 ```
 
 - `neo4j-redesign.env` の中身は読まない・表示しない（接続の部品 `nest/connections.py` と試験が読む）
 - 起動の前に `docker ps` で前の DB が動いていないことを確かめ、起動の後に 2 つとも 127.0.0.1 だけで待ち受けていることを確かめる（N-18 の条件）
-- 2026-11-06 15:02 に down 済み（`docker ps` に nest の名前が無いことを確かめた）
+- 2026-11-06 15:10 に down 済み（`docker ps` に nest の名前が無いことを確かめた）
 
 新しい Mac でゼロから入れる手順は `docs/SETUP_GUIDE.md` の「0. 新しい Mac でゼロから」（N-38）。
 
@@ -59,11 +60,10 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 
 ## 未決論点
 
-1. **DB つきの試験 `test_q13_pending_ai_record_listed` が落ちる**（2026-11-06 15:00）：Claude の照会 13（未確定の一覧、古い順）が包みの上限 500 行で切れる。試験の DB に AI 由来の未確定が 508 件たまっている。field-ui の一覧は合流前の直しで片づけと「切れている」印を入れた（台帳 G-86）が、Claude の照会の側（MCP の `run_read` は切れても印を返さない）と、本人以外の架空のデータの片づけは決めていない
-2. **G-80**：実データを Claude に渡す経路を事業者向けの契約（API か Team/Enterprise）にするか【未決】
-3. **令和 8 年法律第 45 号の施行**：政令が出たら、後見・保佐を新しく使わないようゲートで止める（SEMANTICS SEM-GUARD-02）
-4. **SOS のポート**：この Mac では 8000 を open-notebook が使っているので 8010 にする（`docs/OPERATIONS.md` の 5 の段に書いた）
-5. **ダッシュボード**：正典の SupportLog に感情・きっかけの項目を足すか（今は閉じている）
+1. **G-80**：実データを Claude に渡す経路を事業者向けの契約（API か Team/Enterprise）にするか【未決】
+2. **令和 8 年法律第 45 号の施行**：政令が出たら、後見・保佐を新しく使わないようゲートで止める（SEMANTICS SEM-GUARD-02）
+3. **SOS のポート**：この Mac では 8000 を open-notebook が使っているので 8010 にする（`docs/OPERATIONS.md` の 5 の段に書いた）
+4. **ダッシュボード**：正典の SupportLog に感情・きっかけの項目を足すか（今は閉じている）
 
 ## 既知の罠・注意
 
@@ -83,4 +83,4 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 
 - A：河原さんが push し、GitHub で PR を作って main に合流する
 - B：新しい枝で段階 I（N-43〜N-45、止まる点 I-1）。最初に計画へ段階 I を書く
-- C：未決 1（一覧の 500 行の上限と、試験の DB にたまった架空の本人）。療育手帳の通知の名前と年は河原さんが確かめる
+- C：療育手帳の通知の名前と年は河原さんが確かめる。tsunagu-net への提案（台帳 G-40：列挙値と、上限で切れた印）をどこから渡すかは決めていない
