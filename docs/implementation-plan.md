@@ -144,7 +144,7 @@
 | N-43 | 職員の登録の道具 `scripts/new_staff.py`：管理者が打ち、職員（Staff）をゲートで作る。出た職員 ID で `scripts/staff_token.py add` に続けられる形にする | 手順書のコマンドをそのまま流して職員ができる（監査ログが管理者に結ばれる）。管理者でない職員では止まる。役割の値の外は止まる || ✅ 2026-11-06：`scripts/new_staff.py`。手順書の 2 の下に「二人目からの職員を登録する」。試験 `tests/test_new_staff.py`・`tests/test_new_staff_live.py`（手順書のコマンドをそのまま流す。部品 `tests/doc_commands.py`）。台帳 G-88 |
 | N-44 | 書き込みの案の点検と承認の道具 `scripts/review_proposals.py`：未確定（Pending）の一覧（古い順）、根拠の引用つきの表示、一つずつの承認と差し戻し、AuditLog への記録。承認は正典 §7 のとおり一つずつ。自己承認は `selfApproval` を付ける | 手順書のコマンドをそのまま流して：一覧が古い順、表示に引用、承認で Active・差し戻しで Inactive、AuditLog（Approve／Reject）、自分で登録したものの承認で selfApproval || ✅ 2026-11-06：`scripts/review_proposals.py`（list・show・approve・reject）。手順書の 5 の下に「書き込みの案を点検して承認する」。試験 `tests/test_review_proposals.py`・`tests/test_review_proposals_live.py`。台帳 G-89 |
 | N-45 | 音声を消す日を「バックアップの日と同じ日（週に一度）」と決め、`docs/OPERATIONS.md` のバックアップの段に `purge_voice` を足す。DB を起動してから流し、終わったら止める手順にする | バックアップの段に purge_voice が、DB を起こす・止める手順の間にある || ✅ 2026-11-06：手順書の 7 の最初の枠を「起こす → purge_voice（数える・消す）→ 止める → バックアップ」に。6 は日を書き、コマンドは 7 だけに置いた。試験 `tests/test_voice_purge_day.py`（7 の枠の purge_voice の行をそのまま流す）。台帳 G-90 |
-| **止まる点 I-1** | 道具 2 本を架空のデータで動かした結果（打ったコマンドと出力）を河原さんが見る | | |
+| **止まる点 I-1** | 道具 2 本を架空のデータで動かした結果（打ったコマンドと出力）を河原さんが見る | | ✅ 2026-11-06 河原さん：N-43〜N-45 と道具 2 本の動きを承認。G-88〜G-90 承認（音声を消すのは金曜日。書き込みが無ければその週の最後に書き込んだ日）。差し戻しの理由は今は作らず提案だけ（G-91）。河原さんが PR（stage-i → main、merge commit）で合流する |
 
 ## 付録　neo4j-agno-agent の共有層（7687）・shared-schema に頼っている箇所（2026-11-05 時点）
 
