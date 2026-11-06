@@ -116,6 +116,24 @@ cd sos && PORT=8010 uv run python api_server.py     # SOS：http://127.0.0.1:801
 
 点検：人が確かめる（画面が 127.0.0.1 で開き、トークンで入れること。doctor は画面のサーバーを見ません）
 
+### 書き込みの案を点検して承認する（review_proposals）
+
+AI が作ったもの（`narrative-extractor` の案など）は未確定（Pending）で入ります。職員が一つずつ見て、承認するか差し戻します。
+
+```bash
+uv run python scripts/review_proposals.py list                                   # 未確定の一覧（古い順）。本人は仮名で出る
+uv run python scripts/review_proposals.py show --id REC-…                        # 一件の根拠の引用を見る
+uv run python scripts/review_proposals.py approve --staff STF-… --id REC-…       # 承認する（Active になる）
+uv run python scripts/review_proposals.py reject --staff STF-… --id REC-…        # 差し戻す（Inactive になる）
+```
+
+- `--id` には一覧に出た ID（`REC-…`・`NGA-…`・`CPF-…` など）を一つだけ書きます。まとめての承認はしません
+- 承認・差し戻しは AuditLog に残ります。自分で登録したものを承認すると「自己承認」と出て、`selfApproval` が付きます
+- 承認する前に、`show` で根拠の引用を読みます。引用が無いもの・引用と中身が合わないものは差し戻します
+- 実データでは、Claude に渡せない間（台帳 G-80）AI の案が無いので、この段は使いません
+
+点検：人が確かめる（一覧が古い順で、根拠の引用を読んでから決めたこと）
+
 ## 6. 音声を扱う（録音・文字起こし・purge_voice）
 
 - 録音は field-ui の「音声の録音」（`/voice`）で行います。録音は `nest_voice_data/` に置かれます（権限 700・Time Machine の対象外）
@@ -213,5 +231,4 @@ doctor の項目：[1] 前の DB は動いていない、[2] 新しい DB の待
 
 ## 道具がまだ無いこと・決まっていないこと
 
-1. **書き込みの案を通す・承認する**：`narrative-extractor` の案を点検に通し（`nest/gate/intake.py`）、未確定のものを承認する（`nest/gate/approve.py`）操作に、手元で打つ道具はまだありません。実データでは、Claude に渡せない間（台帳 G-80）この段は使いません
-2. **音声を消す日**：決めていません（6）
+1. **音声を消す日**：決めていません（6）
