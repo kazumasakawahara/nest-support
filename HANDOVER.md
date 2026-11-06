@@ -58,7 +58,7 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 F-3 で見ていただく、Claude が決めたこと（台帳 `docs/gray-decisions.md`）：
 
 - **G-78**（N-38）：消したコードだけを試していた試験 10 本を消した。依存 4 つ（pykakasi・python-docx・openpyxl・pdfplumber）を外した。OCR（`ocr_with_gemini`、NEXT-04）は呼ぶところが無くなったが関数は残した。doctor.sh [3] は設定のファイルが無ければ INFO
-- **G-77 の直し**：doctor.sh の「30 日を過ぎた音声」は FAIL にした（知らせるだけにしなかった）。DB を消した後にファイルを消す。音声の件数は Purge の監査ログに入れない
+- **G-77 の直し**：doctor.sh の「30 日を過ぎた音声」は FAIL にした（知らせるだけにしなかった）。音声を先に消し、そのあと DB を消す（F-3 で河原さんが順を決めた）。音声の件数は Purge の監査ログに入れない
 
 ## 未決論点
 
