@@ -6,7 +6,7 @@
 
 - **バックエンド**: FastAPI (Python)
 - **通知**: LINE Messaging API（グループLINEへプッシュ通知）
-- **データベース**: Neo4j（クライアント情報・キーパーソン・禁忌事項の取得）
+- **データベース**: 個人の側の Neo4j を、読み取りの包み（`nest.mcp_guard`）を通して読むだけ（本人の確認。仮名と「いるか」だけ）。SOS の文を作るのに DB は読まない
 - **フロントエンド**: PWA（スマートフォンのホーム画面に追加可能）
 
 ## セットアップ
@@ -17,8 +17,7 @@
 cp .env.example .env
 ```
 
-2. `.env` を編集し、以下を設定
-   - `NEO4J_URI` / `NEO4J_USERNAME` / `NEO4J_PASSWORD`: Neo4j 接続情報
+2. `.env` を編集し、以下を設定（DB の接続は `~/.config/nest/neo4j-redesign.env` を `nest.connections` が読む。sos の `.env` には書かない）
    - `LINE_CHANNEL_ACCESS_TOKEN`: LINE Messaging API のチャネルアクセストークン
    - `LINE_GROUP_ID`: 通知先の LINE グループID
 
@@ -40,10 +39,10 @@ uv run python api_server.py
 ブラウザで以下の URL を開き、ホーム画面に追加します。
 
 ```
-http://localhost:8000/app/?id=クライアント名
+http://localhost:8000/app/?id=C-ZZZZZZ
 ```
 
-`クライアント名` には Neo4j に登録されているクライアントの名前、clientId、または displayCode を指定します。
+`id` には仮名（`displayCode`、C-で始まる 8 文字）を指定します。名前では指定しません（URL や記録に名前が残らないように。計画 N-36）。画面に出すのも仮名だけです。
 
 ### API エンドポイント
 
@@ -75,7 +74,11 @@ Content-Type: application/json
 GET /api/client/{client_id}
 ```
 
-**閉じています（503）。** 前の DB から実名を返す入口で、ゲートも読み取りの包みも通らないため、2026-11-06 に閉じました（台帳 G-66）。sos の置き換え（後の段階）で作り直します。アプリは 503 でも SOS の送信の画面を止めません。
+認証が要ります。仮名（`displayCode`）だけで受け、`{"displayCode": "C-ZZZZZZ", "found": true}` のように仮名と「いるか」だけを返します。名前は返しません（計画 N-36、台帳 G-66）。
+
+- 仮名の形でなければ 400（DB を読まない）
+- 読み取りの包みが読まない（NEXT-02 の歯止めがそろわない）・DB が止まっているときは 503
+- アプリはこの入口を使いません。SOS の送信は、この入口の結果に関わらずできます
 
 ## SOS メッセージの内容
 

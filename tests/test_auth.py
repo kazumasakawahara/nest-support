@@ -138,13 +138,14 @@ def test_sos_send_is_unauthenticated(sos_mod, monkeypatch):
 
 
 def test_sos_client_lookup_requires_auth(sos_mod, monkeypatch):
-    """情報取得（GET /api/client/*）は認証必須。認証しても、前の DB から実名を返す入口は閉じた（E-3。503）。"""
+    """情報取得（GET /api/client/*）は認証必須。認証すれば仮名と「いるか」だけを返す（N-36。名前は返さない）。"""
     monkeypatch.setenv("APP_ACCESS_TOKEN", TOKEN)
+    monkeypatch.setattr(sos_mod, "lookup_client", lambda code: True)
     client = TestClient(sos_mod.app)
 
     assert client.get("/api/client/C-ZZZZZZ").status_code == 401
-    closed = client.get("/api/client/C-ZZZZZZ", headers={"Authorization": f"Bearer {TOKEN}"})
-    assert closed.status_code == 503
+    ok = client.get("/api/client/C-ZZZZZZ", headers={"Authorization": f"Bearer {TOKEN}"})
+    assert ok.status_code == 200 and ok.json() == {"displayCode": "C-ZZZZZZ", "found": True}
 
 
 def test_auth_lives_in_nest_and_services_use_it():

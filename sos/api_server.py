@@ -3,9 +3,9 @@ nest SOS - APIサーバー
 知的障害のある方が緊急時にSOSを送信するためのAPIサーバー
 
 機能:
-- SOSリクエストを受信
-- Neo4jからクライアント情報を取得
-- LINE Messaging APIでグループLINEに通知
+- SOSリクエストを受信し、LINE Messaging APIでグループLINEに通知（NEXT-05 の歯止めを通す。文を作るのに DB を読まない）
+- 本人の確認（GET /api/client/{displayCode}）：仮名だけで受け、読み取りの包み（nest.mcp_guard）を通して
+  個人の側を読み、仮名と「いるか」だけを返す。名前は返さない。DB に直につながない（計画 N-36）
 """
 
 import os
@@ -19,9 +19,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from neo4j import GraphDatabase
 
-# 親ディレクトリをパスに追加（lib/からインポートするため）
+# 親ディレクトリをパスに追加（nest/ からインポートするため）
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from nest.auth import require_auth, set_session_cookie, verify_token
@@ -32,9 +31,6 @@ from nest.ids import DISPLAY_ALPHABET
 load_dotenv()
 
 # --- 設定 ---
-NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7688")  # 個人層。値は lib.db_operations の import 時に neo4j-personal.env から入る
-NEO4J_USERNAME = os.getenv("NEO4J_USERNAME", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
 LINE_GROUP_ID = os.getenv("LINE_GROUP_ID", "")
 
@@ -42,10 +38,6 @@ LINE_GROUP_ID = os.getenv("LINE_GROUP_ID", "")
 # 例: "https://example.com,https://app.example.com"
 # 変数名は field-ui と統一して CORS_ALLOW_ORIGINS。旧 CORS_ORIGINS も後方互換で読む。
 CORS_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", os.getenv("CORS_ORIGINS", ""))
-
-# --- Neo4j接続 ---
-
-
 
 # --- FastAPI ---
 app = FastAPI(
@@ -74,7 +66,7 @@ else:
 
 # --- リクエストモデル ---
 class SOSRequest(BaseModel):
-    client_id: str  # クライアント識別子（名前またはID）
+    client_id: str  # 仮名（displayCode）。仮名の形でなくても送る（緊急の導線は止めない）が、文には書かない
     latitude: float | None = None
     longitude: float | None = None
     accuracy: float | None = None
@@ -211,12 +203,27 @@ async def login(data: LoginInput, response: Response):
 @app.get("/api/client/{client_id}")
 async def get_client(client_id: str, user: str = Depends(require_auth)):
     """
-    クライアント情報の確認（アプリ起動時）。認証必須（非対称設計：SOS 送信は無認証）。
-
-    E-3（2026-11-06）：前の DB から実名を返す入口で、ゲートも読み取りの包みも通らないため閉じた。
-    sos の置き換え（後の段階）で作り直す。台帳 G-66。
+    本人の確認（アプリ起動時）。認証必須（非対称設計：SOS 送信は無認証）。
+    仮名（displayCode）だけで受け、仮名と「いるか」だけを返す。名前は返さない（計画 N-36、台帳 G-66）。
     """
-    raise HTTPException(status_code=503, detail="この入口は閉じています（sos の置き換えで作り直す）")
+    if not DISPLAY_CODE.fullmatch(client_id):
+        raise HTTPException(status_code=400, detail="仮名（C-で始まる 8 文字）で指定してください")
+    try:
+        found = lookup_client(client_id)
+    except Exception:
+        # 包みが読まない（NEXT-02 の歯止めがそろわない）・DB が止まっている。中身は返さない
+        raise HTTPException(status_code=503, detail="いまは本人の確認ができません（SOS の送信はできます）")
+    return {"displayCode": client_id, "found": found}
+
+
+def lookup_client(code: str) -> bool:
+    """個人の側に、その仮名の本人がいるか。読み取りの包み（nest.mcp_guard）を通して読む"""
+    from nest import connections, mcp_guard
+    with connections.driver("personal") as d:
+        mcp_guard.require_personal_allowed(d)
+        rows = mcp_guard.run_read(d, "MATCH (c:Client {displayCode: $code}) RETURN count(c) AS n", {"code": code},
+                                  personal=True)
+    return bool(rows and rows[0]["n"])
 
 
 # --- 静的ファイル配信（スマホアプリ） ---
@@ -234,10 +241,9 @@ if __name__ == "__main__":
     print("=" * 50)
     print("nest SOS API サーバー")
     print("=" * 50)
-    print(f"Neo4j: {NEO4J_URI}")
     print(f"LINE設定: {'設定済み' if LINE_CHANNEL_ACCESS_TOKEN else '未設定'}")
     print("=" * 50)
-    print("アプリURL: http://localhost:8000/app/?id=クライアント名")
+    print("アプリURL: http://localhost:8000/app/?id=仮名（C-……）")
     print("API URL: http://localhost:8000/api/sos")
     print("=" * 50)
 
