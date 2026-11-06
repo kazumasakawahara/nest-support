@@ -143,12 +143,8 @@ uv run python scripts/review_proposals.py reject --staff STF-… --id REC-…   
 
 音声は、文字起こしの記録が承認されたら消し、遅くとも 30 日で消します。道具は自動では動かないので、人が流します。
 
-```bash
-uv run python scripts/purge_voice.py            # 数えるだけ（消さない）
-uv run python scripts/purge_voice.py --write    # 消す
-```
-
-- 流す日は事業所で決めます（まだ決めていません。Claude の案：承認をした日の作業の終わり）
+- **流す日は、週に一度、バックアップを取る日です**（2026-11-06 河原さん。計画 N-45）。コマンドは 7 の枠にあります（DB を起こして流し、DB を止めてからバックアップを取る）
+- DB が起きていないと、承認済みの音声を見分けられず、30 日を過ぎたものだけを消します（道具は「DB を読めない」と知らせます）
 
 点検：[9] 置き場所が 700・Time Machine の対象外・30 日を過ぎた音声が無い（あれば FAIL）。文字起こしの設定は [3]（`external-api-features.json`・`external-api-record.json` が無ければ WARN。今は無いのが正しい状態）
 
@@ -156,11 +152,18 @@ uv run python scripts/purge_voice.py --write    # 消す
 
 **DB に書き込んだ日の作業の終わりに、DB を止めてから取ります**（止まる点 F-1 で決めた周期）。世代は 4 つで、古いものは道具が消します。
 
+**週に一度、バックアップを取る日に、音声も消します**（6。計画 N-45）。その日は、DB が起きているうちに purge_voice を流してから DB を止めます。ほかの日は purge_voice の 2 行を飛ばします。
+
 ```bash
+docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d          # 止めていたら起こす（音声を消すため）
+uv run python scripts/purge_voice.py                                         # 週に一度の日：消す音声を数える（消さない）
+uv run python scripts/purge_voice.py --write                                 # 週に一度の日：消す
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down
 uv run python scripts/backup.py dump       # ~/nest-backup/<日時>/neo4j.dump
 uv run python scripts/backup.py list       # 世代の一覧
 ```
+
+- 音声を先に消してからバックアップを取ります。バックアップに音声は入りません（音声は `nest_voice_data/` にあり、DB の外です）
 
 戻すとき（今の個人の側を、その世代で置き換えます）：
 
@@ -231,4 +234,4 @@ doctor の項目：[1] 前の DB は動いていない、[2] 新しい DB の待
 
 ## 道具がまだ無いこと・決まっていないこと
 
-1. **音声を消す日**：決めていません（6）
+- 今は無し（段階 I で、職員の登録・書き込みの案の承認・purge_voice を流す日を埋めた。2026-11-06）
