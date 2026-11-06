@@ -45,7 +45,6 @@ def test_field_ui_reads_through_the_wrapper_and_writes_through_the_gate(tmp_path
             pytest.skip("Administrator がいない（ほかの DB つきの試験を先に流す）")
         staff = admin[0]["id"]
         d.execute_query("CREATE (:NestLiveProbe {probe: $probe, _fictional: true})", {"probe": probe}, database_="neo4j")
-        _cleanup().clear_fictional_clients(d)  # 流す前に試験の DB の架空の本人を片づける
         out = gw.submit({"requestId": "req-" + uuid.uuid4().hex, "actorStaffId": staff,
                          "nodes": [{"ref": "c", "label": "Client", "origin": "Human", "properties": {"familyName": "架空"}}],
                          "relationships": []}, d)
@@ -84,42 +83,31 @@ def test_field_ui_reads_through_the_wrapper_and_writes_through_the_gate(tmp_path
                     "audits": ["Create ABOUT", "Create AUTHORED_BY", "Create SupportLog"]}]
 
 
-def _cleanup():
-    spec = importlib.util.spec_from_file_location("live_cleanup", Path(__file__).with_name("live_cleanup.py"))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
 
 def test_client_list_is_newest_first_and_marked_when_cut(tmp_path, monkeypatch):
-    """合流前の直し（2026-11-06 河原さん）：上限（試験では 3 行）より多い架空の本人を入れると、
-    新しい順に上限まで返し、truncated と件数が付く。流す前に試験の DB の架空の本人を片づける"""
+    """合流前の直し（2026-11-06 河原さん。台帳 G-86）：上限（試験では 3 行）より多い架空の本人がいると、
+    新しい順に上限まで返し、truncated と全体の件数が付く。試験の途中では片づけない（台帳 G-87）"""
     from fastapi.testclient import TestClient
     from nest import auth, connections, mcp_guard
     from nest.gate import write as gw
-    probe = "fui-cut-" + uuid.uuid4().hex
     with connections.driver("personal") as d:
         admin = _q(d, "MATCH (s:Staff {role: 'Administrator', status: 'Active'}) RETURN s.staffId AS id ORDER BY id LIMIT 1")
         if not admin:
-            pytest.skip("Administrator がいない（ほかの DB つきの試験を先に流す）")
+            pytest.skip("Administrator がいない")
         staff = admin[0]["id"]
-        d.execute_query("CREATE (:NestLiveProbe {probe: $probe, _fictional: true})", {"probe": probe}, database_="neo4j")
-        try:
-            _cleanup().clear_fictional_clients(d)
-            made = []
-            for _ in range(4):
-                out = gw.submit({"requestId": "req-" + uuid.uuid4().hex, "actorStaffId": staff,
-                                 "nodes": [{"ref": "c", "label": "Client", "origin": "Human", "properties": {"familyName": "架空"}}],
-                                 "relationships": []}, d)
-                assert out["ok"], out["errors"]
-                made.append(out["ids"]["c"])
-        finally:
-            d.execute_query("MATCH (n:NestLiveProbe {probe: $probe}) DELETE n", {"probe": probe}, database_="neo4j")
+        made = []
+        for _ in range(4):
+            out = gw.submit({"requestId": "req-" + uuid.uuid4().hex, "actorStaffId": staff,
+                             "nodes": [{"ref": "c", "label": "Client", "origin": "Human", "properties": {"familyName": "架空"}}],
+                             "relationships": []}, d)
+            assert out["ok"], out["errors"]
+            made.append(out["ids"]["c"])
+        total = _q(d, "MATCH (c:Client) WHERE c.status = 'Active' RETURN count(c) AS n")[0]["n"]
     table = tmp_path / "field-ui-staff.json"
     table.write_text(json.dumps({"version": 1, "staff": {staff: auth.token_hash(TOKEN)}}), encoding="utf-8")
     os.chmod(table, 0o600)
     monkeypatch.setattr(auth, "staff_tokens_path", lambda: table)
     monkeypatch.setattr(mcp_guard, "MAX_ROWS", 3)
     body = TestClient(_load().app).get("/api/clients", headers={"Authorization": "Bearer " + TOKEN}).json()
-    assert body["truncated"] is True and body["total"] == 4
+    assert body["truncated"] is True and body["total"] == total >= 4
     assert [c["clientId"] for c in body["clients"]] == list(reversed(made))[:3]

@@ -128,7 +128,7 @@ def test_rows_stop_at_the_limit_while_streaming():
     counter = {"pulled": 0}
     rows = mcp_guard.stream_rows(_Tx(counter), "UNWIND range(1, 1000000) AS i RETURN i", {}, personal=False)
     assert len(rows) == mcp_guard.MAX_ROWS == 500
-    assert counter["pulled"] == 500
+    assert counter["pulled"] == 501  # 上限の次の 1 行だけ読んで、切れたかを知る（台帳 G-87）
 
 
 def test_limit_is_not_injected_into_the_query():
@@ -227,3 +227,24 @@ def test_each_server_connects_to_its_own_side_only():
     assert 'driver("personal")' in personal and 'driver("resource")' not in personal
     assert 'driver("resource")' in resource and 'driver("personal")' not in resource
     assert "personal=True" in personal
+
+
+class _FiniteTx:
+    def __init__(self, n):
+        self.n = n
+
+    def run(self, query, params=None):
+        return (_Rec(i) for i in range(self.n))
+
+
+def test_cut_rows_are_marked_truncated():
+    """合流前の直し 2（2026-11-06 河原さん。台帳 G-87）：上限より多ければ truncated と上限の値を返す。行の形は変えない"""
+    out = mcp_guard.stream(_Tx({"pulled": 0}), "UNWIND range(1, 1000000) AS i RETURN i", {}, personal=False)
+    assert out["truncated"] is True and out["maxRows"] == mcp_guard.MAX_ROWS and len(out["rows"]) == mcp_guard.MAX_ROWS
+    assert out["rows"][0] == {"i": 0}
+
+
+@pytest.mark.parametrize("n", [0, 3, 500])
+def test_rows_up_to_the_limit_are_not_truncated(n):
+    out = mcp_guard.stream(_FiniteTx(n), "MATCH (n) RETURN n", {}, personal=False)
+    assert out["truncated"] is False and len(out["rows"]) == n

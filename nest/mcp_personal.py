@@ -19,12 +19,13 @@ server = MCPServer("nest-personal")
 
 
 @server.tool()
-def read_personal_cypher(query: str, params: dict | None = None) -> list[dict]:
-    """個人の側に読み取りの Cypher を流す。読み取り以外は拒否する。実名・かな・電話・住所・生年月日は返さない。最大 500 行。"""
+def read_personal_cypher(query: str, params: dict | None = None) -> dict:
+    """個人の側に読み取りの Cypher を流す。読み取り以外は拒否する。実名・かな・電話・住所・生年月日は返さない。
+    返すのは {"rows": 行の一覧, "truncated": 上限で切れたか, "maxRows": 上限（500）}。"""
     from nest import connections
     with connections.driver("personal") as d:
         mcp_guard.require_personal_allowed(d)
-        return mcp_guard.run_read(d, query, params, personal=True)
+        return mcp_guard.run_read_meta(d, query, params, personal=True)
 
 
 @server.tool()

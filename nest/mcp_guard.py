@@ -8,6 +8,7 @@ Community 版には DB の側の権限が無いので、ここで止める。手
 - 手続きの呼び出しは許可の一覧（ALLOWED_PROCEDURES）だけ。apoc.* は入れない
 - 計画が読めないときは実行しない（閉じる側に倒す）。EXPLAIN・PROFILE つきと空も拒否する
 - 返す行は流しながら MAX_ROWS で止める。全部を受け取ってから切らない。Cypher に行数の制限を差し込まない
+  切れたかどうかは、上限の次の 1 行があるかで知る。MCP の道具は行の一覧と別に truncated と上限（maxRows）を返す（台帳 G-87）
 個人の側だけ（personal=True）：
 - 注釈（// と /* */）、実名・かな・電話・住所・生年月日（SENSITIVE）の項目の名前を含む問い合わせ、properties()・keys()・{.*}、
   動的な項目の読み（n[k]・n['…']）を、実行の前に拒否する
@@ -159,27 +160,39 @@ SENSITIVE_VALUES = ("MATCH (n) UNWIND [k IN $names WHERE n[k] IS NOT NULL | n[k]
                     "RETURN collect(DISTINCT toString(v)) AS vs")
 
 
-def stream_rows(tx, text, params, personal, sensitive_values=frozenset()):
-    """結果を流しながら読み、MAX_ROWS 行で止める。"""
-    rows = []
+def stream(tx, text, params, personal, sensitive_values=frozenset()):
+    """結果を流しながら読み、MAX_ROWS 行で止める。上限の次の 1 行があれば truncated（その行は返さない）。"""
+    rows, truncated = [], False
     for record in tx.run(text, params or {}):
-        rows.append({k: to_plain(v, personal, sensitive_values) for k, v in record.items()})
         if len(rows) >= MAX_ROWS:
+            truncated = True
             break
-    return rows
+        rows.append({k: to_plain(v, personal, sensitive_values) for k, v in record.items()})
+    return {"rows": rows, "truncated": truncated, "maxRows": MAX_ROWS}
 
 
-def run_read(driver, query, params, personal, database="neo4j"):
+def stream_rows(tx, text, params, personal, sensitive_values=frozenset()):
+    """行の一覧だけ（画面・スキルの試験など、切れた印を別に扱う呼び出し元のため）。"""
+    return stream(tx, text, params, personal, sensitive_values)["rows"]
+
+
+def run_read_meta(driver, query, params, personal, database="neo4j"):
+    """読み取りを流し、{"rows", "truncated", "maxRows"} を返す（MCP の道具が使う。台帳 G-87）。"""
     text = check_read_only(driver, query, params, personal=personal, database=database)
 
     def work(tx):
         values = frozenset()
         if personal:
             values = frozenset(list(tx.run(SENSITIVE_VALUES, names=list(SENSITIVE)))[0]["vs"])
-        return stream_rows(tx, text, params, personal, values)
+        return stream(tx, text, params, personal, values)
 
     with driver.session(database=database) as s:
         return s.execute_read(work)
+
+
+def run_read(driver, query, params, personal, database="neo4j"):
+    """読み取りを流し、行の一覧だけを返す。"""
+    return run_read_meta(driver, query, params, personal, database)["rows"]
 
 
 CALLERS = ("mcp", "screen")

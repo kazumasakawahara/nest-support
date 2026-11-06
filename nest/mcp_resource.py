@@ -12,11 +12,12 @@ server = MCPServer("nest-resource")
 
 
 @server.tool()
-def read_resource_cypher(query: str, params: dict | None = None) -> list[dict]:
-    """資源の側（公開情報）に読み取りの Cypher を流す。読み取り以外は拒否する。最大 500 行。"""
+def read_resource_cypher(query: str, params: dict | None = None) -> dict:
+    """資源の側（公開情報）に読み取りの Cypher を流す。読み取り以外は拒否する。
+    返すのは {"rows": 行の一覧, "truncated": 上限で切れたか, "maxRows": 上限（500）}。"""
     from nest import connections
     with connections.driver("resource") as d:
-        return mcp_guard.run_read(d, query, params, personal=False)
+        return mcp_guard.run_read_meta(d, query, params, personal=False)
 
 
 @server.tool()
