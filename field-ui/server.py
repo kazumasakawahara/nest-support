@@ -38,7 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from lib.db_operations import run_query, register_to_database
-from lib.auth import require_auth, set_session_cookie, verify_token
+from nest.auth import require_auth, set_session_cookie, verify_token
 
 app = FastAPI(
     title="nest-support 現場UI",

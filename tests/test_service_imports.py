@@ -28,7 +28,7 @@ def _lib_imports(service_relpath: str) -> list[tuple[str, str]]:
     tree = ast.parse(source)
     pairs = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("lib."):
+        if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith(("lib.", "nest.")):
             for alias in node.names:
                 pairs.append((node.module, alias.name))
     return pairs

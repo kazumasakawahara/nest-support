@@ -15,7 +15,7 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
-import lib.auth as auth
+import nest.auth as auth
 
 _ROOT = Path(__file__).resolve().parent.parent
 TOKEN = "test-secret-token"
@@ -31,7 +31,7 @@ def _load_field_ui():
 
 
 # ---------------------------------------------------------------------------
-# lib/auth 単体
+# nest/auth 単体（計画 N-35 で lib/auth.py から移した）
 # ---------------------------------------------------------------------------
 
 def test_verify_token(monkeypatch):
@@ -145,3 +145,12 @@ def test_sos_client_lookup_requires_auth(sos_mod, monkeypatch):
     assert client.get("/api/client/C-ZZZZZZ").status_code == 401
     closed = client.get("/api/client/C-ZZZZZZ", headers={"Authorization": f"Bearer {TOKEN}"})
     assert closed.status_code == 503
+
+
+def test_auth_lives_in_nest_and_services_use_it():
+    """N-35：認証の部品は nest/auth.py だけにあり、sos・field-ui はそこから読む"""
+    assert not (_ROOT / "lib" / "auth.py").exists()
+    for service in ("sos/api_server.py", "field-ui/server.py"):
+        text = (_ROOT / service).read_text(encoding="utf-8")
+        assert "from nest.auth import require_auth, set_session_cookie, verify_token" in text
+        assert "lib.auth" not in text

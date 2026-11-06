@@ -24,7 +24,7 @@ from neo4j import GraphDatabase
 # 親ディレクトリをパスに追加（lib/からインポートするため）
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from lib.auth import require_auth, set_session_cookie, verify_token
+from nest.auth import require_auth, set_session_cookie, verify_token
 from nest import egress
 from nest.ids import DISPLAY_ALPHABET
 
