@@ -145,3 +145,13 @@ def test_approved_query_reads_active_records_by_hash():
     assert "Record" in seen["query"] and "documentHash" in seen["query"] and "'Active'" in seen["query"]
     assert sorted(seen["params"]["hashes"]) == ["a" * 64, "b" * 64]
     assert "DELETE" not in seen["query"].upper() and "SET" not in seen["query"].upper()
+
+
+def test_matching_picks_files_by_document_hash(tmp_path):
+    """N-32 の廃棄（G-77 の直し）：本人の記録の documentHash に合う音声を選ぶ"""
+    root = tmp_path / "voice"
+    a = _put(root, "本人の文字起こし", 1)
+    _put(root, "ほかの文字起こし", 1)
+    assert voice.matching(root, {_h("本人の文字起こし"), _h("どこにも無い")}) == [a.name]
+    assert voice.matching(root, set()) == []
+    assert voice.matching(tmp_path / "none", {_h("本人の文字起こし")}) == []

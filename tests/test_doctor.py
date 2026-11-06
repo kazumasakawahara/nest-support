@@ -14,6 +14,7 @@
 """
 import os
 import stat
+import time
 import subprocess
 from pathlib import Path
 
@@ -25,7 +26,7 @@ SKILLS = sorted(p.name for p in (REPO / "claude-skills").iterdir() if (p / "SKIL
 
 
 def _run(tmp_path, ps_lines, *, env_mode=0o600, extra_links=(), drop_link=None, filevault="On", backup_mode=None,
-         excluded=True, voice_mode=None):
+         excluded=True, voice_mode=None, voice_ages=()):
     home = tmp_path / "home"
     (home / ".config" / "nest").mkdir(parents=True)
     env_file = home / ".config" / "nest" / "neo4j-redesign.env"
@@ -56,6 +57,11 @@ def _run(tmp_path, ps_lines, *, env_mode=0o600, extra_links=(), drop_link=None, 
     if voice_mode is not None:
         voice.mkdir()
         os.chmod(voice, voice_mode)
+        for n, (name, days) in enumerate(voice_ages):  # 音声の名前と、置いてからの日数
+            f = voice / name
+            f.write_bytes(b"x")
+            old = time.time() - days * 86400
+            os.utime(f, (old, old))
     ps = tmp_path / "ps.txt"
     ps.write_text("".join(line + "\n" for line in ps_lines), encoding="utf-8")
     env = dict(os.environ, HOME=str(home), PATH="%s:%s" % (bin_dir, os.environ["PATH"]), FAKE_PS=str(ps), FAKE_FV=filevault,
@@ -163,3 +169,20 @@ def test_fails_when_the_voice_place_is_in_time_machine(tmp_path):
 
 def test_the_default_voice_place_is_in_the_repository():
     assert 'VOICE_DIR="${NEST_VOICE_DIR:-${PROJECT_DIR}/nest_voice_data}"' in DOCTOR.read_text(encoding="utf-8")
+
+
+# ---- G-77 の直し（2026-11-06 河原さん）：30 日を過ぎた音声が残っていれば知らせる ----
+
+H = "a" * 64
+
+
+def test_voice_older_than_30_days_is_flagged(tmp_path):
+    out = _run(tmp_path, [], voice_mode=0o700, voice_ages=[(H + ".webm", 31), ("b" * 64 + ".m4a", 2)])
+    assert out.returncode == 1
+    assert "30 日を過ぎた音声が 1 件" in out.stdout and "purge_voice.py --write" in out.stdout
+
+
+def test_recent_voice_and_other_files_are_fine(tmp_path):
+    out = _run(tmp_path, [], voice_mode=0o700, voice_ages=[(H + ".webm", 2), ("README.txt", 90)])
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert "30 日を過ぎた音声は無い" in out.stdout

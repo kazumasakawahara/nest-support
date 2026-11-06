@@ -11,7 +11,8 @@
 #   6. 正典のずれが 0 件（scripts/check_drift.py）
 #   7. FileVault が有効（N-33）
 #   8. バックアップの置き場所 ~/nest-backup/ は、あれば権限 700・Time Machine の対象外（N-33。無ければ知らせるだけ）
-#   9. 音声の置き場所 nest_voice_data/ は、あれば権限 700・Time Machine の対象外（N-37。無ければ知らせるだけ）
+#   9. 音声の置き場所 nest_voice_data/ は、あれば権限 700・Time Machine の対象外（N-37。無ければ知らせるだけ）。
+#      30 日を過ぎた音声が残っていれば FAIL（遅くとも 30 日で消す約束。消す道具は自動では動かないため。G-77）
 #  10. Claude Desktop の設定（知らせるだけ）
 #
 # 結果は OK / FAIL / INFO で表示する。FAIL が一つでもあれば 1 を返す。
@@ -157,6 +158,14 @@ if [ -d "${VOICE_DIR}" ]; then
     ok "nest_voice_data: Time Machine の対象外"
   else
     fail "nest_voice_data が Time Machine の対象（tmutil addexclusion \"${VOICE_DIR}\"）"
+  fi
+  # 音声の名前は「64 桁の 16 進 ＋ 音声の拡張子」（nest/voice.py の NAME と同じ）
+  old="$(find -E "${VOICE_DIR}" -maxdepth 1 -type f -mtime +30 \
+    -regex '.*/[0-9a-f]{64}\.(webm|ogg|oga|mp3|m4a|mp4|wav|aac|flac)' 2>/dev/null | wc -l | tr -d ' ')"
+  if [ "${old}" = "0" ]; then
+    ok "nest_voice_data: 30 日を過ぎた音声は無い"
+  else
+    fail "警告：30 日を過ぎた音声が ${old} 件残っている（uv run python scripts/purge_voice.py --write で消す）"
   fi
 else
   info "nest_voice_data はまだ無い（field-ui の録音で作る）"

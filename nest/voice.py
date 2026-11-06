@@ -57,6 +57,11 @@ def files(root):
     return sorted(p for p in root.iterdir() if p.is_file() and NAME.fullmatch(p.name)) if root.is_dir() else []
 
 
+def matching(root, hashes):
+    """documentHash が hashes にある音声の名前（本人の廃棄で消すもの。N-32、G-77 の直し）。"""
+    return [p.name for p in files(root) if NAME.fullmatch(p.name).group(1) in hashes]
+
+
 def plan(root, approved, now):
     """消すもの（承認済み・30 日過ぎ）と残すものの名前。approved は承認された documentHash の集合。"""
     limit = (now - timedelta(days=KEEP_DAYS)).timestamp()

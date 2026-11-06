@@ -44,6 +44,10 @@ def _purge(d, a):
         return 1
     print("%s　%s" % (a.code, "消した" if out["written"] else "試しの実行（何も消していない）"))
     print("- 消す：%s" % "・".join(out["purgedCounts"]))
+    print("- 音声（nest_voice_data/。この本人の記録の原文の録音）：%d 件%s" % (
+        out["voiceFiles"], "。消した：%d 件" % out["voiceFilesRemoved"] if out["written"] else ""))
+    for e in out["errors"]:
+        print("- 注意：" + e)
     print("- 他の機関から受け取った記録（PROVIDED_BY あり）：%d 件。消してよいかを確かめる" % out["providedRecords"])
     print("- 残す人（ほかの本人にもつながる）：%d 人。つながりだけ外す：%s" % (out["keptPersons"], "・".join(out["keptLinked"]) or "なし"))
     print("- もとにした保存の判断：%s" % out["retentionId"])

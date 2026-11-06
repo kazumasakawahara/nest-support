@@ -9,6 +9,8 @@
 - 試しの実行で、消す記録のうち他の機関から受け取ったもの（PROVIDED_BY あり）の件数を出す。消してよいかは人が見る
 - 本当に消す（DETACH DELETE）。消したら監査ログ（Purge）を 1 件だけ書く：本人の ID・もとにした保存の判断・種類ごとの件数・
   残した人の数。名前・仮名・本文・理由の文は書かない。今までの監査ログは残る（相手が消えるので AUDIT_FOR は外れ、ID の文字だけ残る）
+- 本人の記録の documentHash に合う音声（nest_voice_data/。nest/voice.py）も、同じ操作の中で消す。試しの実行では件数を出す
+  （2026-11-06 河原さん。G-77 の直し）。DB を消した後にファイルを消す。音声が別の本人の記録と同じ原文でも消す（その本人のことも含むため）
 - バックアップは消さない。消した後に新しいバックアップを取り、戻せることを確かめてから、消した日より前のものを人が消す
 - Claude はこれを使わない（読み取りの包みは書けない）。人が手元の道具（scripts/purge_client.py）で使う
 手本：tsunagu-net の tsunagu/gate/purge.py（読むだけ）。tsunagu-net は世帯、nest-support は本人が単位。
@@ -17,7 +19,7 @@ import uuid
 from collections import Counter
 from datetime import datetime, timezone
 
-from nest import ids
+from nest import ids, voice
 
 # 子のラベル → 親の辺（型, 子から出る向きか）。子は、親の辺が一つ以上あり、その先がすべて消えるときに消える
 PARENTS = {
@@ -102,6 +104,8 @@ MATCH (c)-[r]-(p)
 RETURN eid AS child, labels(c)[0] AS label, type(r) AS type, startNode(r) = c AS out, elementId(p) AS parent, labels(p)[0] AS plabel"""
 CUT = """MATCH (n)-[r]-(m) WHERE elementId(n) IN $del AND NOT elementId(m) IN $del
 RETURN count(DISTINCT CASE WHEN m:AuditLog THEN m END) AS auditLogs, count(DISTINCT CASE WHEN NOT m:AuditLog THEN r END) AS links"""
+HASHES = """MATCH (r:Record) WHERE elementId(r) IN $del AND r.documentHash IS NOT NULL
+RETURN collect(DISTINCT r.documentHash) AS hs"""
 PROVIDED = """MATCH (r:Record)-[:PROVIDED_BY]->(:Organization) WHERE elementId(r) IN $del RETURN count(DISTINCT r) AS n"""
 DELETE = "MATCH (n) WHERE elementId(n) IN $del DETACH DELETE n"
 AUDIT = "MATCH (s:Staff {staffId: $actor}) CREATE (a:AuditLog) SET a = $props CREATE (a)-[:ACTED_BY]->(s)"
@@ -141,7 +145,8 @@ def _run(tx, staff_id, display_code, write, confirm, now, new_id, request_id):
     cut = tx.run(CUT, **{"del": dele}).single()
     out.update({"purgedCounts": counts(p["delete"]), "keptPersons": p["keptPersons"], "keptLinked": counts(p["kept"]),
                 "cutLinks": cut["links"], "auditLogsKept": cut["auditLogs"], "retentionId": decision["retentionId"],
-                "providedRecords": tx.run(PROVIDED, **{"del": dele}).single()["n"]})
+                "providedRecords": tx.run(PROVIDED, **{"del": dele}).single()["n"],
+                "_hashes": set(tx.run(HASHES, **{"del": dele}).single()["hs"])})
     if write:
         tx.run(DELETE, **{"del": dele})
         props = audit_props(new_id, now, c[0]["id"], decision["retentionId"], out["purgedCounts"], p["keptPersons"], request_id)
@@ -151,10 +156,25 @@ def _run(tx, staff_id, display_code, write, confirm, now, new_id, request_id):
 
 
 def purge(driver, staff_id, display_code, write=False, confirm=None, now=None, new_id=ids.new_id, request_id=None,
-          database="neo4j"):
-    """試しの実行（write=False）は件数だけ。write=True で消す（confirm に同じ仮名が要る）。"""
+          database="neo4j", voice_root=None):
+    """試しの実行（write=False）は件数だけ。write=True で消す（confirm に同じ仮名が要る）。音声も同じ操作の中で消す。"""
     now = now or datetime.now(timezone.utc)
     request_id = request_id or "req-purge-" + uuid.uuid4().hex
     with driver.session(database=database) as s:
         run = s.execute_write if write else s.execute_read
-        return run(_run, staff_id, display_code, write, confirm, now, new_id, request_id)
+        out = run(_run, staff_id, display_code, write, confirm, now, new_id, request_id)
+    if not out["ok"]:
+        return out
+    root = voice.VOICE_DIR if voice_root is None else voice_root
+    names = voice.matching(root, out.pop("_hashes"))
+    out["voiceFiles"] = len(names)
+    if out["written"]:
+        removed = 0
+        for name in names:
+            try:
+                (root / name).unlink()
+                removed += 1
+            except OSError as e:
+                out["errors"].append("音声 %s を消せなかった（%s）。手で消す" % (name, type(e).__name__))
+        out["voiceFilesRemoved"] = removed
+    return out

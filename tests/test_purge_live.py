@@ -6,8 +6,10 @@
 確かめること（計画 N-32、台帳 G-74）：AI の案や Administrator でない職員からは保存の判断を書けない／判断（Delete）が無ければ試しの実行でも動かない／
 試しの実行は何も消さず、件数と他の機関から受け取った記録の件数を出す／仮名の打ち返しが要る／人の操作だけで消え、Purge の監査ログが 1 件残る／
 B と、B にもつながる親には触れない。
+G-77 の直し（2026-11-06 河原さん）：本人の記録の documentHash に合う音声を、同じ操作の中で消す。試しの実行では件数を出す。
 """
 import datetime as dt
+import hashlib
 import os
 import sys
 import uuid
@@ -49,6 +51,10 @@ def admin(driver):
     return out["staffId"]
 
 
+def _hash(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 def _rec(text, **extra):
     return dict({"kind": "Interview", "text": text, "quote": text, "certainty": "Hearsay", "informantKind": "Family"}, **extra)
 
@@ -75,10 +81,10 @@ def pair(driver, admin):
                                   h("p", "Person", {}), h("s", "Person", {})], [])
     A, B = {"label": "Client", "id": ids["a"]}, {"label": "Client", "id": ids["b"]}
     more = _submit(driver, admin, [
-        h("ra", "Record", _rec("架空 %s：母によると、A はエビで息が苦しくなる" % mark)),
+        h("ra", "Record", _rec("架空 %s：母によると、A はエビで息が苦しくなる" % mark, documentHash=_hash("架空の録音 A " + mark))),
         h("rp", "Record", _rec("架空 %s：相談の窓口からの書面" % mark, kind="Document", informantKind="Agency",
                                providerCertainty="Confirmed")),
-        h("rb", "Record", _rec("架空 %s：B の話" % mark)),
+        h("rb", "Record", _rec("架空 %s：B の話" % mark, documentHash=_hash("架空の録音 B " + mark))),
         h("ng", "NgAction", {"action": "エビを食べさせる", "riskLevel": "LifeThreatening"}),
         h("cr", "CareRole", {"name": "架空：通院の付き添い"}),
         h("i", "Involvement", {"kind": "ServiceProvision", "howEnded": "Ongoing", "certainty": "Hearsay"}),
@@ -96,7 +102,7 @@ def pair(driver, admin):
     _submit(driver, admin, [], [_related(ids["p"], ids["a"], more["ra"], "Parent"), _related(ids["p"], ids["b"], more["rb"], "Parent"),
                                 _related(ids["s"], ids["a"], more["ra"], "Sibling")])
     code = _one(driver, "MATCH (c:Client {clientId: $id}) RETURN c.displayCode AS code", id=ids["a"])[0]["code"]
-    return dict(ids, **more, code=code)
+    return dict(ids, **more, code=code, mark=mark)
 
 
 def _decide(driver, actor, client, decision):
@@ -195,5 +201,20 @@ def test_the_command_line_runs_a_dry_run(driver, admin, pair, capsys):
                               "--decided-on", str(dt.date.today()), "--reason", "架空"], driver=driver) == 0
     assert purge_client.main(["purge", "--admin", admin, "--code", pair["code"]], driver=driver) == 0
     text = capsys.readouterr().out
-    assert "試しの実行" in text and "PROVIDED_BY あり）：1 件" in text
+    assert "試しの実行" in text and "PROVIDED_BY あり）：1 件" in text and "音声" in text
     assert _n(driver, "MATCH (c:Client {clientId: $id}) RETURN count(c) AS n", id=pair["a"]) == 1
+
+
+def test_purge_removes_this_clients_voice_in_the_same_operation(driver, admin, pair, tmp_path):
+    from nest.gate import purge
+    assert _decide(driver, admin, pair["a"], "Delete")["ok"]
+    root = tmp_path / "nest_voice_data"
+    root.mkdir()
+    files = {k: root / (_hash("架空の録音 %s %s" % (k, pair["mark"])) + ".webm") for k in ("A", "B", "X")}
+    for f in files.values():
+        f.write_bytes(b"x")
+    dry = purge.purge(driver, admin, pair["code"], voice_root=root)
+    assert dry["ok"] and dry["voiceFiles"] == 1 and all(f.exists() for f in files.values())
+    out = purge.purge(driver, admin, pair["code"], write=True, confirm=pair["code"], voice_root=root)
+    assert out["ok"] and out["written"] and out["voiceFilesRemoved"] == 1, out
+    assert not files["A"].exists() and files["B"].exists() and files["X"].exists()
