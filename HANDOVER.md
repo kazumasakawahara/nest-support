@@ -7,7 +7,7 @@
 
 ```bash
 cd ~/Dev-Work/project/nest-support && git switch redesign/adr-001
-uv run pytest -q                       # 880 passed, 131 skipped（DB を使う試験は skip）
+uv run pytest -q                       # 886 passed, 132 skipped（DB を使う試験は skip）
 uv run python scripts/check_drift.py   # ずれ 0 件
 ./scripts/doctor.sh                    # 環境の点検：29 passed, 2 warned, 0 failed（WARN は external-api の記録と設定のファイルが無いこと）
 ```
@@ -16,13 +16,13 @@ DB を使う試験（結合試験のタスクのときだけ。終わったら�
 
 ```bash
 docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d     # nest-redesign-personal（37474/37687）・nest-redesign-resource（38474/38687）
-NEST_LIVE_DB=1 uv run pytest -q                                       # 最後に流したのは 2026-11-06 14:50（判断 2 の後）：1008 passed・1 failed（test_field_ui_live。下の未決 1）
+NEST_LIVE_DB=1 uv run pytest -q                                       # 最後に流したのは 2026-11-06 15:00（合流前の直しの後）：1016 passed・1 failed（test_q13_pending_ai_record_listed。下の未決 1）
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove-orphans は使わない
 ```
 
 - `neo4j-redesign.env` の中身は読まない・表示しない（接続の部品 `nest/connections.py` と試験が読む）
 - 起動の前に `docker ps` で前の DB が動いていないことを確かめ、起動の後に 2 つとも 127.0.0.1 だけで待ち受けていることを確かめる（N-18 の条件）
-- 2026-11-06 14:52 に down 済み（`docker ps` に nest の名前が無いことを確かめた）
+- 2026-11-06 15:02 に down 済み（`docker ps` に nest の名前が無いことを確かめた）
 
 新しい Mac でゼロから入れる手順は `docs/SETUP_GUIDE.md` の「0. 新しい Mac でゼロから」（N-38）。
 
@@ -59,10 +59,10 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 
 ## 未決論点
 
-1. **DB つきの試験 `tests/test_field_ui_live.py` がときどき落ちる**（2026-11-06 14:50 に見つけた）：試験の DB に架空の本人が 681 人たまり、field-ui の本人の一覧が包みの上限 500 行（`MAX_ROWS`）で切れる。新しく作った本人の仮名が後ろに並ぶと一覧に出ない。判断 2 の変更を外しても同じように通ったり落ちたりする（4 回で 2 回落ちた）。実データでも本人が 500 人を超えると、一覧が黙って切れる。直し方（試験の DB を片づける、一覧に件数の上限を出す、仮名で絞る）は決めていない
+1. **DB つきの試験 `test_q13_pending_ai_record_listed` が落ちる**（2026-11-06 15:00）：Claude の照会 13（未確定の一覧、古い順）が包みの上限 500 行で切れる。試験の DB に AI 由来の未確定が 508 件たまっている。field-ui の一覧は合流前の直しで片づけと「切れている」印を入れた（台帳 G-86）が、Claude の照会の側（MCP の `run_read` は切れても印を返さない）と、本人以外の架空のデータの片づけは決めていない
 2. **G-80**：実データを Claude に渡す経路を事業者向けの契約（API か Team/Enterprise）にするか【未決】
 3. **令和 8 年法律第 45 号の施行**：政令が出たら、後見・保佐を新しく使わないようゲートで止める（SEMANTICS SEM-GUARD-02）
-4. **SOS の既定のポート 8000**：この Mac では open-notebook が 8000 を使っている。SOS を起こすときは `PORT=…` で変える
+4. **SOS のポート**：この Mac では 8000 を open-notebook が使っているので 8010 にする（`docs/OPERATIONS.md` の 5 の段に書いた）
 5. **ダッシュボード**：正典の SupportLog に感情・きっかけの項目を足すか（今は閉じている）
 
 ## 既知の罠・注意

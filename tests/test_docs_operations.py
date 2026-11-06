@@ -111,3 +111,9 @@ def test_sos_signs_in_with_the_shared_token_and_http_needs_insecure_cookie():
     s5 = _section_of("## 5.")
     assert "APP_ACCESS_TOKEN" in s5
     assert "試すときだけ" not in s5
+
+
+def test_sos_port_is_changed_with_port():
+    """この Mac では 8000 を open-notebook が使う。SOS は PORT で変え、8010 にする（2026-11-06 河原さん）"""
+    s5 = _section_of("## 5.")
+    assert "PORT=8010" in s5

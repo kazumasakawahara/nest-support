@@ -90,10 +90,12 @@ uv run python scripts/new_client.py find --family 氏 --given 名     # 名前�
 
 ```bash
 uv run python field-ui/server.py          # http://127.0.0.1:8001/
-cd sos && uv run python api_server.py     # SOS：http://127.0.0.1:8000/app/?id=C-……
+cd sos && PORT=8010 uv run python api_server.py     # SOS：http://127.0.0.1:8010/app/?id=C-……
 ```
 
 - field-ui は、ブラウザで開き、3 で受け取った職員のトークンで入ります。「支援記録の入力」（`/record`）で記録を書きます。記録はゲートを通って入ります
+- SOS の既定のポートは 8000 です。ほかで使っていれば `PORT` で変えます。**この Mac では 8000 を別の道具（open-notebook）が使っているので 8010 にします**
+- 本人の一覧は登録の新しい順で、包みの上限（500 人）を超えると「登録の新しい順に 500 人だけ出しています」と画面に出ます（古い本人は一覧に出ません）
 - SOS は職員のトークンではなく、共通のトークン（環境変数 `APP_ACCESS_TOKEN`）で入ります。起動する端末で設定します。値はリポジトリにも会話にも書きません。設定が無ければ SOS は止まります
 - 上の http://127.0.0.1 で使うときは、二つとも `SESSION_COOKIE_SECURE=false` を付けて起動します（例：`SESSION_COOKIE_SECURE=false uv run python field-ui/server.py`）。付けないと、ブラウザによっては入れません。https を通すときは付けません
 - 二つのサーバーは前面で動きます。別々の端末で起動します。SOS の端末は `cd sos` したままになるので、ほかの道具（`scripts/…`）はリポジトリの直下の端末で打ちます
