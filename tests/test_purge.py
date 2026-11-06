@@ -126,3 +126,78 @@ def test_purge_audit_keeps_counts_only():
     assert a["retentionId"] == "RTD-x" and a["purgedCounts"] == ["Record:2"] and a["keptPersons"] == 1
     assert a["origin"] == "Human" and a["status"] == "Active"
     assert not {"reason", "displayCode", "familyName", "givenName", "text", "quote"} & set(a)
+
+
+# --- 音声を先に消し、そのあと DB を消す（2026-11-06 河原さん。止まる点 F-3、G-77 の直しの順） ---
+
+class _Driver:
+    """purge の _run を差し替えて使う偽の DB。読む・書くの呼ばれた順を残す。"""
+
+    def __init__(self, calls):
+        self.calls = calls
+
+    def session(self, database):
+        outer = self
+
+        class S:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def execute_read(self, fn, *args):
+                outer.calls.append("read")
+                return fn(None, *args)
+
+            def execute_write(self, fn, *args):
+                outer.calls.append("write")
+                return fn(None, *args)
+        return S()
+
+
+def _fake_run(voice_file, seen):
+    def run(tx, staff_id, display_code, write, confirm, now, new_id, request_id):
+        seen.append(("db-write" if write else "db-read", voice_file.exists()))
+        return {"ok": True, "errors": [], "displayCode": display_code, "written": write,
+                "_hashes": {voice_file.name[:64]}}
+    return run
+
+
+def _voice(tmp_path):
+    root = tmp_path / "v"
+    root.mkdir()
+    f = root / ("a" * 64 + ".webm")
+    f.write_bytes(b"x")
+    return root, f
+
+
+def test_write_removes_voice_before_the_db(tmp_path, monkeypatch):
+    root, f = _voice(tmp_path)
+    seen, calls = [], []
+    monkeypatch.setattr(purge, "_run", _fake_run(f, seen))
+    out = purge.purge(_Driver(calls), ADMIN, "C-ZZZZZZ", write=True, confirm="C-ZZZZZZ", voice_root=root)
+    assert out["ok"] and out["written"] and out["voiceFiles"] == 1 and out["voiceFilesRemoved"] == 1
+    assert seen == [("db-read", True), ("db-write", False)]  # DB を消す時には、音声はもう無い
+    assert calls == ["read", "write"]
+
+
+def test_db_is_kept_when_a_voice_file_cannot_be_removed(tmp_path, monkeypatch):
+    root, f = _voice(tmp_path)
+    seen, calls = [], []
+    monkeypatch.setattr(purge, "_run", _fake_run(f, seen))
+
+    def refuse(self):
+        raise PermissionError("（架空）消せない")
+    monkeypatch.setattr(type(f), "unlink", refuse)
+    out = purge.purge(_Driver(calls), ADMIN, "C-ZZZZZZ", write=True, confirm="C-ZZZZZZ", voice_root=root)
+    assert not out["ok"] and not out["written"] and calls == ["read"]
+    assert any("音声" in e and "DB は消していない" in e for e in out["errors"])
+
+
+def test_dry_run_reports_voice_count_and_touches_nothing(tmp_path, monkeypatch):
+    root, f = _voice(tmp_path)
+    seen, calls = [], []
+    monkeypatch.setattr(purge, "_run", _fake_run(f, seen))
+    out = purge.purge(_Driver(calls), ADMIN, "C-ZZZZZZ", voice_root=root)
+    assert out["voiceFiles"] == 1 and f.exists() and calls == ["read"] and not out["written"]

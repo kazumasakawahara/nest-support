@@ -10,7 +10,9 @@
 - 本当に消す（DETACH DELETE）。消したら監査ログ（Purge）を 1 件だけ書く：本人の ID・もとにした保存の判断・種類ごとの件数・
   残した人の数。名前・仮名・本文・理由の文は書かない。今までの監査ログは残る（相手が消えるので AUDIT_FOR は外れ、ID の文字だけ残る）
 - 本人の記録の documentHash に合う音声（nest_voice_data/。nest/voice.py）も、同じ操作の中で消す。試しの実行では件数を出す
-  （2026-11-06 河原さん。G-77 の直し）。DB を消した後にファイルを消す。音声が別の本人の記録と同じ原文でも消す（その本人のことも含むため）
+  （2026-11-06 河原さん。G-77 の直し）。音声を先に消し、そのあと DB を消す（止まる点 F-3 で河原さんが順を決めた。DB を先に消すと、
+  音声を消せなかったとき、参照の無い音声が残って探しにくい）。音声を一つでも消せなければ DB は消さない。
+  音声が別の本人の記録と同じ原文でも消す（その本人のことも含むため）
 - バックアップは消さない。消した後に新しいバックアップを取り、戻せることを確かめてから、消した日より前のものを人が消す
 - Claude はこれを使わない（読み取りの包みは書けない）。人が手元の道具（scripts/purge_client.py）で使う
 手本：tsunagu-net の tsunagu/gate/purge.py（読むだけ）。tsunagu-net は世帯、nest-support は本人が単位。
@@ -82,8 +84,12 @@ def check(role, exists, decision, display_code, write, confirm):
     elif decision.get("decision") != "Delete":
         errors.append("最後の保存の判断が消す（Delete）でない（%s は %s）" % (decision.get("retentionId"), decision.get("decision")))
     if write and confirm != display_code:
-        errors.append("仮名の打ち返しが%s（--confirm に同じ仮名を書く）" % ("無い" if not confirm else "合わない"))
+        errors.append(confirm_error(confirm))
     return errors
+
+
+def confirm_error(confirm):
+    return "仮名の打ち返しが%s（--confirm に同じ仮名を書く）" % ("無い" if not confirm else "合わない")
 
 
 def audit_props(new_id, now, client_id, retention_id, purged_counts, kept_persons, request_id):
@@ -157,24 +163,36 @@ def _run(tx, staff_id, display_code, write, confirm, now, new_id, request_id):
 
 def purge(driver, staff_id, display_code, write=False, confirm=None, now=None, new_id=ids.new_id, request_id=None,
           database="neo4j", voice_root=None):
-    """試しの実行（write=False）は件数だけ。write=True で消す（confirm に同じ仮名が要る）。音声も同じ操作の中で消す。"""
+    """試しの実行（write=False）は件数だけ。write=True で消す（confirm に同じ仮名が要る）。
+    消すときは、読んで確かめる → 音声を消す → DB を消す、の順。音声を消せなければ DB は消さない。"""
     now = now or datetime.now(timezone.utc)
     request_id = request_id or "req-purge-" + uuid.uuid4().hex
+    root = voice.VOICE_DIR if voice_root is None else voice_root
     with driver.session(database=database) as s:
-        run = s.execute_write if write else s.execute_read
-        out = run(_run, staff_id, display_code, write, confirm, now, new_id, request_id)
+        out = s.execute_read(_run, staff_id, display_code, False, confirm, now, new_id, request_id)
     if not out["ok"]:
         return out
-    root = voice.VOICE_DIR if voice_root is None else voice_root
     names = voice.matching(root, out.pop("_hashes"))
     out["voiceFiles"] = len(names)
-    if out["written"]:
-        removed = 0
-        for name in names:
-            try:
-                (root / name).unlink()
-                removed += 1
-            except OSError as e:
-                out["errors"].append("音声 %s を消せなかった（%s）。手で消す" % (name, type(e).__name__))
-        out["voiceFilesRemoved"] = removed
-    return out
+    if not write:
+        return out
+    if confirm != display_code:
+        out.update(ok=False, errors=[confirm_error(confirm)])
+        return out
+    removed = 0
+    for name in names:
+        try:
+            (root / name).unlink()
+            removed += 1
+        except OSError as e:
+            out["errors"].append("音声 %s を消せなかった（%s）。DB は消していない。音声を手で消してから、もう一度流す"
+                                 % (name, type(e).__name__))
+    out["voiceFilesRemoved"] = removed
+    if out["errors"]:
+        out["ok"] = False
+        return out
+    with driver.session(database=database) as s:
+        done = s.execute_write(_run, staff_id, display_code, True, confirm, now, new_id, request_id)
+    done.pop("_hashes", None)
+    done.update(voiceFiles=len(names), voiceFilesRemoved=removed)
+    return done
