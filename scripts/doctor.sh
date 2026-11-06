@@ -11,7 +11,8 @@
 #   6. 正典のずれが 0 件（scripts/check_drift.py）
 #   7. FileVault が有効（N-33）
 #   8. バックアップの置き場所 ~/nest-backup/ は、あれば権限 700・Time Machine の対象外（N-33。無ければ知らせるだけ）
-#   9. Claude Desktop の設定（知らせるだけ）
+#   9. 音声の置き場所 nest_voice_data/ は、あれば権限 700・Time Machine の対象外（N-37。無ければ知らせるだけ）
+#  10. Claude Desktop の設定（知らせるだけ）
 #
 # 結果は OK / FAIL / INFO で表示する。FAIL が一つでもあれば 1 を返す。
 
@@ -146,7 +147,23 @@ else
 fi
 
 echo ""
-echo "[9] Claude Desktop の設定（知らせるだけ）"
+echo "[9] 音声の置き場所（nest_voice_data/。field-ui の録音。N-37）"
+# NEST_VOICE_DIR は試験のときだけ使う（tests/test_doctor.py）
+VOICE_DIR="${NEST_VOICE_DIR:-${PROJECT_DIR}/nest_voice_data}"
+if [ -d "${VOICE_DIR}" ]; then
+  vmode="$(stat -f %Lp "${VOICE_DIR}" 2>/dev/null || stat -c %a "${VOICE_DIR}" 2>/dev/null)"
+  if [ "${vmode}" = "700" ]; then ok "nest_voice_data: 権限 700"; else fail "nest_voice_data の権限が ${vmode}（700 にする: chmod 700 \"${VOICE_DIR}\"）"; fi
+  if tmutil isexcluded "${VOICE_DIR}" 2>/dev/null | grep -q "\[Excluded\]"; then
+    ok "nest_voice_data: Time Machine の対象外"
+  else
+    fail "nest_voice_data が Time Machine の対象（tmutil addexclusion \"${VOICE_DIR}\"）"
+  fi
+else
+  info "nest_voice_data はまだ無い（field-ui の録音で作る）"
+fi
+
+echo ""
+echo "[10] Claude Desktop の設定（知らせるだけ）"
 if [ -f "${DESKTOP_CONFIG}" ]; then
   if grep -q '"nest-personal"' "${DESKTOP_CONFIG}"; then
     info "Desktop の設定に nest-personal がある"

@@ -9,6 +9,8 @@
 - 正典のずれが 0 件
 - FileVault が有効（fdesetup status。N-33）
 - バックアップの置き場所 ~/nest-backup/ は、あれば権限 700・Time Machine の対象外（N-33。無ければ知らせるだけ）
+- 音声の置き場所 nest_voice_data/ は、あれば権限 700・Time Machine の対象外（N-37。無ければ知らせるだけ）。
+  試験では NEST_VOICE_DIR で一時の場所を指す（リポジトリの中に作らない）
 """
 import os
 import stat
@@ -23,7 +25,7 @@ SKILLS = sorted(p.name for p in (REPO / "claude-skills").iterdir() if (p / "SKIL
 
 
 def _run(tmp_path, ps_lines, *, env_mode=0o600, extra_links=(), drop_link=None, filevault="On", backup_mode=None,
-         excluded=True):
+         excluded=True, voice_mode=None):
     home = tmp_path / "home"
     (home / ".config" / "nest").mkdir(parents=True)
     env_file = home / ".config" / "nest" / "neo4j-redesign.env"
@@ -50,10 +52,14 @@ def _run(tmp_path, ps_lines, *, env_mode=0o600, extra_links=(), drop_link=None, 
     if backup_mode is not None:
         (home / "nest-backup").mkdir()
         os.chmod(home / "nest-backup", backup_mode)
+    voice = tmp_path / "nest_voice_data"
+    if voice_mode is not None:
+        voice.mkdir()
+        os.chmod(voice, voice_mode)
     ps = tmp_path / "ps.txt"
     ps.write_text("".join(line + "\n" for line in ps_lines), encoding="utf-8")
     env = dict(os.environ, HOME=str(home), PATH="%s:%s" % (bin_dir, os.environ["PATH"]), FAKE_PS=str(ps), FAKE_FV=filevault,
-               FAKE_TM="Excluded" if excluded else "Included")
+               FAKE_TM="Excluded" if excluded else "Included", NEST_VOICE_DIR=str(voice))
     return subprocess.run(["bash", str(DOCTOR)], cwd=REPO, env=env, capture_output=True, text=True, timeout=120)
 
 
@@ -129,3 +135,31 @@ def test_fails_when_the_backup_place_is_readable_by_others(tmp_path):
 def test_fails_when_the_backup_place_is_in_time_machine(tmp_path):
     out = _run(tmp_path, [], backup_mode=0o700, excluded=False)
     assert out.returncode == 1 and "Time Machine" in out.stdout
+
+
+# ---- N-37（2026-11-06 河原さん。止まる点 F-1）：音声は nest のデータの下、権限 700、Time Machine の対象外 ----
+
+def test_voice_place_absent_is_only_info(tmp_path):
+    out = _run(tmp_path, [])
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert "nest_voice_data" in out.stdout
+
+
+def test_voice_place_passes_when_private_and_excluded(tmp_path):
+    out = _run(tmp_path, [], voice_mode=0o700)
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert "nest_voice_data: 権限 700" in out.stdout
+
+
+def test_fails_when_the_voice_place_is_readable_by_others(tmp_path):
+    out = _run(tmp_path, [], voice_mode=0o755)
+    assert out.returncode == 1 and "nest_voice_data の権限が 755" in out.stdout
+
+
+def test_fails_when_the_voice_place_is_in_time_machine(tmp_path):
+    out = _run(tmp_path, [], voice_mode=0o700, excluded=False)
+    assert out.returncode == 1 and "nest_voice_data が Time Machine の対象" in out.stdout
+
+
+def test_the_default_voice_place_is_in_the_repository():
+    assert 'VOICE_DIR="${NEST_VOICE_DIR:-${PROJECT_DIR}/nest_voice_data}"' in DOCTOR.read_text(encoding="utf-8")

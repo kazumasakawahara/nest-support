@@ -15,6 +15,8 @@ nest-support 現場UI サーバー
   - 支援記録はゲート（nest.gate.write.submit）に依頼として渡す。DB に直に書かない
   - 音声は文字起こし（docs/external-api.md NEXT-03 の歯止めを通す）まで。構造化も登録もしない。
     書き込みの案は、職員が文字起こしを原文にして narrative-extractor と intake で作る
+  - 文字起こしができた音声は nest_voice_data/ に「文字起こしの sha256（＝ documentHash）＋ 拡張子」で置く。
+    承認されたら・遅くとも 30 日で scripts/purge_voice.py が消す
 
 起動:
   uv run python field-ui/server.py      # 既定は 127.0.0.1:8001
@@ -38,7 +40,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from nest.auth import require_staff, set_session_cookie, staff_of
-from nest import auth
+from nest import auth, voice
 
 app = FastAPI(
     title="nest-support 現場UI",
@@ -63,6 +65,7 @@ if CORS_ORIGINS:
 # 音声アップロード上限・許可形式
 MAX_AUDIO_BYTES = int(os.getenv("MAX_AUDIO_MB", "25")) * 1024 * 1024
 ALLOWED_AUDIO_EXT = {".webm", ".ogg", ".oga", ".mp3", ".m4a", ".mp4", ".wav", ".aac", ".flac"}
+VOICE_ROOT = voice.VOICE_DIR  # 音声の置き場所（nest/voice.py。権限 700、Time Machine の対象外）
 DASHBOARD_CLOSED = "ダッシュボードは閉じています（計画 N-37）。支援記録の推移は insight-agent スキルで見てください"
 
 
@@ -230,7 +233,8 @@ async def api_voice_upload(
     clientId: str = Form(...),
     staff: str = Depends(require_staff),
 ):
-    """音声ファイルをアップロードし、文字起こしを返す（NEXT-03）。構造化と登録はしない（N-05・ADR-001 D6）。"""
+    """音声ファイルをアップロードし、文字起こしの全文と documentHash を返す（NEXT-03）。構造化と登録はしない（N-05・ADR-001 D6）。
+    全文を返すのは、職員がそのまま原文にすると documentHash が音声の名前と合い、承認で音声を消せるため。"""
     # いない本人は、文字起こし（外への送信）の前に弾く
     _require_client(clientId)
 
@@ -265,18 +269,20 @@ async def api_voice_upload(
         raise HTTPException(status_code=422, detail="空の音声ファイルです")
 
     try:
-        from lib.genai import transcribe_audio
-        transcript = transcribe_audio(tmp_path)
+        import lib.genai
+        transcript = lib.genai.transcribe_audio(tmp_path)
         if not transcript:
-            raise HTTPException(status_code=422, detail="音声の文字起こしに失敗しました")
-
+            raise HTTPException(status_code=422, detail="音声の文字起こしに失敗しました（送信が許されていないときも）")
+        digest = voice.store(tmp_path, transcript, suffix, VOICE_ROOT)
         return {
             "status": "transcribed",
-            "transcript": transcript[:500],
+            "transcript": transcript,
+            "documentHash": digest,
             "nodes_registered": 0,
         }
     finally:
-        os.unlink(tmp_path)
+        if os.path.exists(tmp_path):  # 置き場所へ移せなかったとき・文字起こしできなかったときは残さない
+            os.unlink(tmp_path)
 
 
 if __name__ == "__main__":

@@ -51,11 +51,12 @@ def test_multi_importer_extracts_text_only(fake_genai, monkeypatch, tmp_path):
 def test_field_ui_voice_transcribes_without_structuring(fake_genai, monkeypatch, tmp_path):
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
-    from tests.test_field_ui_guards import AUTH, CLIENT, _load_field_ui, _set_clients, _staff_table
+    from tests.test_field_ui_guards import AUTH, CLIENT, _load_field_ui, _set_clients, _staff_table, _voice_root
 
     _staff_table(monkeypatch, tmp_path)
     app_mod = _load_field_ui()
     _set_clients(monkeypatch, app_mod, {CLIENT})
+    _voice_root(monkeypatch, app_mod, tmp_path)
     sent = []
     monkeypatch.setattr(app_mod, "submit_to_gate", lambda req: sent.append(req) or {"ok": True})
     allow(fake_genai, *ALL_ROWS)
@@ -73,3 +74,20 @@ def test_field_ui_voice_transcribes_without_structuring(fake_genai, monkeypatch,
     assert body["nodes_registered"] == 0
     assert fake_genai["calls"] == ["generate_content"]  # 文字起こしの 1 回だけ
     assert sent == []  # 構造化も登録もしない（案は職員が narrative-extractor と intake で作る）
+
+
+def test_field_ui_voice_needs_the_next03_gate(fake_genai, monkeypatch, tmp_path):
+    """N-37：録音の文字起こしは NEXT-03 の歯止め（lib/genai.py の egress.authorize）を通る。許可が無ければ送らず、音声も残さない"""
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+    from tests.test_field_ui_guards import AUTH, CLIENT, _load_field_ui, _set_clients, _staff_table, _voice_root
+
+    _staff_table(monkeypatch, tmp_path)
+    app_mod = _load_field_ui()
+    _set_clients(monkeypatch, app_mod, {CLIENT})
+    root = _voice_root(monkeypatch, app_mod, tmp_path)
+    r = TestClient(app_mod.app).post("/api/voice/upload", data={"clientId": CLIENT},
+                                     files={"audio": ("fictional.webm", b"x" * 10, "audio/webm")}, headers=AUTH)
+    assert r.status_code == 422
+    assert fake_genai["calls"] == []  # 外へ送っていない
+    assert not root.exists() or list(root.iterdir()) == []

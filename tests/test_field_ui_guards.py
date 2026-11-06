@@ -6,6 +6,7 @@
 - 支援記録の項目は正典の SupportLog の項目だけ（日付・場面・対応・効果・メモ・次の対応）。感情・きっかけの欄は無い
 - ダッシュボードの API は閉じる（503）。推移は insight-agent スキルで見る
 - 音声の大きさ・形式の点検（P1-13）と、いない本人を弾くこと（P1-14）は前のまま
+- 文字起こしができた音声は nest_voice_data/ に「文字起こしの sha256 ＋ 拡張子」で置き、文字起こしの全文と documentHash を返す。  できなければ音声を残さない（消す道具は nest/voice.py）
 DB つきの確かめは tests/test_field_ui_live.py。
 """
 import contextlib
@@ -54,6 +55,15 @@ def _set_clients(monkeypatch, mod, existing):
         return [{"clientId": cid, "displayCode": "C-ZZZZZZ"} for cid in sorted(existing)]
     monkeypatch.setattr(mod, "read_personal", fake)
     return seen
+
+
+def _voice_root(monkeypatch, mod, tmp_path):
+    """音声の置き場所を一時の場所にし、tmutil を呼ばないようにする。"""
+    from nest import voice
+    root = tmp_path / "nest_voice_data"
+    monkeypatch.setattr(mod, "VOICE_ROOT", root)
+    monkeypatch.setattr(voice, "run", lambda args: (0, ""))
+    return root
 
 
 @pytest.fixture
@@ -221,3 +231,35 @@ def test_voice_upload_rejects_unknown_client(app_mod, monkeypatch):
     r = TestClient(app_mod.app).post("/api/voice/upload", data={"clientId": "CLI-01BBBBBBBBBBBBBBBBBBBBBBBB"},
                                      files={"audio": ("rec.webm", b"x" * 10, "audio/webm")}, headers=AUTH)
     assert r.status_code == 404
+
+
+TRANSCRIPT = "（架空）散歩の途中で座り込んだ。" * 40  # 500 字を超える
+
+
+def test_voice_upload_keeps_the_audio_under_the_transcript_hash(app_mod, monkeypatch, tmp_path):
+    import hashlib
+    import stat
+    import lib.genai
+    _set_clients(monkeypatch, app_mod, {CLIENT})
+    root = _voice_root(monkeypatch, app_mod, tmp_path)
+    monkeypatch.setattr(lib.genai, "transcribe_audio", lambda path: TRANSCRIPT)
+    r = TestClient(app_mod.app).post("/api/voice/upload", data={"clientId": CLIENT},
+                                     files={"audio": ("rec.webm", b"audio", "audio/webm")}, headers=AUTH)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    digest = hashlib.sha256(TRANSCRIPT.encode("utf-8")).hexdigest()
+    assert body == {"status": "transcribed", "transcript": TRANSCRIPT, "documentHash": digest, "nodes_registered": 0}
+    kept = root / (digest + ".webm")
+    assert kept.read_bytes() == b"audio"
+    assert stat.S_IMODE(os.stat(root).st_mode) == 0o700 and stat.S_IMODE(os.stat(kept).st_mode) == 0o600
+
+
+def test_voice_upload_keeps_nothing_when_transcription_fails(app_mod, monkeypatch, tmp_path):
+    import lib.genai
+    _set_clients(monkeypatch, app_mod, {CLIENT})
+    root = _voice_root(monkeypatch, app_mod, tmp_path)
+    monkeypatch.setattr(lib.genai, "transcribe_audio", lambda path: None)
+    r = TestClient(app_mod.app).post("/api/voice/upload", data={"clientId": CLIENT},
+                                     files={"audio": ("rec.webm", b"audio", "audio/webm")}, headers=AUTH)
+    assert r.status_code == 422
+    assert not root.exists() or list(root.iterdir()) == []
