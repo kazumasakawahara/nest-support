@@ -17,7 +17,7 @@
 
 ## 届かなかったもの（名指し）
 
-- **架空の事例の文書 2 件**：Library の `fixtures_kakuu_3cases.md` は `/mnt/project-files/` に無かった（同じ日に別のスレッドが置いた `proposals/2026-11-08-stage-L-M.md` しか無い）。`fixture_kakuu_haruto.md` は nest-support の main にも、`origin` のブランチにも無い。K-2 の中身はこの 2 件に依らないので、第一部の例を一般の言い方にとどめて進めた。K-1（ADR-002 の受け入れ試験）では要る
+- **架空の事例の文書 2 件**：Library の `fixtures_kakuu_3cases.md` は `/mnt/project-files/` に無かった（同じ日に別のスレッドが置いた `proposals/2026-11-08-stage-L-M.md` しか無い）。`fixture_kakuu_haruto.md` は最初は見つからなかったが、河原さんの知らせ（2026-11-07）で nest-support の `stage-j` ブランチの直下にあることが分かり、読んで第一部 3 の例に引いた（架空 はると。卵のアレルギー・大きな音・予定の変更）。K-2 の中身はこの 2 件に依らない。K-1（ADR-002 の受け入れ試験）では要る
 - **e-Gov 法令 API**：この環境からは届かない（既知。メモリにも記録あり）。条番号の照合は Mac で行う
 
 ## 承認なしに決めたこと（台帳に移すかは河原さんが決める）
