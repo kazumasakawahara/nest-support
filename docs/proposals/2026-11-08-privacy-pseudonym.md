@@ -1,6 +1,6 @@
 # 提案：PRIVACY_GUIDELINES に「AI 利用の説明と同意」への参照と「仮名の位置づけ」を足す（計画 K-2）
 
-- 日付：2026-11-08（草案。**確認点で止まっている**）
+- 日付：2026-11-08（**2026-11-07 河原さん「可」。PRIVACY_GUIDELINES への写しは別の作業**）
 - 決めるのは河原さん。**`docs/PRIVACY_GUIDELINES.md` 本体はこの提案では変えていない。** 承認されたら、下の文案をそのまま写し、版を上げる
 - 対象の版：`docs/PRIVACY_GUIDELINES.md` 2026-11-06 版（計画 N-29）
 - 関連：`docs/AI_USE_EXPLANATION_AND_CONSENT.md` v0.1、`docs/external-api.md` v0.11 注 1、ADR-001 D11 11-2、台帳 G-8・G-42・G-80
