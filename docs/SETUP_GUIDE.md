@@ -166,7 +166,7 @@ cd sos && uv run python api_server.py     # http://127.0.0.1:8000/app/?id=C-…�
 - 本人（氏名・生年月日・住所）を作るのは、職員が Claude の外の入口（手元のターミナル）で行い、仮名（`displayCode`）を受け取る
 
 ```bash
-uv run python scripts/new_client.py add --staff STF-… --family 氏 --given 名 --birth YYYY-MM-DD --address "住所"
+uv run python scripts/new_client.py add --staff STF-… --family 氏 --given 名 --birth YYYY-MM-DD --address "住所" --address-certainty 確度
 uv run python scripts/new_client.py find --family 氏 --given 名     # 名前から仮名を引く
 ```
 

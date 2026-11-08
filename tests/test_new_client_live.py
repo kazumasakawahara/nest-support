@@ -54,7 +54,7 @@ def _add(admin, given, *extra, driver):
 
 def test_add_creates_client_and_residence_and_prints_the_code(driver, admin, capsys):
     given = "花子" + uuid.uuid4().hex[:8]
-    assert _add(admin, given, "--birth", "1990-04-01", "--address", "福岡県北九州市小倉北区架空町1-2-3", driver=driver) == 0
+    assert _add(admin, given, "--birth", "1990-04-01", "--address", "福岡県北九州市小倉北区架空町1-2-3", "--address-certainty", "Confirmed", driver=driver) == 0
     out = capsys.readouterr().out
     codes = CODE.findall(out)
     assert len(codes) == 1

@@ -93,3 +93,63 @@ def test_section_1_tells_about_retry_lines_right_after_up():
     t = DOC.read_text(encoding="utf-8")
     s1 = t[t.index("## 1."):t.index("## 2.")]
     assert "retried" in s1 and "[2]" in s1
+
+
+# 詰まり #3：live_cleanup で DB の職員を消しても、トークンの表には DB にいない職員が残る。扱いが手順書に無かった。
+
+def _trial_section():
+    from doc_commands import DOC
+    t = DOC.read_text(encoding="utf-8")
+    i = t.index("### 試走")
+    return t[i:t.index("\n## ", i)]
+
+
+def test_trial_cleanup_removes_table_rows_with_the_doc_command(tmp_path, capsys):
+    """詰まり #3：片づけの小段の staff_token の行をそのまま流すと、DB から消えた職員が表からも消える"""
+    import re
+    from doc_commands import argv, load
+    sec = _trial_section()
+    lines = [l.split("  #")[0].strip() for b in re.findall(r"```bash\n(.*?)```", sec, re.S) for l in b.splitlines()]
+    remove = [l for l in lines if l.startswith("uv run python scripts/staff_token.py remove")]
+    assert remove, "片づけの小段に staff_token.py remove の行が無い"
+    st = load("staff_token.py")
+    table = tmp_path / "staff.json"
+    fake = "STF-0000FAKESTAFF0000000000001"
+    assert st.main(["add", fake, "--table", str(table)]) == 0
+    assert st.main(argv(remove[0], {"STF-…": fake}) + ["--table", str(table)]) == 0
+    capsys.readouterr()
+    assert st.main(["list", "--table", str(table)]) == 0
+    assert fake not in capsys.readouterr().out
+
+
+# 詰まり #4：架空の事例の住まいの確度（申告・住民票は未確認）を渡す引数が段 4 に無く、道具は Confirmed に決め打ちしていた。
+
+CERTAINTIES = ["Confirmed", "SelfReport", "Hearsay", "Inference", "Unspecified"]
+
+
+def _section(head):
+    from doc_commands import DOC
+    t = DOC.read_text(encoding="utf-8")
+    i = t.index(head)
+    return t[i:t.index("\n## ", i)]
+
+
+def test_section_4_lists_how_to_choose_the_residence_certainty():
+    """詰まり #4：段 4 に確度の値の選び方を一覧で書く（2026-11-08 河原さん）"""
+    s4 = _section("## 4.")
+    for value in CERTAINTIES:
+        assert "`%s`" % value in s4, value
+    for word in ("住民票", "本人の申告", "伝聞", "推定", "分からない", "後から変えられない"):
+        assert word in s4, word
+
+
+def test_section_4_add_command_passes_the_certainty():
+    """詰まり #4：段 4 の add の行をそのまま道具に渡すと、住まいの確度が入る"""
+    from doc_commands import argv, lines, load
+    m = load("new_client.py")
+    add = [l for l in lines("new_client.py") if " add " in l]
+    assert add and "--address-certainty" in add[0]
+    a = m.parse(argv(add[0], {"STF-…": "STF-01AAAAAAAAAAAAAAAAAAAAAAAA", "YYYY-MM-DD": "1998-04-12",
+                              "確度": "SelfReport"}))
+    req = m.client_request(a, "req-x")
+    assert req["nodes"][1]["properties"]["certainty"] == "SelfReport"

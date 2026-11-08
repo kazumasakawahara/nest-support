@@ -30,7 +30,8 @@ def _args(*extra):
 def test_request_with_an_address_has_client_residence_and_link():
     m = _script()
     req = m.client_request(_args("--family-kana", "カクウ", "--given-kana", "ハナコ", "--birth", "1990-04-01",
-                                 "--address", "福岡県北九州市小倉北区架空町1-2-3"), "req-x")
+                                 "--address", "福岡県北九州市小倉北区架空町1-2-3", "--address-certainty", "Confirmed"),
+                            "req-x")
     assert [n["label"] for n in req["nodes"]] == ["Client", "Residence"]
     assert all(n["origin"] == "Human" for n in req["nodes"])
     c = req["nodes"][0]["properties"]
@@ -63,3 +64,21 @@ def test_the_mcp_wrappers_do_not_use_this_tool():
     """名前を受け取る道具は Claude の側（MCP の包み）に置かない（台帳 G-42 (2)）"""
     for name in ("mcp_personal.py", "mcp_resource.py", "mcp_guard.py"):
         assert "new_client" not in (REPO / "nest" / name).read_text(encoding="utf-8")
+
+
+# N-46 詰まり #4（2026-11-08 河原さん。台帳 G-93）：住まいの確度は決め打ちせず、住所を入れるなら必ず指定する。作った後は変えられない
+
+@pytest.mark.parametrize("value", ["Confirmed", "SelfReport", "Hearsay", "Inference", "Unspecified"])
+def test_residence_certainty_is_what_the_staff_chose(value):
+    req = _script().client_request(_args("--address", "福岡県北九州市小倉北区架空町1-2-3", "--address-certainty", value),
+                                   "req-x")
+    assert req["nodes"][1]["properties"]["certainty"] == value
+    assert gv.validate(req)["ok"], gv.validate(req)["errors"]
+
+
+@pytest.mark.parametrize("extra", [["--address", "福岡県北九州市小倉北区架空町1-2-3"],
+                                   ["--address-certainty", "Confirmed"],
+                                   ["--address", "福岡県北九州市小倉北区架空町1-2-3", "--address-certainty", "Maybe"]])
+def test_address_and_certainty_go_together_and_certainty_is_from_the_canon(extra):
+    with pytest.raises(SystemExit):
+        _args(*extra)

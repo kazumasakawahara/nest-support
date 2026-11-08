@@ -3,6 +3,7 @@
 - 職員が手元のターミナルで打つ。Claude には何も渡さない（この道具の出力を Claude の会話に貼らない）。
   MCP の包みには、名前を受け取る道具を作らない（名前と仮名の対応が Claude の側の記録に残るため）
 - add：ゲート（nest.gate.write.submit）を通して、本人（Client）と、住所があれば住まい（Residence、RESIDES_AT）を作る。
+  住所を入れるときは確度（--address-certainty。正典の列挙値）も必ず入れる。作った後は変えられない（台帳 G-93）
   人が入れたもの（origin Human）なので、そのまま Active。仮名（displayCode）はゲートが発番し、画面に出す
 - 実名・かな・生年月日・住所は DB に入れてよい（読み取りの包みが返さないだけ）
 - 二重登録を止める：同じ氏名の本人がいて、生年月日が同じか、どちらかに生年月日が無ければ作らない（今いる本人の仮名を出す）
@@ -10,7 +11,7 @@
 
 使い方:
   uv run python scripts/new_client.py add --staff STF-… --family 氏 --given 名 [--family-kana …] [--given-kana …]
-                                          [--birth YYYY-MM-DD] [--address 住所]
+                                          [--birth YYYY-MM-DD] [--address 住所 --address-certainty 確度]
   uv run python scripts/new_client.py find --family 氏 [--given 名]
 """
 import argparse
@@ -21,7 +22,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
+from nest import canon  # noqa: E402
 from nest.gate import write as gw  # noqa: E402
+
+CERTAINTIES = canon.load(REPO / "docs" / "SCHEMA.md")["enums"]["certainty"]
 
 SAME = """MATCH (c:Client {familyName: $family, givenName: $given})
 WHERE $birth IS NULL OR c.birthDate IS NULL OR c.birthDate = date($birth)
@@ -42,10 +46,14 @@ def parse(argv):
     add.add_argument("--given-kana")
     add.add_argument("--birth", help="YYYY-MM-DD")
     add.add_argument("--address")
+    add.add_argument("--address-certainty", choices=CERTAINTIES, help="住まいの確度（住所を入れるなら必ず）")
     find = sub.add_parser("find")
     find.add_argument("--family", required=True)
     find.add_argument("--given")
-    return ap.parse_args(argv)
+    a = ap.parse_args(argv)
+    if a.cmd == "add" and bool(a.address) != bool(a.address_certainty):
+        ap.error("--address と --address-certainty は一緒に入れる（確度は作った後に変えられない）")
+    return a
 
 
 def client_request(a, request_id):
@@ -59,7 +67,7 @@ def client_request(a, request_id):
     rels = []
     if a.address:
         nodes.append({"ref": "r", "label": "Residence", "origin": "Human",
-                      "properties": {"address": a.address, "certainty": "Confirmed"}})
+                      "properties": {"address": a.address, "certainty": a.address_certainty}})
         rels.append({"type": "RESIDES_AT", "from": "c", "to": "r", "properties": {}})
     return {"requestId": request_id, "actorStaffId": a.staff, "nodes": nodes, "relationships": rels}
 

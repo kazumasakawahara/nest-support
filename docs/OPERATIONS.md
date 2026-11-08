@@ -53,6 +53,12 @@ uv run python tests/live_cleanup.py    # 印のノードのほかをすべて消
 
 - 片づけると職員が一人もいなくなるので、2 の段で最初の管理者を作れます
 - 印は残します（試走で Claude の照会を使うため）
+- 職員のトークンの表（3 の段）は DB の外にあるので、片づけでは消えません。DB から消えた職員の行は、表からも消します（残さない）：
+
+```bash
+uv run python scripts/staff_token.py list               # 表に残っている職員 ID
+uv run python scripts/staff_token.py remove STF-…       # DB から消えた職員を一人ずつ消す
+```
 
 ## 2. 最初の管理者を作る（bootstrap_admin）
 
@@ -100,11 +106,20 @@ uv run python scripts/staff_token.py remove STF-…   # 辞めた・なくした
 本人は Claude の外で、手元のターミナルから作ります。仮名（`displayCode`）は道具が発番します。
 
 ```bash
-uv run python scripts/new_client.py add --staff STF-… --family 氏 --given 名 --birth YYYY-MM-DD --address "住所"
+uv run python scripts/new_client.py add --staff STF-… --family 氏 --given 名 --birth YYYY-MM-DD --address "住所" --address-certainty 確度
 uv run python scripts/new_client.py find --family 氏 --given 名     # 名前から仮名を引く
 ```
 
 - かなは `--family-kana`・`--given-kana` で入れられます。生年月日と住所は分かれば入れます
+- 住所を入れるときは、確度（`--address-certainty`）も必ず入れます。**確度は後から変えられない**ので、何で確かめた住所かで選びます（台帳 G-93）
+
+  | 値 | 選ぶとき |
+  |---|---|
+  | `Confirmed` | 住民票・受給者証などの書類で確かめた |
+  | `SelfReport` | 本人の申告 |
+  | `Hearsay` | 家族・関係者からの伝聞 |
+  | `Inference` | 推定 |
+  | `Unspecified` | 分からない |
 - 同じ氏名の本人がいて、生年月日が同じか、どちらかに生年月日が無ければ作りません（二重登録のおそれ）。出た仮名で、その人が別人かを確かめます
 - 出た仮名を、本人の紙の記録に書き添えます。Claude にはこの仮名で伝えます
 
