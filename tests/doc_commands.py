@@ -33,3 +33,15 @@ def load(script):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+def all_lines():
+    """手順書の ```bash の枠の行を、上から順に全部（注釈と空行を外して）"""
+    text = DOC.read_text(encoding="utf-8")
+    out = []
+    for block in re.findall(r"```bash\n(.*?)```", text, re.S):
+        for line in block.splitlines():
+            line = line.split("  #")[0].strip()
+            if line and not line.startswith("#"):
+                out.append(line)
+    return out

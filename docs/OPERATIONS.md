@@ -25,17 +25,15 @@
 
 ---
 
-## 1. DB を起こす・止める
+## 1. DB を起こす
 
-DB は使うときだけ起こし、その日の作業の終わりに止めます。
+DB は使うときだけ起こし、その日の作業の終わりに止めます。この枠を打ったら、**DB を起こしたまま 2〜9 の段に進みます**。止めるのは最後の「10. その日の終わりに DB を止める」です。
 
 ```bash
 cd ~/Dev-Work/project/nest-support
 docker ps                                   # 前の DB（nest-support-neo4j など）が動いていないこと
 docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d
 ./scripts/doctor.sh                         # 最後の行が「0 failed」であること
-# …作業…
-docker compose --env-file ~/.config/nest/neo4j-redesign.env down
 ```
 
 - `--remove-orphans` は付けません
@@ -218,13 +216,24 @@ doctor の項目：[1] 前の DB は動いていない、[2] 新しい DB の待
 
 点検：[1]〜[10]
 
+## 10. その日の終わりに DB を止める
+
+その日の作業が終わったら、DB を止めます。バックアップを取る日は 7 の枠の中で止めているので、この段は飛ばします。
+
+```bash
+docker compose --env-file ~/.config/nest/neo4j-redesign.env down
+docker ps                                   # 新しい DB（nest-redesign-personal・nest-redesign-resource）が出ないこと
+```
+
+点検：人が確かめる（`docker ps` に新しい DB の 2 つが出ないこと）
+
 ---
 
 ## 段と点検の対応
 
 | 段 | 点検 |
 |---|---|
-| 1. DB を起こす・止める | [1] [2] [3] [7] |
+| 1. DB を起こす | [1] [2] [3] [7] |
 | 2. 最初の管理者（bootstrap_admin） | 人が確かめる |
 | 3. 職員のトークン（staff_token） | [3]。トークンを手で渡したことは人が確かめる |
 | 4. 本人の登録（new_client） | 人が確かめる |
@@ -233,6 +242,7 @@ doctor の項目：[1] 前の DB は動いていない、[2] 新しい DB の待
 | 7. バックアップ（backup） | [7] [8]。取ったこと・周期・戻せることは人が確かめる |
 | 8. 本人の廃棄（purge_client） | 人が確かめる。音声の残りは [9]、バックアップは [8] |
 | 9. 点検（doctor） | [1] [2] [3] [4] [5] [6] [7] [8] [9] [10] |
+| 10. その日の終わりに DB を止める | 人が確かめる（`docker ps` に新しい DB の 2 つが出ないこと） |
 
 ## 道具がまだ無いこと・決まっていないこと
 
