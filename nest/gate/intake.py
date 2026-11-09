@@ -233,6 +233,10 @@ def check(proposal, original, actor_staff_id, request_id, provider_org_id=None, 
                 errors.append("%s: 確度 %r が原文の印（%s）と違う（格上げも格下げもしない）" % (where, f.get("certainty"), marked))
     _check_involvements(p, estimate, errors)
     _check_candidates(p, errors)
+    used = {f.get("toldBy") for f in facts} | {inv.get("concerns") for inv in p.get("involvements") or [] if isinstance(inv, dict)}
+    for ref in sorted(r for r in refs if isinstance(r, str) and r not in used):  # N-46 #10
+        warnings.append("newPeople の %s は、どの事実の toldBy にも、どの関わりの concerns にも使われていない"
+                        "（根拠の記録にも本人にも結ばれない人になる）。案から外してもらうか、承認の前に確かめる" % ref)
     notes = list((estimate or {}).get("notes", [])) if p.get("involvements") else []
     if errors:
         out = {"ok": False, "errors": errors, "warnings": warnings, "request": None, "notes": notes}
