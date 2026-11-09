@@ -170,3 +170,91 @@ def test_sos_banner_shows_the_port_from_the_doc_command(monkeypatch):
     text = "\n".join(sos.banner())
     assert "/app/" in text and "/api/sos" in text
     assert ":%s/" % port in text and ":8000/" not in text
+
+
+# 詰まり #6 の続き（注意）：試走の環境は「LINE設定: 設定済み」。SOS のボタンを押したとき（POST /api/sos）、
+# NEXT-05 の歯止めが止めれば LINE へ送る関数（httpx）が呼ばれないことを、本物に送らずに確かめる。
+
+LINE_URL = "https://api.line.me/v2/bot/message/push"
+
+
+class _Sent:
+    """httpx.AsyncClient の代わり。作られた回数と送った先を数える（外へは出さない）"""
+    made, posts = 0, []
+
+    def __init__(self, *a, **k):
+        _Sent.made += 1
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        return False
+
+    async def post(self, url, json=None, headers=None):
+        _Sent.posts.append(url)
+
+        class R:
+            status_code = 200
+            text = ""
+        return R()
+
+
+@pytest.fixture
+def sos_press(monkeypatch):
+    """SOS のボタンを押したのと同じ POST /api/sos。LINE の鍵は架空の値（鍵がある状態にする）"""
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+    import sos.api_server as sos
+    _Sent.made, _Sent.posts = 0, []
+    monkeypatch.setattr(sos.httpx, "AsyncClient", _Sent)
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "dummy-not-a-token")
+    monkeypatch.setenv("LINE_GROUP_ID", "dummy-group")
+    client = TestClient(sos.app)
+    return lambda: client.post("/api/sos", json={"client_id": "C-ZZZZZZ"})
+
+
+def test_sos_press_does_not_send_when_egress_denies(sos_press, monkeypatch):
+    """(1) egress.ensure が止めたら、送る関数は作られもしない。応答は失敗"""
+    from nest import egress
+    calls = []
+
+    def deny(row, url):
+        calls.append((row, url))
+        raise egress.EgressDenied("（試験）止めた")
+    monkeypatch.setattr(egress, "ensure", deny)
+    resp = sos_press()
+    assert calls == [("NEXT-05", LINE_URL)]
+    assert _Sent.made == 0 and _Sent.posts == []
+    assert resp.status_code == 500
+
+
+def test_sos_press_would_send_if_egress_allowed(sos_press, monkeypatch):
+    """対照：歯止めが通せば、偽の httpx に一度だけ届く（上の試験が送信を見逃していないことの確かめ）"""
+    from nest import egress
+    monkeypatch.setattr(egress, "ensure", lambda row, url: None)
+    resp = sos_press()
+    assert _Sent.posts == [LINE_URL] and resp.status_code == 200
+
+
+def test_sos_press_does_not_send_in_the_current_state_without_the_files(sos_press, monkeypatch):
+    """(2) 今の状態：機能の設定と契約の確認の記録が本物の置き場所に無い。差し替えずに押しても送らない。
+    ファイルがあれば中身を読まずに飛ばす（~/.config/nest/ を読まないため）"""
+    from nest import egress
+    present = [p.name for p in (egress.features_path(), egress.record_path()) if p.exists()]
+    if present:
+        pytest.skip("置き場所にファイルがある（%s）。読まずに飛ばす" % "、".join(present))
+    denied = []
+    real = egress.ensure
+
+    def watch(row, url):
+        try:
+            real(row, url)
+        except egress.EgressDenied as e:
+            denied.append(str(e))
+            raise
+    monkeypatch.setattr(egress, "ensure", watch)
+    resp = sos_press()
+    assert denied, "歯止めが止めなかった"
+    assert _Sent.made == 0 and _Sent.posts == []
+    assert resp.status_code == 500
