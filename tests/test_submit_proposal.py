@@ -153,3 +153,80 @@ def test_section_4_5_sits_between_4_and_5_and_covers_a_b_c():
 
 def test_section_0_points_to_4_5():
     assert "4.5" in _section("## 0.")
+
+
+# N-46 #7 の続き（2026-11-09 河原さん）：架空の事例の確度の印を、各文の直後に置き、語彙を点検の印にそろえた。
+# §2 の語りの各文を引用にした案を、文の直後の印から確度を決めて通すと、点検が止まらない。
+
+MARK_AT_END = __import__("re").compile(r"【([^】]+)】$")
+
+
+def _sentences(paragraph):
+    """「。」で文に分ける。かぎかっこ・丸かっこの中の「。」では分けない。文の直後の【…】は前の文に付ける"""
+    out, buf, depth = [], "", 0
+    for ch in paragraph:
+        if buf == "" and ch == "【" and out:
+            out[-1] += ch
+            buf = None
+            continue
+        if buf is None:
+            out[-1] += ch
+            if ch == "】":
+                buf = ""
+            continue
+        buf += ch
+        depth += ch in "「（" and 1 or 0
+        depth -= ch in "」）" and 1 or 0
+        if ch == "。" and depth == 0:
+            out.append(buf)
+            buf = ""
+    if buf:
+        out.append(buf)
+    return out
+
+
+def _fixture_section(n):
+    t = (REPO / "fixture_kakuu_haruto.md").read_text(encoding="utf-8")
+    i = t.index("## %d." % n)
+    body = t[t.index("\n", i) + 1:t.index("\n## ", i)]
+    return body
+
+
+def test_fixture_section_2_passes_the_intake_check(run, capsys):
+    from nest import semantics
+    marks = dict(semantics.certainty_marks())
+    body = _fixture_section(2)
+    facts = []
+    for para in [p.strip() for p in body.split("\n") if p.strip()]:
+        for s in _sentences(para):
+            m = MARK_AT_END.search(s)
+            quote = MARK_AT_END.sub("", s)
+            assert m is None or m.group(1) in marks, "知らない印：%s" % s
+            facts.append({"quote": quote, "recordKind": "Interview", "informantKind": "Family",
+                          "certainty": marks[m.group(1)] if m else "Unspecified"})
+    assert len(facts) > 10
+    rc, sent = run(_proposal(facts=facts), original=body)
+    assert rc == 0, capsys.readouterr().out
+    assert len(sent) == 1
+
+
+@pytest.mark.parametrize("n", [2, 3])
+def test_fixture_marks_follow_the_sentence(n):
+    """印は文の直後に置く（文の前に置かない）。語彙は点検の印だけ"""
+    from nest import semantics
+    words = {w for w, _ in semantics.certainty_marks()}
+    body = _fixture_section(n)
+    for para in [p.strip() for p in body.split("\n") if p.strip()]:
+        assert not para.startswith("【"), para[:20]
+        for s in _sentences(para):
+            assert "【" not in MARK_AT_END.sub("", s), "文の途中か前に印がある：%s" % s[:30]
+    found = set(__import__("re").findall(r"【([^】]+)】", body))
+    assert found and found <= words, found - words
+
+
+def test_section_4_5_says_where_and_which_marks():
+    """4.5 (b)：印は文の直後に、点検が読む 5 つのどれかを置く"""
+    s = _section("## 4.5")
+    assert "文の直後" in s
+    for word in ("【本人の話】", "【伝聞】", "【確認済み】", "【未確認】", "【推測】"):
+        assert word in s, word
