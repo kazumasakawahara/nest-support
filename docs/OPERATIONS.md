@@ -15,7 +15,7 @@
 
 ## 0. 最初の 5 つの操作
 
-導入した日に、まず一通り試す 5 つです。くわしい打ち方は 1〜9 の段にあります。**今は実データを Claude に渡さない**ので（台帳 G-80）、Claude を使う操作（2・3・5）は、架空の事例の DB でだけ試します。
+導入した日に、まず一通り試す 5 つです。くわしい打ち方は 1〜10 の段にあります。**今は実データを Claude に渡さない**ので（台帳 G-80）、Claude を使う操作（2〜5）は、架空の事例の DB でだけ試します。**Claude を使う操作（2〜5）の前に、4.5 の段で Claude Desktop をつなぎます**（設定を写す・語りから案を作る・案を未確定で入れる）。
 
 1. **本人を登録する**：手元のターミナルで `scripts/new_client.py add` を打ち、仮名（`C-……`）を受け取ります（4 の段）。Claude には名前を伝えません。以後、Claude にも画面にも仮名で伝えます
 2. **緊急の情報を確かめる**：現場では SOS の画面（5 の段）で、仮名から確かめます。Claude に「C-…… の緊急時の情報」と頼むと `emergency-protocol` が、禁忌（命に関わる → パニックを招く → 不快）、推奨ケア、支える人、医療、後見・任意代理の順に出します。連絡先・氏名・住所は Claude からは出ないので、手元の緊急連絡カードと SOS の画面で確かめます
@@ -125,6 +125,45 @@ uv run python scripts/new_client.py find --family 氏 --given 名     # 名前�
 
 点検：人が確かめる（`find` で仮名が引けること）
 
+## 4.5 Claude Desktop をつなぐ（設定と、語りから案を作る）
+
+段 0 の操作 2〜5 と、5 の段の後半（書き込みの案を承認する）は、この段を済ませてから使います。**今は架空の事例の DB でだけ使います**（台帳 G-80）。Claude の照会は架空の印のある DB でだけ動きます（試走では 1 の「試走のときだけ」で印を置いています）。
+
+### (a) 設定を写す
+
+1. `configs/claude_desktop_config.json` の `mcpServers` にある 2 つ（`nest-personal`・`nest-resource`）を、Claude Desktop の設定 `~/Library/Application Support/Claude/claude_desktop_config.json` の `mcpServers` に足します。そのファイルが無ければ、ひな形をそのまま写します。ほかの道具の設定があれば、消さずに足します
+2. 写した 2 か所の `<nest-support のフォルダ>` を、このリポジトリのフォルダの完全なパス（例：`/Users/<利用者>/Dev-Work/project/nest-support`）に書き換えます
+3. Claude Desktop を終了して（⌘Q）、起動し直します。道具（`nest-personal`・`nest-resource`）が見えなければ、`"command": "uv"` を `which uv` の結果（完全なパス）に書き換えて、もう一度起動し直します
+4. doctor の [10] が「Desktop の設定に nest-personal がある」になることを確かめます
+
+```bash
+./scripts/doctor.sh                         # [10] が「Desktop の設定に nest-personal がある」になること
+```
+
+### (b) 語りから案を作る（narrative-extractor）
+
+1. Claude Desktop で新しい会話を開き、「C-…… の面談記録から書き込みの案を作って」と頼んで、続けて原文を貼ります（`narrative-extractor` が動きます）
+2. 架空の事例（`fixture_kakuu_haruto.md`）は、**§2 の語りをそのまま貼ってかまいません**（§3 も同じ）。**§1（本人の登録の値。実名・住所・生年月日）は貼りません。** 実データは貼りません（台帳 G-80）
+3. Claude は案（JSON）を返して止まります。Claude は DB に書きません。案の `clientId` は空か `CLI-…` のままでかまいません（(c) の道具が仮名から入れます）
+4. 貼った原文と返ってきた案を、リポジトリの外の手元のフォルダに保存します（例：原文は `~/nest-intake/原文.txt`、案は `~/nest-intake/案.json`）。原文は貼ったものと一字も変えません
+
+### (c) 案を通して未確定で入れる（submit_proposal）
+
+```bash
+mkdir -m 700 -p ~/nest-intake
+uv run python scripts/submit_proposal.py --staff STF-… --code C-…… --original ~/nest-intake/原文.txt --proposal ~/nest-intake/案.json
+uv run python scripts/review_proposals.py list   # 入れた記録が未確定で並ぶ（5 の段の後半へ）
+```
+
+- 道具は入口の点検（原文に無い引用・引用に無い数字・原文の印と違う確度・型に無い項目）を通してから、ゲートに渡します。**点検で止まったら理由が出て、DB には何も入りません。** 理由を Claude に伝えて案を直してもらいます（点検の結果を自分で読み替えて通さない）
+- 通った案は AI 由来なので、未確定（Pending）で入ります。5 の段の後半（review_proposals）で一つずつ承認するか差し戻します
+- **原文は、引用の照合と原本の指紋（documentHash）にだけ使い、DB に入れません。** DB に入るのは事実ごとの要約（text）と引用（quote）です
+- 今は自分の記録（OwnCaseRecord）だけを受けます。他の機関からの書面（ProvisionDocument）は止まります
+- 通したら、`~/nest-intake/` の原文と案のファイルを消します
+- この道具はつなぎです。段階 L の L-1 で書き込み受付（ゲート MCP）ができたら外します（台帳 G-94）
+
+点検：[10]（Desktop の設定に nest-personal がある）。案が未確定で並んだことは人が確かめる（`review_proposals.py list`）
+
 ## 5. 支援記録を入れる（field-ui）
 
 ```bash
@@ -144,7 +183,7 @@ cd sos && PORT=8010 uv run python api_server.py     # SOS：http://127.0.0.1:801
 
 ### 書き込みの案を点検して承認する（review_proposals）
 
-AI が作ったもの（`narrative-extractor` の案など）は未確定（Pending）で入ります。職員が一つずつ見て、承認するか差し戻します。
+AI が作ったもの（`narrative-extractor` の案など）は未確定（Pending）で入ります（入れ方は 4.5 の (c)）。職員が一つずつ見て、承認するか差し戻します。
 
 ```bash
 uv run python scripts/review_proposals.py list                                   # 未確定の一覧（古い順）。本人は仮名で出る
@@ -265,6 +304,7 @@ docker ps                                   # 新しい DB（nest-redesign-perso
 | 2. 最初の管理者（bootstrap_admin） | 人が確かめる |
 | 3. 職員のトークン（staff_token） | [3]。トークンを手で渡したことは人が確かめる |
 | 4. 本人の登録（new_client） | 人が確かめる |
+| 4.5 Claude Desktop をつなぐ（設定・narrative-extractor・submit_proposal） | [10]。案が未確定で並んだことは人が確かめる |
 | 5. 支援記録の入力（field-ui） | 人が確かめる |
 | 6. 音声（録音・文字起こし・purge_voice） | [9]（音声）・[3]（文字起こしの設定） |
 | 7. バックアップ（backup） | [7] [8]。取ったこと・周期・戻せることは人が確かめる |
