@@ -230,3 +230,18 @@ def test_section_4_5_says_where_and_which_marks():
     assert "文の直後" in s
     for word in ("【本人の話】", "【伝聞】", "【確認済み】", "【未確認】", "【推測】"):
         assert word in s, word
+
+
+def test_fixture_section_2_passes_even_if_quotes_drop_the_full_stop(run, capsys):
+    """引用が文末の句点を落としても、点検は句点の後の印を読む（mark_of。2026-11-09 河原さん）"""
+    from nest import semantics
+    marks = dict(semantics.certainty_marks())
+    body = _fixture_section(2)
+    facts = []
+    for para in [p.strip() for p in body.split("\n") if p.strip()]:
+        for s in _sentences(para):
+            m = MARK_AT_END.search(s)
+            facts.append({"quote": MARK_AT_END.sub("", s).rstrip("。"), "recordKind": "Interview",
+                          "informantKind": "Family", "certainty": marks[m.group(1)] if m else "Unspecified"})
+    rc, sent = run(_proposal(facts=facts), original=body)
+    assert rc == 0, capsys.readouterr().out

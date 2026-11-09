@@ -76,13 +76,17 @@ def _digits(text):
 
 
 def mark_of(quote, original):
-    """quote の直後（同じ行）の印から確度を決める。印が無ければ Unspecified。知らない印なら None。"""
+    """quote の直後（同じ行）の印から確度を決める。印が無ければ Unspecified。知らない印なら None。
+    印は文の直後（句点「。」の後）に置くので、引用が句点を落としていれば句点を一つだけ越えて読む（N-46。2026-11-09 河原さん）。"""
     for line in original.splitlines():
         flat = _norm(line)
         pos = flat.find(_norm(quote))
         if pos < 0:
             continue
-        m = MARK.match(flat[pos + len(_norm(quote)):])
+        rest = flat[pos + len(_norm(quote)):]
+        if rest.startswith("。") and not _norm(quote).endswith("。"):
+            rest = rest[1:]
+        m = MARK.match(rest)
         if not m:
             return "Unspecified"
         for word, value in WEAKEST_FIRST:

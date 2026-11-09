@@ -211,3 +211,19 @@ def test_told_by_must_be_existing_id_or_new_person_ref():
     assert not _check(_proposal([_fact(quote, toldBy="p-x")]))["ok"]       # 案に無い名札
     assert _check(_proposal([_fact(quote, toldBy=PER)]))["ok"]
     assert _check(_proposal([_fact(quote, toldBy="client")]))["ok"]        # 本人が話した
+
+
+# ---- 句点を落とした引用（N-46 #7 の続き。2026-11-09 河原さん） ----
+# 原文の印は文の直後（句点「。」の後）に置く。引用が句点を含まなくても、句点を一つ越えて印を読む
+
+@pytest.mark.parametrize("quote", ["保育器に二週間いたと母は言います", "保育器に二週間いたと母は言います。"])
+def test_mark_after_the_full_stop_is_read_with_or_without_it(quote):
+    original = "はるとは春に生まれました。保育器に二週間いたと母は言います。【伝聞】言葉が遅い。【本人の話】\n"
+    assert _intake().mark_of(quote, original) == "Hearsay"
+
+
+def test_full_stop_is_skipped_only_once_and_only_a_full_stop():
+    i = _intake()
+    assert i.mark_of("言葉が遅い", "言葉が遅い。。【伝聞】\n") == "Unspecified"
+    assert i.mark_of("言葉が遅", "言葉が遅い。【伝聞】\n") == "Unspecified"
+    assert i.mark_of("はるとは春に生まれました", "はるとは春に生まれました。保育器にいた。【伝聞】\n") == "Unspecified"
