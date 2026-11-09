@@ -129,12 +129,18 @@ uv run python scripts/new_client.py find --family 氏 --given 名     # 名前�
 
 段 0 の操作 2〜5 と、5 の段の後半（書き込みの案を承認する）は、この段を済ませてから使います。**今は架空の事例の DB でだけ使います**（台帳 G-80）。Claude の照会は架空の印のある DB でだけ動きます（試走では 1 の「試走のときだけ」で印を置いています）。
 
-### (a) 設定を写す
+### (a) 設定を足す
 
-1. `configs/claude_desktop_config.json` の `mcpServers` にある 2 つ（`nest-personal`・`nest-resource`）を、Claude Desktop の設定 `~/Library/Application Support/Claude/claude_desktop_config.json` の `mcpServers` に足します。そのファイルが無ければ、ひな形をそのまま写します。ほかの道具の設定があれば、消さずに足します
-2. 写した 2 か所の `<nest-support のフォルダ>` を、このリポジトリのフォルダの完全なパス（例：`/Users/<利用者>/Dev-Work/project/nest-support`）に書き換えます
-3. Claude Desktop を終了して（⌘Q）、起動し直します。道具（`nest-personal`・`nest-resource`）が見えなければ、`"command": "uv"` を `which uv` の結果（完全なパス）に書き換えて、もう一度起動し直します
-4. doctor の [10] が「Desktop の設定に nest-personal がある」になることを確かめます
+設定の JSON は手で開きません。道具が、Claude Desktop の設定（`~/Library/Application Support/Claude/claude_desktop_config.json`）に `nest-personal`・`nest-resource` の 2 つを足します。中身はひな形 `configs/claude_desktop_config.json` と同じで、このフォルダと uv の完全なパスを道具が埋めます。ほかの道具の設定は消しません。前の設定は同じ場所に `.bak` として残ります。
+
+```bash
+uv run python scripts/desktop_config.py add     # 「足した：…」と出ること
+uv run python scripts/desktop_config.py check   # 「足してある：…」と出ること
+```
+
+- 「止めた：Desktop の設定が読めない」と出たら、何も書いていません。設定を自分で直さず、出た行を Claude Code に伝えます
+- Claude Desktop を終了して（⌘Q）、起動し直します。道具（`nest-personal`・`nest-resource`）が見えることを確かめます
+- doctor の [10] が「Desktop の設定に nest-personal がある」になることを確かめます
 
 ```bash
 ./scripts/doctor.sh                         # [10] が「Desktop の設定に nest-personal がある」になること

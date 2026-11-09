@@ -192,10 +192,10 @@ if [ -f "${DESKTOP_CONFIG}" ]; then
   if grep -q '"nest-personal"' "${DESKTOP_CONFIG}"; then
     info "Desktop の設定に nest-personal がある"
   else
-    info "Desktop の設定に nest-personal が無い（Claude Desktop を使うときだけ configs/claude_desktop_config.json を写す）"
+    info "Desktop の設定に nest-personal が無い（Claude Desktop を使うときだけ uv run python scripts/desktop_config.py add を打つ）"
   fi
 else
-  info "Desktop の設定が無い（Claude Code だけなら要らない）"
+  info "Desktop の設定が無い（Claude Code だけなら要らない。Claude Desktop を使うなら uv run python scripts/desktop_config.py add を打つ）"
 fi
 
 echo ""
