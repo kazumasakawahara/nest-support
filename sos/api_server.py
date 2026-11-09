@@ -235,21 +235,33 @@ if os.path.exists(app_dir):
 
 
 # --- 起動 ---
+def _port():
+    return int(os.getenv("PORT", "8000"))
+
+
+def banner():
+    """起動の案内の文。URL のポートは実際に待ち受けるポート（PORT）と同じにする（N-46 詰まり #6）"""
+    port = _port()
+    return [
+        "=" * 50,
+        "nest SOS API サーバー",
+        "=" * 50,
+        f"LINE設定: {'設定済み' if LINE_CHANNEL_ACCESS_TOKEN else '未設定'}",
+        "=" * 50,
+        f"アプリURL: http://localhost:{port}/app/?id=仮名（C-……）",
+        f"API URL: http://localhost:{port}/api/sos",
+        "=" * 50,
+    ]
+
+
 if __name__ == "__main__":
     import uvicorn
 
-    print("=" * 50)
-    print("nest SOS API サーバー")
-    print("=" * 50)
-    print(f"LINE設定: {'設定済み' if LINE_CHANNEL_ACCESS_TOKEN else '未設定'}")
-    print("=" * 50)
-    print("アプリURL: http://localhost:8000/app/?id=仮名（C-……）")
-    print("API URL: http://localhost:8000/api/sos")
-    print("=" * 50)
+    print("\n".join(banner()))
 
     # 既定は 127.0.0.1（TLS・レート制限はリバースプロキシに委譲）。
     uvicorn.run(
         app,
         host=os.getenv("BIND_HOST", "127.0.0.1"),
-        port=int(os.getenv("PORT", "8000")),
+        port=_port(),
     )

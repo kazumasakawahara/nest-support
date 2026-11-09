@@ -153,3 +153,20 @@ def test_section_4_add_command_passes_the_certainty():
                               "確度": "SelfReport"}))
     req = m.client_request(a, "req-x")
     assert req["nodes"][1]["properties"]["certainty"] == "SelfReport"
+
+
+# 詰まり #6：SOS を手順書どおり PORT=8010 で起動しても、起動の案内の文が「http://localhost:8000/app/…」のまま。
+# 読んだ人が 8000 を開くと、この Mac では open-notebook につながる。
+
+def test_sos_banner_shows_the_port_from_the_doc_command(monkeypatch):
+    """詰まり #6：段 5 の SOS の起動の行の PORT をそのまま与えると、案内の URL がそのポートになる"""
+    import re
+    pytest.importorskip("fastapi")
+    import sos.api_server as sos
+    s5 = _section("## 5.")
+    line = next(l for l in s5.splitlines() if "api_server.py" in l and "PORT=" in l)
+    port = re.search(r"PORT=(\d+)", line).group(1)
+    monkeypatch.setenv("PORT", port)
+    text = "\n".join(sos.banner())
+    assert "/app/" in text and "/api/sos" in text
+    assert ":%s/" % port in text and ":8000/" not in text
