@@ -245,3 +245,31 @@ def test_fixture_section_2_passes_even_if_quotes_drop_the_full_stop(run, capsys)
                           "informantKind": "Family", "certainty": marks[m.group(1)] if m else "Unspecified"})
     rc, sent = run(_proposal(facts=facts), original=body)
     assert rc == 0, capsys.readouterr().out
+
+
+# N-46 詰まり #9（2026-11-09 河原さん）：ゲートで止まった（informantKind が無い事実）とき、どう直すかが
+# 道具の出力にも手順書 4.5 (c) にも無かった。人は JSON を手で直さず、Claude Desktop に作り直しを頼む。
+
+def test_gate_stop_tells_how_to_fix(tmp_path, monkeypatch, capsys):
+    from nest.gate import write as gw
+
+    def gate(req, driver, **kw):
+        rep = gv.validate(req)
+        return {"ok": rep["ok"], "errors": rep["errors"], "ids": {}}
+    monkeypatch.setattr(gw, "submit", gate)
+    o, p = tmp_path / "original.txt", tmp_path / "proposal.json"
+    o.write_text(ORIGINAL, encoding="utf-8")
+    p.write_text(json.dumps(_proposal(facts=[{"quote": "本人は、音楽を聴くと落ち着くと話した", "recordKind": "Interview",
+                                              "certainty": "SelfReport"}]), ensure_ascii=False), encoding="utf-8")
+    rc = load("submit_proposal.py").main(["--staff", STAFF, "--code", CODE, "--original", str(o), "--proposal", str(p)],
+                                         driver=FakeDriver())
+    out = capsys.readouterr().out
+    assert rc == 1 and "止めた（ゲート）" in out and "informantKind" in out
+    assert "何も書いていない" in out and "Claude" in out and "作り直" in out
+
+
+def test_section_4_5_c_says_ask_claude_to_remake_not_edit_json():
+    s = _section("## 4.5")
+    c = s[s.index("### (c)"):]
+    for word in ("止めた（ゲート）", "手で直さない", "作り直して", "打ち直します"):
+        assert word in c, word

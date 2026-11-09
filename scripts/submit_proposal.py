@@ -27,6 +27,7 @@ from nest.gate import intake  # noqa: E402
 from nest.gate import write as gw  # noqa: E402
 
 CLIENT_OF = "MATCH (c:Client {displayCode: $code}) RETURN c.clientId AS id"
+AGAIN = "何も書いていない。JSON を手で直さず、止めた行をそのまま Claude Desktop に貼って案を作り直してもらう"
 
 
 def parse(argv):
@@ -63,11 +64,12 @@ def _run(d, a):
     if not checked["ok"]:
         for e in checked["errors"]:
             print("止めた：" + e)
-        print("何も書いていない。理由を Claude に伝えて案を直してもらう")
+        print(AGAIN)
         return 1
     out = gw.submit(checked["request"], d)
     if not out["ok"]:
         print("止めた（ゲート）：" + "；".join(out["errors"]))
+        print(AGAIN)
         return 1
     n = sum(1 for node in checked["request"]["nodes"] if node["origin"] == "AiExtracted")
     print("未確定（Pending）で入れた：%d 件。次に見る：uv run python scripts/review_proposals.py list" % n)
