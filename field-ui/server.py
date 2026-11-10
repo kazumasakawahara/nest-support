@@ -277,7 +277,7 @@ async def api_voice_upload(
         from nest import genai
         transcript = genai.transcribe_audio(tmp_path)
         if not transcript:
-            raise HTTPException(status_code=422, detail="音声の文字起こしに失敗しました（送信が許されていないときも）")
+            raise HTTPException(status_code=422, detail="文字起こしは今は使えません（外部への送信を止めているか、文字起こしに失敗しました）。録音は残していません。聞きながら文に起こしてください")
         digest = voice.store(tmp_path, transcript, suffix, VOICE_ROOT)
         return {
             "status": "transcribed",

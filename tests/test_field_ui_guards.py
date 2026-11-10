@@ -280,3 +280,16 @@ def test_voice_upload_keeps_nothing_when_transcription_fails(app_mod, monkeypatc
                                      files={"audio": ("rec.webm", b"audio", "audio/webm")}, headers=AUTH)
     assert r.status_code == 422
     assert not root.exists() or list(root.iterdir()) == []
+
+
+def test_voice_failure_message_says_it_is_unavailable_and_what_to_do(app_mod, monkeypatch, tmp_path):
+    """N-46 詰まり #11：「（送信が許されていないときも）」は意味が取りにくかった。今は使えないこと・録音を残していないこと・代わりにすることを言う"""
+    import nest.genai
+    _set_clients(monkeypatch, app_mod, {CLIENT})
+    _voice_root(monkeypatch, app_mod, tmp_path)
+    monkeypatch.setattr(nest.genai, "transcribe_audio", lambda path: None)
+    r = TestClient(app_mod.app).post("/api/voice/upload", data={"clientId": CLIENT},
+                                     files={"audio": ("rec.webm", b"audio", "audio/webm")}, headers=AUTH)
+    detail = r.json()["detail"]
+    assert "今は使えません" in detail and "外部への送信を止めて" in detail and "聞きながら文に起こして" in detail
+    assert "送信が許されていないときも" not in detail

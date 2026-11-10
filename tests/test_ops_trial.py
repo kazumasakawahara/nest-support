@@ -401,3 +401,14 @@ def test_every_up_in_sections_7_and_8_is_followed_by_count_which_waits():
             if l.endswith(" up -d"):
                 assert i + 1 < len(lines) and "backup.py count" in lines[i + 1], (sec, lines[i + 1:i + 2])
     assert "待" in _section("## 7. バックアップを取る・戻す")
+
+
+# 詰まり #11：段 6 は説明だけで、上から順に打つ形になっていなかった。
+
+def test_section_6_has_steps_to_try_voice_and_check_nothing_is_kept():
+    sec = _section("## 6. 音声を扱う")
+    lines = [c for c, _ in _box_lines(sec)]
+    assert any(l.startswith("ls ") and "nest_voice_data" in l for l in lines), lines
+    i = sec.index("```bash")
+    assert "/voice" in sec[i:sec.index("```", i + 7)], "枠の中に /voice で録音を試す行が無い"
+    assert "外部への送信を止めている" in sec  # 画面の文言（field-ui/server.py）と同じ言い方
