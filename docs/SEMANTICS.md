@@ -102,6 +102,24 @@ tsunagu-net の SEMANTICS v0.32 の BRS-49 と ENU-05・10・20 に合わせた�
 - 職員が直接知った禁忌は、先に職員の記録（`Record`、`kind: Observation`）を作り、それを根拠にする
 - 取り込みの案の禁忌・推奨ケアの候補は、同じ案の事実を根拠に指す。指していない候補はゲートが止める。新しい推奨ケア（`CarePreference`）にも、由来によらず根拠の記録が要る。職員が直接知ったことは、禁忌と同じく先に職員の記録（`kind: Observation`）を作る（台帳 G-63。正典 v0.9 §6）
 
+### SEM-REC-04 面接記録・見立て・新しい人の根拠（2026-11-10 河原さん。確認点 L-0。台帳 G-95。正典 v0.13）
+
+面接記録の書き方
+- 相談支援の面接 1 回（訪問・来所・電話・同行・会議・文書のやり取り）を `SupportLog` 1 件にする。面接の中で聞いた事実・見たことは、事実ごとに `Record` に分ける（`kind: Interview`／職員が見たことは `Observation`）。禁忌・推奨ケア・食い違いの根拠になれるのは `Record` だけ
+- `SupportLog` の項目の埋め方：`date`＝接触の日、`contactKind`＝接触の種類（合わなければ空）、`situation`＝どこで・誰と（同席者は役割の名前で。例「自宅。母と本人」。GH では今までどおり食事・作業などの場面）、`action`＝記録者がしたこと、`nextAction`＝次の調整（記録者の予定。`Record` にしない）、`note`＝ほか
+- `effectiveness` は行動支援の記録だけが使う。効果の判定は職員が行い、Claude の案には書かせない
+- 同席者を人のノードと結ぶ関係は作らない（`situation` に役割の名前で書く）。話し手は事実ごとの `TOLD_BY`
+- `SupportLog` の根拠（`EVIDENCED_BY`）は、案の事実の引用一つ（接触の一文）に結ぶ
+
+見立て（記録者自身の受け取り方・推測）の書き方
+- 見立ては、原文で【推測】の印を付けた一文を `Record` にする。`certainty: Inference`（約束 3 の「記録者の推測」）。`informantKind` に値は足さない
+- `informantKind` は、その見立てのもとになった話・観察の情報源を書く：本人の話から `Self`、家族の話から `Family`、職員が自分で見たことから `Agency`、既存の記録だけから `DocumentOnly`。記録者は `AUTHORED_BY` の `Staff`。`TOLD_BY` は張らない（誰かが言ったことではない）
+- `PROVIDED_BY` の無い `Agency` は、自分の事業所の職員の見聞と読む。照会口と出力は、これを「記録者の観察」と表示する（段階 L の L-2・L-3 の条件）
+- 見立ては禁忌・推奨ケアの候補の根拠になれる。候補は根拠の確度（`Inference`）を引き継ぐ。根拠が見立てだけの候補は、禁忌（`NgAction`）は入口の点検で止め（推測だけで禁忌にしない）、推奨ケア（`CarePreference`）は注意を出して通す
+
+新しい人の根拠
+- AI が案に出す新しい人（`Person`）は、同じ案の中で、その人が話した記録（`TOLD_BY`）か、その人についての関わり（`CONCERNS`）か、本人との関係（`RELATED_TO`）のどれかで結ぶ。どれにも結ばれない新しい人は、入口の点検でも受付の検証でも止める
+
 ## 列挙値の表示名（計画 N-27。台帳 G-47）
 
 正典 §4.5 の列挙値の日本語の表示名。コード（`nest/semantics.py`）はこの表から読む。コードに日本語名の対応表を直に書かない。
@@ -197,6 +215,12 @@ tsunagu-net と同じ列挙（`status`・`origin`・`certainty`・`informantKind
 | `retentionDecision` | `Delete` | 消す |
 | `linkedBy` | `Gate` | 取り込みで結んだ |
 | `linkedBy` | `Human` | 人が結んだ |
+| `contactKind` | `Visit` | 訪問 |
+| `contactKind` | `OfficeVisit` | 来所 |
+| `contactKind` | `Phone` | 電話 |
+| `contactKind` | `Accompaniment` | 同行 |
+| `contactKind` | `Meeting` | 会議 |
+| `contactKind` | `Correspondence` | 文書・メール・FAX 等のやり取り |
 | `effectiveness` | `Effective` | 効果があった |
 | `effectiveness` | `Ineffective` | 効果がなかった |
 | `effectiveness` | `Neutral` | どちらとも言えない |

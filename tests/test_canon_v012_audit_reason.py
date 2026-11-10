@@ -17,7 +17,6 @@ def test_audit_log_has_an_optional_reason():
 
 
 def test_the_table_and_history_say_v0_12():
-    assert TEXT.startswith("# nest-support スキーマ正典 — v0.12")
     assert "- v0.12（2026-11-06）" in TEXT
     row = next(l for l in TEXT.splitlines() if l.startswith("| `AuditLog` |"))
     assert "`reason`" in row and "Reject のときだけ" in row and "名前を書かない" in row
