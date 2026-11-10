@@ -13,7 +13,8 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
               "aboutDate"?, "heardOn"?, "toldBy"?}],
    "involvements": [...]（任意。下の N-24a）,
    "ngActions": [{"quote", "action", "riskLevel", "reason"?}]（任意。禁忌の候補。G-63）,
-   "carePreferences": [{"quote", "category", "instruction", "priority"?}]（任意。推奨ケアの候補。G-63）}
+   "carePreferences": [{"quote", "category", "instruction", "priority"?}]（任意。推奨ケアの候補。G-63）,
+   "supportLog": {"quote", "date", "contactKind"?, "situation", "action"?, "nextAction"?, "note"?}（任意。面接記録。正典 v0.13）}
 
 点検：
 - quote は原文にそのまま有ること（空白・改行の違いだけは無視する）（N-12）
@@ -33,9 +34,17 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
 - 禁忌・推奨ケアの候補（G-63。正典 v0.9）：quote は案の事実の引用のどれかで、その記録を根拠に結ぶ（EVIDENCED_BY）。
   根拠が同じ案の中に無い候補は作らない。確度は書かせない（根拠の記録の確度を引き継ぐ。§6）。本文に引用に無い数字を足さない。
   いつも AI 由来（Pending）。本人から MUST_AVOID・REQUIRES で結ぶ
+- 事実の recordKind・informantKind は必須で、正典の列挙値のどれか。見立て（certainty Inference）で informantKind が無ければ、
+  もとになった情報源を書くよう理由を出して止める（確認点 L-0 の決めごと 6・9。SEMANTICS SEM-REC-04）
+- 根拠が見立て（Inference）の記録だけの候補は、禁忌は止め、推奨ケアは注意を出して通す（決めごと 8）
+- 新しい人（newPeople）は、どれかの事実の toldBy か関わりの concerns に使う。使われない人は止める（決めごと 10。N-46 #10 の注意から変えた）
+- 面接記録（supportLog。決めごと 1〜5）：面接 1 回に 0 か 1 件。quote は案の事実の引用のどれか（その記録を根拠に結ぶ）。date は実在する日、
+  situation は必須、contactKind は書くなら正典の列挙値。effectiveness は書かせない（判定は職員）。本文に原文全体に無い数字を足さない。
+  AI 由来（Pending）で、本人に ABOUT、職員に AUTHORED_BY、根拠の記録に EVIDENCED_BY で結ぶ
 - 案に、上の形に無い項目があれば止める。snake_case などの別の綴りも直さない（N-15）。ゲートの検証（validate.py）も同じ考え方
 """
 import copy
+import datetime as dt
 import hashlib
 import re
 from pathlib import Path
@@ -44,7 +53,11 @@ from nest import canon, ids, semantics
 
 DOC_KINDS = ("ProvisionDocument", "OwnCaseRecord")
 TOP_KEYS = {"documentKind", "providerName", "clientId", "receivedOn", "newPeople", "facts", "involvements",
-            "ngActions", "carePreferences"}
+            "ngActions", "carePreferences", "supportLog"}
+# 面接記録の欄（確認点 L-0。正典 v0.13）。effectiveness は案に書かせない（決めごと 5）
+SUPPORT_LOG_KEYS = {"quote", "date", "contactKind", "situation", "action", "nextAction", "note"}
+SUPPORT_LOG_TEXTS = ("situation", "action", "nextAction", "note")
+FULL_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # 禁忌・推奨ケアの候補（G-63）：案の欄 → (ラベル, 本人からの関係, 項目, 本文として数字を確かめる項目)
 CANDIDATES = {"ngActions": ("NgAction", "MUST_AVOID", {"quote", "action", "riskLevel", "reason"}, ("action", "reason")),
               "carePreferences": ("CarePreference", "REQUIRES", {"quote", "category", "instruction", "priority"},
@@ -132,9 +145,11 @@ def _check_involvements(p, estimate, errors):
             errors.append("%s: 成年後見センターを推定で選んだ関わりは Consultation だけ（後見制度の相談の窓口。%r は作らない）" % (where, inv.get("kind")))
 
 
-def _check_candidates(p, errors):
-    """G-63。禁忌・推奨ケアの候補は、同じ案の事実の引用を根拠に指す。確度を持たせない。引用に無い数字を足さない。"""
+def _check_candidates(p, errors, warnings):
+    """G-63。禁忌・推奨ケアの候補は、同じ案の事実の引用を根拠に指す。確度を持たせない。引用に無い数字を足さない。
+    根拠が見立て（Inference）の記録だけなら、禁忌は止め、推奨ケアは注意を出して通す（確認点 L-0 の決めごと 8）。"""
     quotes = {_norm(f.get("quote")): f.get("quote") for f in p.get("facts") or [] if isinstance(f.get("quote"), str)}
+    views = {_norm(f.get("quote")) for f in p.get("facts") or [] if isinstance(f.get("quote"), str) and f.get("certainty") == "Inference"}
     for key, (label, _, keys, texts) in CANDIDATES.items():
         for n, cand in enumerate(p.get(key) or [], start=1):
             where = "%s %d" % (key, n)
@@ -151,6 +166,48 @@ def _check_candidates(p, errors):
             extra = sorted(set().union(*(_digits(cand.get(t)) for t in texts)) - _digits(quote))
             if extra:
                 errors.append("%s: 原文の引用に無い数字 %s がある（補わない）" % (where, "・".join(extra)))
+            if _norm(quote) in views and label == "NgAction":
+                errors.append("%s: 根拠が見立て（確度 推測）の記録だけの禁忌は作らない（推測だけで禁忌にしない）。"
+                              "事実として残し、確かめてから禁忌の案にする" % where)
+            elif _norm(quote) in views:
+                warnings.append("%s: 根拠が見立て（確度 推測）の記録だけの推奨ケア。承認の前に、試してよい支え方か確かめる" % where)
+
+
+def _check_support_log(p, original, errors):
+    """確認点 L-0 の決めごと 1〜5（正典 v0.13。SEMANTICS SEM-REC-04）。面接 1 回＝supportLog 1 件。"""
+    log = p.get("supportLog")
+    if log is None:
+        return
+    if not isinstance(log, dict):
+        errors.append("supportLog: 面接 1 回に一つのオブジェクト（一覧にしない）")
+        return
+    for k in sorted(set(log) - SUPPORT_LOG_KEYS):
+        note = "効果の判定は職員が行う。案に書かない" if k == "effectiveness" else "直さずに止める"
+        errors.append("supportLog: %s という項目は無い（%s）" % (k, note))
+    quotes = {_norm(f.get("quote")) for f in p.get("facts") or [] if isinstance(f.get("quote"), str)}
+    if not isinstance(log.get("quote"), str) or not log["quote"].strip():
+        errors.append("supportLog: 必須の quote が無い（接触の一文。案の事実の引用のどれか）")
+    elif _norm(log["quote"]) not in quotes:
+        errors.append("supportLog: quote は案の事実の引用のどれか（接触の一文を事実にして、その記録を根拠に結ぶ）")
+    date = log.get("date")
+    if date is None:
+        errors.append("supportLog: 必須の date が無い（接触の日。YYYY-MM-DD）")
+    else:
+        try:
+            ok = isinstance(date, str) and bool(FULL_DATE.match(date)) and bool(dt.date.fromisoformat(date))
+        except ValueError:
+            ok = False
+        if not ok:
+            errors.append("supportLog: date %r は実在する日（YYYY-MM-DD）でない（補わない）" % (date,))
+    if not isinstance(log.get("situation"), str) or not log["situation"].strip():
+        errors.append("supportLog: 必須の situation が無い（どこで・誰と。同席者は役割の名前で）")
+    kinds = canon.load(SCHEMA)["enums"]["contactKind"]
+    if "contactKind" in log and log["contactKind"] not in kinds:
+        errors.append("supportLog: contactKind %r は %s のどれか（合わなければ書かない。読み替えない）"
+                      % (log["contactKind"], "・".join(kinds)))
+    extra = sorted(set().union(*(_digits(log.get(t)) for t in SUPPORT_LOG_TEXTS if isinstance(log.get(t), str))) - _digits(original))
+    if extra:
+        errors.append("supportLog: 原文に無い数字 %s がある（補わない）" % "・".join(extra))
 
 
 def check(proposal, original, actor_staff_id, request_id, provider_org_id=None, estimate=None):
@@ -193,6 +250,7 @@ def check(proposal, original, actor_staff_id, request_id, provider_org_id=None, 
     if not ids.is_valid_id(p.get("clientId"), "CLI"):
         errors.append("clientId は既にいる本人の ID（CLI-…）")
     facts = p.get("facts") or []
+    enums = canon.load(SCHEMA)["enums"]
     if not facts:
         errors.append("事実（facts）が無い")
     for n, f in enumerate(facts, start=1):
@@ -216,6 +274,15 @@ def check(proposal, original, actor_staff_id, request_id, provider_org_id=None, 
         told = f.get("toldBy")
         if told is not None and not (told == "client" or ids.is_valid_id(told, "PER") or told in refs):
             errors.append("%s: toldBy の %r は既にいる人の ID（PER-…）・newPeople の ref・client のどれでもない（名前で結び付けない）" % (where, told))
+        if "informantKind" not in f and f.get("certainty") == "Inference":
+            errors.append("%s: 見立て（確度 推測）には、もとになった情報源を informantKind に書く（本人の話なら Self、"
+                          "家族の話なら Family、職員の観察なら Agency、記録だけなら DocumentOnly）" % where)
+        for key, enum in (("recordKind", "recordKind"), ("informantKind", "informantKind")):
+            if key not in f:
+                if not (key == "informantKind" and f.get("certainty") == "Inference"):
+                    errors.append("%s: 必須の %s が無い（%s のどれか）" % (where, key, "・".join(enums[enum])))
+            elif f[key] not in enums[enum]:
+                errors.append("%s: %s %r は %s のどれか（読み替えない）" % (where, key, f[key], "・".join(enums[enum])))
         marked = mark_of(quote, original)
         if marked is None:
             errors.append("%s: 原文の印を読めない（知らない印）。推測で読み替えない" % where)
@@ -232,11 +299,12 @@ def check(proposal, original, actor_staff_id, request_id, provider_org_id=None, 
             if f.get("certainty") != marked:
                 errors.append("%s: 確度 %r が原文の印（%s）と違う（格上げも格下げもしない）" % (where, f.get("certainty"), marked))
     _check_involvements(p, estimate, errors)
-    _check_candidates(p, errors)
+    _check_candidates(p, errors, warnings)
+    _check_support_log(p, original, errors)
     used = {f.get("toldBy") for f in facts} | {inv.get("concerns") for inv in p.get("involvements") or [] if isinstance(inv, dict)}
-    for ref in sorted(r for r in refs if isinstance(r, str) and r not in used):  # N-46 #10
-        warnings.append("newPeople の %s は、どの事実の toldBy にも、どの関わりの concerns にも使われていない"
-                        "（根拠の記録にも本人にも結ばれない人になる）。案から外してもらうか、承認の前に確かめる" % ref)
+    for ref in sorted(r for r in refs if isinstance(r, str) and r not in used):  # N-46 #10。確認点 L-0 の決めごと 10 で止める形に
+        errors.append("newPeople の %s は、どの事実の toldBy にも、どの関わりの concerns にも使われていない"
+                      "（根拠の記録にも本人にも結ばれない人になる）。どの事実の toldBy か関わりの concerns に書くか、案から外す" % ref)
     notes = list((estimate or {}).get("notes", [])) if p.get("involvements") else []
     if errors:
         out = {"ok": False, "errors": errors, "warnings": warnings, "request": None, "notes": notes}
@@ -303,4 +371,11 @@ def _request(p, original, actor_staff_id, request_id, provider_org_id, estimate=
                           "properties": {k: v for k, v in cand.items() if k != "quote"}})
             rels.append({"type": rel, "from": client, "to": ref})
             rels.append({"type": "EVIDENCED_BY", "from": ref, "to": fact_refs[_norm(cand["quote"])]})
+    log = p.get("supportLog")
+    if log is not None:
+        nodes.append({"ref": "support-log", "label": "SupportLog", "origin": "AiExtracted",
+                      "properties": {k: v for k, v in log.items() if k != "quote"}})
+        rels.append({"type": "ABOUT", "from": "support-log", "to": client})
+        rels.append({"type": "AUTHORED_BY", "from": "support-log", "to": staff})
+        rels.append({"type": "EVIDENCED_BY", "from": "support-log", "to": fact_refs[_norm(log["quote"])]})
     return {"requestId": request_id, "actorStaffId": actor_staff_id, "nodes": nodes, "relationships": rels}

@@ -18,6 +18,8 @@
 - 終わり方 Transitioned は、任意後見受任者（guardianshipType VoluntaryGuardianshipContracted）と任意代理（kind AgencyContract）の関わりにだけ書ける（正典 v0.8。台帳 G-62）
 - 住所からの推定（inferenceBasis を持つ関わり）で作れる種類は Consultation と Administrative だけ。契約や選任で決まる関わりは住所から推し量れない（台帳 G-62・G-57）
 - AI 由来（origin AiExtracted）のノードは Pending で作る。ほかは Active。機関の写し（Organization。公開 ID への参照）だけは AI 由来でも Active（止まる点 4。台帳 G-59）。返す nodes に status を添え、書き込み（N-20）がそれを使う（約束 4-5。N-16）
+- AI 由来の新しい人（Person）は、同じ依頼の中で TOLD_BY の終点か、CONCERNS の終点か、RELATED_TO の始点のどれかであること。
+  入口の点検を通らない道でも同じ規則が働くように、ここにも置く（確認点 L-0 の決めごと 11。2026-11-10 河原さん）。人が登録する人は対象にしない
 - 確認の記録（Review）は人の記録（Human）。依頼の職員の REVIEWED、本人への ABOUT、記録への CONFIRMS が要る（N-20a）
 - 保存の判断（RetentionDecision）は人の記録（Human）。本人一人に DECIDES_ON 一本で結ぶ。書けるのは Administrator だけ（write が確かめる。N-32）
 - 既にあるノードは {"label", "id"} だけで指す。名前を添えたり名前で指したりしたら止める（D8。N-16）
@@ -203,6 +205,7 @@ def validate(req):
 
     _check_guardianship(ck, nodes_out)
     _check_concerns_person(ck, nodes_out, rels_out)
+    _check_person_tied(ck, nodes_out, rels_out)
     _check_ngaction_evidence(ck, nodes_out, rels_out)
     _check_provided(ck, nodes_out, rels_out)
     _check_review(ck, nodes_out, rels_out, req.get("actorStaffId"))
@@ -276,6 +279,18 @@ def _check_ngaction_evidence(ck, nodes, rels):
         if not any(r["type"] == "EVIDENCED_BY" and r["from"] == n["ref"]
                    and (r["to"].get("label") if isinstance(r["to"], dict) else labels.get(r["to"])) == "Record" for r in rels):
             ck.errors.append("ノード %s: %sには根拠の記録（EVIDENCED_BY → Record）が要る%s" % (n["ref"], what, hint))
+
+
+def _check_person_tied(ck, nodes, rels):
+    """確認点 L-0 の決めごと 11。根拠の記録にも本人にも結ばれない AI 由来の人を作らない（SEMANTICS SEM-REC-04）。"""
+    for n in nodes:
+        if n["label"] != "Person" or n["origin"] != "AiExtracted":
+            continue
+        ref = n["ref"]
+        if not any((r["type"] in ("TOLD_BY", "CONCERNS") and r["to"] == ref) or (r["type"] == "RELATED_TO" and r["from"] == ref)
+                   for r in rels):
+            ck.errors.append("ノード %s: AI 由来の Person は、同じ依頼の中で TOLD_BY・CONCERNS・RELATED_TO のどれかで結ぶ"
+                             "（根拠の記録にも本人にも結ばれない人を作らない）" % ref)
 
 
 def _check_concerns_person(ck, nodes, rels):

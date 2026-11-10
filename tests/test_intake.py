@@ -206,12 +206,13 @@ def test_new_person_is_a_pending_candidate_not_matched_by_name():
 
 
 # N-46 詰まり #10（2026-11-09 河原さん）：根拠の記録にも本人にも結ばれていない新しい人（Person）を、点検もゲートも
-# 止めなかった。承認の画面では「本人 ―、根拠の引用 無い」になる。正典は変えず、入口の点検で注意を出す（止めない）。
-def test_new_person_tied_to_nothing_gets_a_warning():
+# 止めなかった。承認の画面では「本人 ―、根拠の引用 無い」になる。11-09 は注意だけにしたが、確認点 L-0 の決めごと 10
+# （2026-11-10 河原さん）で入口で止める形に変えた。
+def test_new_person_tied_to_nothing_is_stopped():
     rep = _check(_proposal([_fact(BRUISE)], newPeople=[{"ref": "p-lost", "givenName": "ハナ"}]))
-    assert rep["ok"], rep["errors"]
-    (w,) = [w for w in rep["warnings"] if "p-lost" in w]
-    assert "toldBy" in w and "concerns" in w and "外" in w
+    assert not rep["ok"] and rep["request"] is None
+    (e,) = [e for e in rep["errors"] if "p-lost" in e]
+    assert "toldBy" in e and "concerns" in e and "外す" in e
 
 
 def test_new_person_used_as_told_by_or_concerns_gets_no_warning():

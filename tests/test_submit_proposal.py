@@ -251,21 +251,27 @@ def test_fixture_section_2_passes_even_if_quotes_drop_the_full_stop(run, capsys)
 # 道具の出力にも手順書 4.5 (c) にも無かった。人は JSON を手で直さず、Claude Desktop に作り直しを頼む。
 
 def test_gate_stop_tells_how_to_fix(tmp_path, monkeypatch, capsys):
+    """受付の検証でだけ止まる場合（例：職員が Active でない）の出し方。確認点 L-0 の決めごと 9 で informantKind の欠けは入口で
+    止まるようになったので、受付を差し替えて「止めた（ゲート）」の文言を確かめる（提案 2026-11-10 §3.7）"""
     from nest.gate import write as gw
-
-    def gate(req, driver, **kw):
-        rep = gv.validate(req)
-        return {"ok": rep["ok"], "errors": rep["errors"], "ids": {}}
-    monkeypatch.setattr(gw, "submit", gate)
+    monkeypatch.setattr(gw, "submit", lambda req, driver, **kw: {"ok": False, "errors": ["職員 STF-… は Active でない"], "ids": {}})
     o, p = tmp_path / "original.txt", tmp_path / "proposal.json"
     o.write_text(ORIGINAL, encoding="utf-8")
-    p.write_text(json.dumps(_proposal(facts=[{"quote": "本人は、音楽を聴くと落ち着くと話した", "recordKind": "Interview",
-                                              "certainty": "SelfReport"}]), ensure_ascii=False), encoding="utf-8")
+    p.write_text(json.dumps(_proposal(), ensure_ascii=False), encoding="utf-8")
     rc = load("submit_proposal.py").main(["--staff", STAFF, "--code", CODE, "--original", str(o), "--proposal", str(p)],
                                          driver=FakeDriver())
     out = capsys.readouterr().out
-    assert rc == 1 and "止めた（ゲート）" in out and "informantKind" in out
+    assert rc == 1 and "止めた（ゲート）" in out and "Active でない" in out
     assert "何も書いていない" in out and "Claude" in out and "作り直" in out
+
+
+def test_missing_informant_kind_now_stops_at_the_intake_not_the_gate(run, capsys):
+    """確認点 L-0 の決めごと 9：理由が早く、案の言葉で出る（N-46 #9）"""
+    rc, sent = run(_proposal(facts=[{"quote": "本人は、音楽を聴くと落ち着くと話した", "recordKind": "Interview",
+                                     "certainty": "SelfReport", "toldBy": "client"}]))
+    out = capsys.readouterr().out
+    assert rc == 1 and sent == []
+    assert "止めた：事実 1: 必須の informantKind が無い" in out and "止めた（ゲート）" not in out
 
 
 def test_section_4_5_c_says_ask_claude_to_remake_not_edit_json():
