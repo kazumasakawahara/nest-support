@@ -412,3 +412,17 @@ def test_section_6_has_steps_to_try_voice_and_check_nothing_is_kept():
     i = sec.index("```bash")
     assert "/voice" in sec[i:sec.index("```", i + 7)], "枠の中に /voice で録音を試す行が無い"
     assert "外部への送信を止めている" in sec  # 画面の文言（field-ui/server.py）と同じ言い方
+
+
+# 詰まり #15：field-ui を起こし直しても、ブラウザがトークンを覚えていて聞かれずに入れた。入っていられる時間と出方が手順書に無かった。
+
+def test_section_5_tells_how_long_a_login_lasts_and_how_to_leave():
+    import re
+    from fastapi import Response
+    from nest.auth import set_session_cookie
+    r = Response()
+    set_session_cookie(r, "x")
+    hours = int(re.search(r"Max-Age=(\d+)", r.headers["set-cookie"]).group(1)) // 3600
+    sec = _section("## 5. 支援記録を入れる")
+    assert "%d 時間" % hours in sec
+    assert "ログアウト" in sec and "共用" in sec and "プライベート" in sec and "staff_token.py remove" in sec
