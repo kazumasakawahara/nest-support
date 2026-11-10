@@ -1,13 +1,13 @@
-# HANDOVER — 2026-11-10 stage-j（ADR-001 の作り直し。段階 A〜I は main に合流済み（cb9a3f8）。段階 J：G-91・N-46 済み、次は止まる点 J-1）
+# HANDOVER — 2026-11-10 stage-l（ADR-001・ADR-002 の作り直し。段階 J は main に合流済み（9cb72ca。確認点 J-1 可）。確認点 L-0 は決定（80a677b）。段階 L：正典 v0.13・入口と受付の規則・書き込み受付の MCP・narrative-extractor の書き直しを stage-l に置いた）
 
 > 前の HANDOVER（2026-08-03 main。WAM NET スキル整合）は git 履歴（ce627d9）にある。そこに書かれた
 > `~/.config/nest/neo4j.env`・ポート 7687・`nest-support-neo4j` は**前の構成**で、この枝では使わない。
 
-## 再開コマンド（2026-11-10 15:11 に確かめた）
+## 再開コマンド（2026-11-10 22:10 に確かめた）
 
 ```bash
-cd ~/Dev-Work/project/nest-support && git switch stage-j
-uv run pytest -q                       # 1009 passed, 144 skipped（DB を使う試験は skip）
+cd ~/Dev-Work/project/nest-support && git switch stage-l
+uv run pytest -q                       # 1072 passed, 146 skipped（DB を使う試験は skip）
 uv run python scripts/check_drift.py   # ずれ 0 件
 ./scripts/doctor.sh                    # 環境の点検：29 passed, 2 warned, 0 failed（WARN は external-api の記録と設定のファイルが無いこと）
 ```
@@ -17,7 +17,7 @@ DB を使う試験（結合試験のタスクのときだけ。終わったら�
 ```bash
 docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d     # nest-redesign-personal（37474/37687）・nest-redesign-resource（38474/38687）
 # 試走の DB の中身（下の「前提」）を残している間は live_cleanup.py を打たない（印のほかをすべて消す）
-NEST_LIVE_DB=1 uv run pytest -q                                       # 最後に流したのは 2026-11-10 15:03：1151 passed・1 failed（#16 で直し、当該 1 本は通った）
+NEST_LIVE_DB=1 uv run pytest -q                                       # 最後に流したのは 2026-11-10 15:03：1151 passed・1 failed（#16 で直し、当該 1 本は通った）。stage-l の変更（入口の規則・tests/test_mcp_gate_live.py）は DB つきではまだ流していない
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove-orphans は使わない
 ```
 
@@ -59,7 +59,11 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
   - [x] 段階 I の main への合流（河原さん。merge commit cb9a3f8。stage-i は残してある）
   - [x] G-91：差し戻しの理由（AuditLog の `reason`。正典 v0.12。`reject --reason`・`list --rejected`）。台帳 G-92
   - [x] **N-46 運用の試走**（2026-11-08〜11-10）：段 0〜10 を通した。詰まり 16 件、#5 のほかは直した（#5 は L-0 の提案に）。記録 `docs/journal/2026-11-08-n46-trial.md`
-  - [ ] **止まる点 J-1**（河原さんが決める）：詰まりが無くなった状態として、実データの登録（Claude には渡さない範囲）を始められると宣言するか
+  - [x] **止まる点 J-1**：可（main に合流。merge commit 9cb72ca）
+  - [x] **確認点 L-0**（2026-11-10 河原さん）：1-B ＋ 2-B ＋ 3-A。決めごと 13 項目（`docs/proposals/2026-11-10-L0-entrance-decisions.md` §6。台帳 G-95）
+  - [x] 段階 L の最初（枝 `stage-l`。2026-11-10）：正典 SCHEMA v0.13（`SupportLog.contactKind` 6 値）・SEMANTICS SEM-REC-04（ba69fe4）、入口の点検と受付の検証の規則（9c6ae0d）、書き込み受付の MCP `nest-gate`（`nest/mcp_gate.py` の `submit_proposal`。中身は `nest/gate/proposal.py`。dac0074。台帳 G-96）、narrative-extractor を `submit_proposal` を呼ぶ形に（仮名の復唱・止まったら理由を示して作り直す）
+  - [ ] `nest-gate` を Claude Desktop に登録する段（`scripts/desktop_config.py`）と、職員の ID の設定（`~/.config/nest/nest-gate.env`）を管理者の手順書に書く段は、まだ無い（G-96 (f)。河原さんが決める）
+  - [ ] 段階 L・M の案（K-5）は、まだ計画（`docs/implementation-plan.md`）に移していない
 
 ## グレーな判断
 
@@ -91,6 +95,7 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 
 ## 次タスク（優先度順）
 
-- A：止まる点 J-1（河原さんが決める）。決まるまで何も進めない
-- B：J-1 の後、段階 L・M の案（K-5、`docs/proposals/2026-11-08-stage-L-M.md`）を計画に移すかを河原さんが決める。移すなら、先に確認点 L-0（論点 8 つ）
-- C：残る未決は河原さんの側（G-80：Claude に実データを渡す契約の形、療育手帳の通知の照合）。tsunagu-net への提案（台帳 G-40：列挙値と、上限で切れた印）をどこから渡すかは決めていない
+- A：stage-l の DB つきの試験（`NEST_LIVE_DB=1`。河原さんが頼んだときだけ。試走の DB の中身は消さない）
+- B：`nest-gate` の登録と設定の段（G-96 (f)）を足すか、河原さんが決める。足したら Claude Desktop で架空の事例を一つ通す
+- C：段階 L・M の案（K-5）を計画に移す（L-2・L-3 の行に決めごと 7 の表示の条件を書いてある）。L-1 の残り（失効・交代・修正・食い違い。正典 v0.14 の `ChangeProposal`）
+- D：残る未決は河原さんの側（G-80：Claude に実データを渡す契約の形、療育手帳の通知の照合）。tsunagu-net への提案（台帳 G-40：列挙値と、上限で切れた印）をどこから渡すかは決めていない
