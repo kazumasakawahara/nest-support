@@ -426,3 +426,16 @@ def test_section_5_tells_how_long_a_login_lasts_and_how_to_leave():
     sec = _section("## 5. 支援記録を入れる")
     assert "%d 時間" % hours in sec
     assert "ログアウト" in sec and "共用" in sec and "プライベート" in sec and "staff_token.py remove" in sec
+
+
+# 試走の終わり（2026-11-10 河原さん）：「段 10 の前に DB つきの試験を流す」が手順書に無かった。段 1 の小段と同じく、試走のときだけの小段にする。
+
+def test_section_10_runs_the_live_tests_before_down_only_on_the_trial_db():
+    sec = _section("## 10. その日の終わりに DB を止める")
+    i = sec.index("### 試走（架空の事例の DB）のときだけ")
+    sub = sec[i:sec.index("\n### ", i + 1)]
+    assert "実データ" in sub
+    lines = [c for c, _ in _box_lines(sec)]
+    live = next(n for n, l in enumerate(lines) if l == "NEST_LIVE_DB=1 uv run pytest -q")
+    down = next(n for n, l in enumerate(lines) if l.endswith(" down"))
+    assert live < down

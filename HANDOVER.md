@@ -1,13 +1,13 @@
-# HANDOVER — 2026-11-06 stage-j（ADR-001 の作り直し。段階 A〜I は main に合流済み（cb9a3f8）。段階 J：G-91 済み、N-46 は河原さんの試走の報告を待っている）
+# HANDOVER — 2026-11-10 stage-j（ADR-001 の作り直し。段階 A〜I は main に合流済み（cb9a3f8）。段階 J：G-91・N-46 済み、次は止まる点 J-1）
 
 > 前の HANDOVER（2026-08-03 main。WAM NET スキル整合）は git 履歴（ce627d9）にある。そこに書かれた
 > `~/.config/nest/neo4j.env`・ポート 7687・`nest-support-neo4j` は**前の構成**で、この枝では使わない。
 
-## 再開コマンド（2026-11-06 15:51 に確かめた）
+## 再開コマンド（2026-11-10 15:11 に確かめた）
 
 ```bash
 cd ~/Dev-Work/project/nest-support && git switch stage-j
-uv run pytest -q                       # 926 passed, 142 skipped（DB を使う試験は skip）
+uv run pytest -q                       # 1009 passed, 144 skipped（DB を使う試験は skip）
 uv run python scripts/check_drift.py   # ずれ 0 件
 ./scripts/doctor.sh                    # 環境の点検：29 passed, 2 warned, 0 failed（WARN は external-api の記録と設定のファイルが無いこと）
 ```
@@ -16,14 +16,14 @@ DB を使う試験（結合試験のタスクのときだけ。終わったら�
 
 ```bash
 docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d     # nest-redesign-personal（37474/37687）・nest-redesign-resource（38474/38687）
-uv run python tests/live_cleanup.py                                  # 試験の DB を片づける（架空の印のある DB でだけ動く。印は試験が一時に置くので、手で流すときは一時の印を置いてから）
-NEST_LIVE_DB=1 uv run pytest -q                                       # 最後に流したのは 2026-11-06 15:50（G-91 の後）：1067 passed（落ち 0・skip 0）
+# 試走の DB の中身（下の「前提」）を残している間は live_cleanup.py を打たない（印のほかをすべて消す）
+NEST_LIVE_DB=1 uv run pytest -q                                       # 最後に流したのは 2026-11-10 15:03：1151 passed・1 failed（#16 で直し、当該 1 本は通った）
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove-orphans は使わない
 ```
 
 - `neo4j-redesign.env` の中身は読まない・表示しない（接続の部品 `nest/connections.py` と試験が読む）
 - 起動の前に `docker ps` で前の DB が動いていないことを確かめ、起動の後に 2 つとも 127.0.0.1 だけで待ち受けていることを確かめる（N-18 の条件）
-- 2026-11-06 15:51 に down 済み（`docker ps` に nest の名前が無いことを確かめた）。試験の DB には架空の未確定が 76 件ほど残っている（試験が作ったもの。次の DB つきの試験の前に片づけてよい）
+- 2026-11-10 15:11 に down 済み（河原さんが段 10 で止めた。`docker ps` に nest の名前が無いことを確かめた）
 
 新しい Mac でゼロから入れる手順は `docs/SETUP_GUIDE.md` の「0. 新しい Mac でゼロから」（N-38）。
 
@@ -36,7 +36,10 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 | 前の DB は河原さんが消した（N-05a。2026-11-06）：`nest-support-neo4j`・`neo4j_*`・`.quarantine/`・`~/.config/nest/neo4j-personal.env` が無い。`~/.config/nest/neo4j.env`（neo4j-agno-agent の設定）は残す | `docker ps -a`、`ls -d neo4j_* .quarantine` | 2026-11-06（河原さんの報告） |
 | `support-db-neo4j`（neo4j-agno-agent の共有層 7687）は restart=no で止まっている | `docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' support-db-neo4j` → `no` | 2026-11-06 |
 | `~/nest-support-hold/` は河原さんが消した（2026-11-06） | `ls -d ~/nest-support-hold` | 2026-11-06（河原さんの報告） |
-| 職員のトークンの表 `~/.config/nest/field-ui-staff.json`（600）に、架空の職員 `STF-0000FAKESTAFF0000000000001` が一人いる（F-2 の画面の撮影で作った。DB の個人の側にも同じ職員がいる） | `uv run python scripts/staff_token.py list` | 2026-11-06 |
+| 職員のトークンの表 `~/.config/nest/field-ui-staff.json`（600）から、架空の職員 `STF-0000FAKESTAFF0000000000001` は消した（N-46 #3）。今の管理者は「事務局」STF-01M6XBX18S58S4CD90W71YTH6C、職員は「相談支援専門員A」STF-01M6XC4Y216FH8S736MS5S2CNV | `uv run python scripts/staff_token.py list` | 2026-11-10（河原さんの報告） |
+| 11-06 の入力 UI のたたき台（未 commit だったもの）は `docs/archive/2026-11-06-input-ui-decisions.md` へ移した（85e5237。ADR-002 で画面を不採用にした経緯を頭に記す） | `git log --oneline -1 -- docs/archive/2026-11-06-input-ui-decisions.md` | 2026-11-10 |
+| 試走の DB（個人の側）の中身：はると（C-N5AE5P）、承認 1・差し戻し 2、Pending（試走の案と、DB つきの試験が足した案）、DB つきの試験が足した架空の本人、架空の印（NestLiveProbe）1 個。**消さない**（live_mark・live_cleanup を打たない） | `uv run python scripts/review_proposals.py list`、`uv run python scripts/backup.py count`（DB を起こして） | 2026-11-10 |
+| バックアップの世代は `~/nest-backup/20261110-121315` の 1 つ（段 8 の廃棄の後に取り、prune で前の世代を消した） | `uv run python scripts/backup.py list` | 2026-11-10 |
 | 資源の側の写しは `~/Dist/tsunagu-net-trial-20261104`（tsunagu-net の 2026-11-04 の一式）から読み込んだもの | `MANIFEST.json`（台帳 G-55） | 2026-11-05 |
 | tsunagu-net は `~/Dev-Work/tsunagu-net`、HEAD 3bf49ca。正典 SCHEMA v0.31・SEMANTICS v0.32（BRS-49）。**変えない** | `git -C ~/Dev-Work/tsunagu-net log -1` | 2026-11-06 |
 | 共通の約束は v1.1（tsunagu-net `docs/contracts/nest-support-shared.md`） | 同ファイルの版の行 | 2026-11-05 |
@@ -55,7 +58,8 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
   - [x] 止まる点 I-1（2026-11-06 河原さん承認。G-88〜G-90。音声を消すのは金曜日、書き込みが無ければその週の最後に書き込んだ日）
   - [x] 段階 I の main への合流（河原さん。merge commit cb9a3f8。stage-i は残してある）
   - [x] G-91：差し戻しの理由（AuditLog の `reason`。正典 v0.12。`reject --reason`・`list --rejected`）。台帳 G-92
-  - [ ] **段階 J（運用の試走。計画に書いた）**：N-46 河原さんが `docs/OPERATIONS.md` を上から順に架空のデータで打ち、詰まった箇所を Mac に知らせる（Mac は横で見ない）。Mac はそれを直す。止まる点 J-1：詰まりが無くなったら、実データの登録（Claude には渡さない範囲）を始められる状態とする
+  - [x] **N-46 運用の試走**（2026-11-08〜11-10）：段 0〜10 を通した。詰まり 16 件、#5 のほかは直した（#5 は L-0 の提案に）。記録 `docs/journal/2026-11-08-n46-trial.md`
+  - [ ] **止まる点 J-1**（河原さんが決める）：詰まりが無くなった状態として、実データの登録（Claude には渡さない範囲）を始められると宣言するか
 
 ## グレーな判断
 
@@ -87,6 +91,6 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 
 ## 次タスク（優先度順）
 
-- A：河原さんの試走（N-46）の報告を待つ。**待っている間は何も進めない**。報告が来たら、詰まりごとに試験を先に書いて直す
-- B：詰まりが無くなったら止まる点 J-1
+- A：止まる点 J-1（河原さんが決める）。決まるまで何も進めない
+- B：J-1 の後、段階 L・M の案（K-5、`docs/proposals/2026-11-08-stage-L-M.md`）を計画に移すかを河原さんが決める。移すなら、先に確認点 L-0（論点 8 つ）
 - C：残る未決は河原さんの側（G-80：Claude に実データを渡す契約の形、療育手帳の通知の照合）。tsunagu-net への提案（台帳 G-40：列挙値と、上限で切れた印）をどこから渡すかは決めていない

@@ -327,6 +327,19 @@ doctor の項目：[1] 前の DB は動いていない、[2] 新しい DB の待
 
 その日の作業が終わったら、DB を止めます。バックアップを取る日は 7 の枠の中で止めているので、この段は飛ばします。
 
+### 試走（架空の事例の DB）のときだけ：止める前に DB つきの試験を流す
+
+試走の終わりに、DB を起こしたまま、DB つきの試験をまとめて流します。**実データを入れた DB では流しません**（試験は架空の職員・本人・案を DB に足します）。
+
+```bash
+NEST_LIVE_DB=1 uv run pytest -q             # 最後の行に failed が無いこと
+```
+
+- 試験が足した架空の本人・案は残ります（試走の DB の中身も消しません）。そのため、`review_proposals.py list` などに試験のものが混ざります
+- 段 1 の `live_mark.py` で置いた架空の印は残したままでかまいません（試験は印の数が始める前と同じかを見ます）
+
+### 止める
+
 ```bash
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down
 docker ps                                   # 新しい DB（nest-redesign-personal・nest-redesign-resource）が出ないこと
