@@ -1,6 +1,6 @@
 # 提案：確認点 L-0 ── 書き込み受付（L-1）の前に決める 3 つの論点の案
 
-- 状態：**案（決めるのは河原さん）**。2026-11-10。確認点 L-0（`docs/proposals/2026-11-09-interview-record-shape.md` の論点 8 つのうち、1・2・4・5・6 に当たる 3 つ）
+- 状態：**決定（2026-11-10 河原さん。確認点 L-0）**。案は 2026-11-10 に書き、同日に可否が出た。決まったことは §6。可否で変わった点：`contactKind` に `Correspondence` を足して 6 値（決めごと 2）、`PROVIDED_BY` の無い `Agency` を照会口と出力で「記録者の観察」と表示する条件（決めごと 7。L-2・L-3 の条件）、根拠が見立てだけの候補は禁忌を入口で止め推奨ケアは注意で通す（決めごと 8）。本文はこの可否に合わせて直した。確認点 L-0（`docs/proposals/2026-11-09-interview-record-shape.md` の論点 8 つのうち、1・2・4・5・6 に当たる 3 つ）
 - **正典（SCHEMA・SEMANTICS）・コード・手順書・試験は、この提案では変えていない。** 河原さんが可とした案だけを、段階 L の最初に「試験を先に書く → 正典の版を上げる → `check_drift.py` で FAIL 0」の順で入れる
 - 関連：ADR-001（D4 確度・D5 根拠・D6 書き込み・D7 点検・D8 人の同定）、ADR-002（D1 入口・D3 案の種類）、正典 `docs/SCHEMA.md` v0.12（§4.2 `Record`・`SupportLog`、§4.3、§4.5、§6、§10）、`docs/SEMANTICS.md`（SEM-REC-01〜03、SEM-ENUM-01・02）、journal `docs/journal/2026-11-08-n46-trial.md`（詰まり #5・#9・#10）、共通の約束 v1.1（tsunagu-net `docs/contracts/nest-support-shared.md`。読むだけ）
 - 用語（一行ずつ）：**入口の点検**＝`nest/gate/intake.py` の `check`。Claude の案（JSON）を原文と突き合わせる、AI を使わない点検。**受付の検証**＝`nest/gate/validate.py`。正典の形に合うかを見る（文書では「ゲート」と呼んできたもの）。**見立て**＝記録者（相談支援専門員）自身の受け取り方・推測。**面接記録**＝相談支援の訪問・来所・電話・同行・会議の記録
@@ -36,7 +36,7 @@
 
 - `SupportLog` を「支援の接触の記録」と読み直す。GH の行動支援の記録（状況・対応・効果）も、相談支援の面接（訪問・電話…）も、同じラベルの時系列に並ぶ
 - 正典の変化（SCHEMA §4.2・§4.5・§11）：
-  - `SupportLog` に任意の項目 **`contactKind`**（列挙 `contactKind`。nest-support だけ）を足す。値は `Visit`（訪問）・`OfficeVisit`（来所）・`Phone`（電話）・`Accompaniment`（同行）・`Meeting`（会議）の 5 つ。合わないときは空のまま（「その他」の値は作らない。分からない値は空にする ADR-001 D7 のとおり）。GH の行動支援の記録は空でよい
+  - `SupportLog` に任意の項目 **`contactKind`**（列挙 `contactKind`。nest-support だけ）を足す。値は `Visit`（訪問）・`OfficeVisit`（来所）・`Phone`（電話）・`Accompaniment`（同行）・`Meeting`（会議）・`Correspondence`（文書・メール・FAX 等のやり取り。2026-11-10 河原さんが足した）の 6 つ。合わないときは空のまま（「その他」の値は作らない。分からない値は空にする ADR-001 D7 のとおり）。GH の行動支援の記録は空でよい
   - 既にある項目の意味を SEMANTICS で定める（項目の名前・必須は変えない）：`date`＝接触の日、`situation`＝「どこで・誰と」（同席者は役割の名前で。例「自宅。母と本人」。GH では今までどおり食事・作業などの場面）、`action`＝記録者がしたこと、`nextAction`＝次の調整、`note`＝ほか、`effectiveness`＝行動支援の記録だけが使う
   - 関係は今のまま：`(SupportLog)-[:ABOUT]->(Client)`、`(SupportLog)-[:AUTHORED_BY]->(Staff)`、`(SupportLog)-[:EVIDENCED_BY]->(Record)`
 - 案の形（`intake.py`）の変化：最上位に **`supportLog`**（0 か 1 件）を足す。`{"quote", "date", "contactKind"?, "situation", "action"?, "nextAction"?, "note"?}`。`quote` は案の事実の引用のどれか（禁忌・推奨ケアの候補と同じ仕組み。その記録を根拠に結ぶ）。`effectiveness` は案に書かせない（効果の判定は職員が行い、要るなら承認の後に修正の案で足す）。`situation`・`action`・`nextAction`・`note` に、**原文全体に無い数字**を足していれば止める（候補の「引用に無い数字」より広い。面接 1 回のまとめだから）。AI 由来なので `Pending` で入る
@@ -122,12 +122,12 @@ DB に入るもの（すべて `Pending`・`origin: AiExtracted`）：
 - `docs/SCHEMA.md`：**v0.12 → v0.13**。§4.2 の `SupportLog` の行に `contactKind`(enum)、§4.5 に `contactKind`（nest-support だけ）の行、§11 の機械検証ブロックに次の 3 行の差分。変更履歴に一行
   ```
   "SupportLog": {"required": ["supportLogId", "date", "situation"], "optional": ["action", "effectiveness", "note", "nextAction", "contactKind"], ...}
-  "enums": {..., "contactKind": ["Visit", "OfficeVisit", "Phone", "Accompaniment", "Meeting"]}
+  "enums": {..., "contactKind": ["Visit", "OfficeVisit", "Phone", "Accompaniment", "Meeting", "Correspondence"]}
   "enumBindings": {..., "SupportLog.contactKind": "contactKind"}
   ```
   ラベル・接頭辞・関係・必須の項目は変わらない。`check_drift.py` は §4.2・§4.5 の表と JSON の両方を直せば FAIL 0
 - 機械検証ブロックの `"version"` は `0.5` のまま（v0.5 以降、文書の版と別に止まっている。`tests/test_canon.py` が `0.5` を固定している）。今回も触らないのを推す（触るなら別の決めごと）
-- `docs/SEMANTICS.md`：版の番号を持たない文書なので、節を足す。SEM-ENUM-01 に `contactKind` の表示名 5 行、新しい節 **SEM-REC-04「面接記録の書き方」**（面接 1 回＝`SupportLog` 1 件、`situation`・`action`・`nextAction` の埋め方、同席者は役割の名前、聞いた事実は `Record` に分ける、`effectiveness` は行動支援の記録だけ）
+- `docs/SEMANTICS.md`：版の番号を持たない文書なので、節を足す。SEM-ENUM-01 に `contactKind` の表示名 6 行、新しい節 **SEM-REC-04「面接記録の書き方」**（面接 1 回＝`SupportLog` 1 件、`situation`・`action`・`nextAction` の埋め方、同席者は役割の名前、聞いた事実は `Record` に分ける、`effectiveness` は行動支援の記録だけ）
 - `docs/SCHEMA.md` §8 の表（前の正典とのつき合わせ）は変えない。HANDOVER の未決論点 4（`SupportLog` に感情・きっかけを足すか）は閉じたまま
 
 ### 1.6 共通の約束 v1.1 への影響
@@ -169,10 +169,10 @@ DB に入るもの（すべて `Pending`・`origin: AiExtracted`）：
 
 - SEMANTICS に決まりを書く（SEM-REC-04 の一部）：
   - 見立て（記録者の受け取り方・推測）は、原文で【推測】の印を付けた一文を `Record` にする。`certainty: Inference`（印から。入口の点検がそのまま決める）
-  - `informantKind` は、**その見立てのもとになった話・観察の情報源**：本人の話から → `Self`、家族の話から → `Family`、職員が自分で見たこと（観察）から → `Agency`（自分の事業所。`PROVIDED_BY` の無い `Agency` は自分の事業所の職員の見聞と読む）、既存の記録だけから → `DocumentOnly`
+  - `informantKind` は、**その見立てのもとになった話・観察の情報源**：本人の話から → `Self`、家族の話から → `Family`、職員が自分で見たこと（観察）から → `Agency`（自分の事業所。`PROVIDED_BY` の無い `Agency` は自分の事業所の職員の見聞と読む）。**条件（2026-11-10 河原さん。決めごと 7）：照会口と出力は、`PROVIDED_BY` の無い `Agency` を「記録者の観察」と表示する。** これを L-2（承認・差し戻しの MCP の `show_pending`）と L-3（支援の輪の確認事項の出力）の条件に書く、既存の記録だけから → `DocumentOnly`
   - `TOLD_BY` は張らない（誰かが言ったことではない）。記録者は `AUTHORED_BY` の `Staff`
   - `recordKind` は、面接の中で受け取ったなら `Interview`、観察からなら `Observation`
-  - 見立ては禁忌・推奨ケアの候補の根拠（`EVIDENCED_BY`）になれる。候補は根拠の確度を引き継ぐので `Inference` のまま（約束 4-3。格上げしない）。入口の点検は、根拠が見立てだけの候補に注意を出す（止めない）
+  - 見立ては禁忌・推奨ケアの候補の根拠（`EVIDENCED_BY`）になれる。候補は根拠の確度を引き継ぐので `Inference` のまま（約束 4-3。格上げしない）。根拠が見立てだけの候補は、**禁忌（`NgAction`）は入口の点検で止め、推奨ケア（`CarePreference`）は注意を出して通す**（2026-11-10 河原さん。決めごと 8）。禁忌は命と安全にかかわるので、推測だけでは禁忌にしない。推奨ケアは、見立てから支え方を試すことがあるので通す
 - 正典の変化：**SCHEMA は無し。SEMANTICS に節を足す**
 - 案の形の変化：無し。入口の点検に「`certainty` が `Inference` で `informantKind` が無いときは、もとになった情報源を書くよう理由を出して止める」を足す（論点 3 の案 3-A の一部）
 
@@ -215,7 +215,7 @@ DB に入るもの（すべて `Pending`・`origin: AiExtracted`）：
 | `Record` | `kind: Interview`、`certainty: Inference`（印【推測】から）、`informantKind: Self`（直前の本人の話「ヘルパーさんは、おふろの日に来る人がいい」から受け取った見立て）、`quote` は上の一文、`text` は省くか言い換え、`documentHash` は §2 の原文の指紋 |
 | `(Record)-[:ABOUT]->(Client)`、`-[:AUTHORED_BY]->(Staff)` | 本人と、案を通した職員（記録者） |
 | `TOLD_BY` | 張らない |
-| 候補 | この一文から推奨ケアの候補（例：ヘルパーを固定する）は**作らない**。原文に「どう支えるか」が無い。作るなら根拠は `Inference` の記録一つで、入口の点検が注意を出す |
+| 候補 | この一文から推奨ケアの候補（例：ヘルパーを固定する）は**作らない**。原文に「どう支えるか」が無い。作るなら根拠は `Inference` の記録一つで、推奨ケアなら入口の点検が注意を出して通る。同じ一文から禁忌の候補を作れば入口で止まる（決めごと 8） |
 
 - 記録 1 の職員の観察 3 件（「自宅を訪問。母と本人に会う。」など）は、見立てではないが同じ決まりの「職員が自分で見たこと」で `informantKind: Agency`（§1.4）
 - Library の `fixtures_kakuu_3cases.md` の「【推定】本人は決めることに関わりたい気持ちと不安の両方を持っていると、私は受け取った。」（A-1）と「【推定】本人は麦の制限を自分で理解していると私は受け取った。」（C-2）も同じ形になる（印は【推測】に、位置は文の直後に直してから。`docs/fixtures/` に移すときに）
@@ -236,11 +236,11 @@ DB に入るもの（すべて `Pending`・`origin: AiExtracted`）：
 
 | 対象 | 変わること |
 |---|---|
-| `nest/gate/intake.py` | `certainty: Inference` で `informantKind` が無い事実に、理由（「見立ては、もとになった情報源を書く：本人の話なら Self…」）を出して止める。根拠が `Inference` の記録だけの候補に注意 |
+| `nest/gate/intake.py` | `certainty: Inference` で `informantKind` が無い事実に、理由（「見立ては、もとになった情報源を書く：本人の話なら Self…」）を出して止める。根拠が `Inference` の記録だけの候補は、禁忌なら止め、推奨ケアなら注意を出す（決めごと 8） |
 | `nest/gate/validate.py`・`write.py` | 変更なし |
 | `claude-skills/narrative-extractor/SKILL.md` | 「守ること」に 9 として見立ての書き方。架空の例に【推測】の一文を足す |
-| `scripts/review_proposals.py`（と L-2 の `show_pending`） | 確度が `Inference` の引用に「見立て」と添える（任意。読む側の表示だけ） |
-| 試験（新しく書く） | `tests/test_intake.py`（見立てが `Self` で通る・`informantKind` 無しは入口で止まり理由に「情報源」が出る）、`tests/test_narrative_extractor_skill.py`（例の見立てが入口と検証を通る）、`tests/test_submit_proposal.py`（fact-11 を含む §2 の案が通る。今の `test_fixture_section_2_passes_the_intake_check` は全部の事実に `Family` を付けて通している。2-B の規則は `informantKind` が無いときだけ止めるので、この試験は落ちないが、見立ての行だけ `Self` にする形に直すのが望ましい） |
+| `scripts/review_proposals.py`（と L-2 の `show_pending`）、照会口（`nest/mcp_personal.py`）、L-3 の出力 | `PROVIDED_BY` の無い `Agency` を「記録者の観察」と表示する（決めごと 7 の条件。L-2・L-3 の試験に入れる）。確度が `Inference` の引用に「見立て」と添える（任意） |
+| 試験（新しく書く） | `tests/test_intake.py`（見立てが `Self` で通る・`informantKind` 無しは入口で止まり理由に「情報源」が出る・根拠が見立てだけの禁忌の候補は止まり、推奨ケアの候補は注意つきで通る）、`tests/test_narrative_extractor_skill.py`（例の見立てが入口と検証を通る）、`tests/test_submit_proposal.py`（fact-11 を含む §2 の案が通る。今の `test_fixture_section_2_passes_the_intake_check` は全部の事実に `Family` を付けて通している。2-B の規則は `informantKind` が無いときだけ止めるので、この試験は落ちないが、見立ての行だけ `Self` にする形に直すのが望ましい） |
 | 試験（変わらない） | `tests/test_canon.py::test_repository_canon_shared_enums_match_contract`（5 値のまま）、`tests/test_semantics_enums.py` |
 | 案 2-A のとき | 上に加えて `tests/test_canon.py` の共有の列挙値の試験・`tests/test_semantics_enums.py`・`validate.py` は正典から読むので変更なし。tsunagu-net の正典が変わるまで「nest-support だけの値」として §10 に書く |
 
@@ -338,42 +338,46 @@ DB に入るもの（すべて `Pending`・`origin: AiExtracted`）：
 - 2 → 3：2-B は「見立てには情報源が要る」の決まりを入口で伝える（3-A の 2）。2-A なら、値を足すだけで入口の変更は列挙値の読み込みだけ
 - 1 → 2：1-B で職員の観察（`Observation`）を `Record` に分けると、「職員自身の見聞の情報源は `Agency`」の読み方（2-B）が面接記録でも使われる。1-A でも同じ
 
-## 5. 推す組み合わせ
+## 5. 決まった組み合わせ（2026-11-10 河原さん）
 
-**1-B ＋ 2-B ＋ 3-A。**
+**1-B ＋ 2-B ＋ 3-A。** 推した組み合わせのとおりに決まり、決めごと 2・7・8 に河原さんの手直しが入った（§6）。
 
 - 正典の版上げは SCHEMA v0.13 の一回（`SupportLog.contactKind` と列挙 `contactKind` を足す。ラベル・関係・必須の項目・共有の列挙値は変えない）。SEMANTICS に SEM-REC-04（面接記録の書き方・見立ての書き方・新しい人の根拠）と `contactKind` の表示名
 - 共通の約束 v1.1 は変えない。tsunagu-net へ出す提案は無い
-- コードの変更は入口の点検（`supportLog`・必須の項目・見立ての理由・使われない人）と受付の検証（AI 由来の `Person` の結びつき）だけ。書き込み（`write.py`）・承認（`approve.py`）は変わらない
-- ADR-002 の正典の版上げ（`ChangeProposal`・`TARGETS`・`changeKind`。段階 L の最初）とは**別の版**にする（v0.13 → v0.14）。試験を分けて書けるため。一つにまとめるかは河原さんの判断（§6 の 12）
-- 順：河原さんの可否 → 段階 L の最初に、試験を先に書いて v0.13（1-B）と SEM-REC-04（2-B）と入口・受付の規則（3-A）を入れる → `check_drift.py` FAIL 0・`uv run pytest -q` → L-1 に進む
+- コードの変更は入口の点検（`supportLog`・必須の項目・見立ての理由・使われない人・見立てだけが根拠の禁忌の候補）と受付の検証（AI 由来の `Person` の結びつき）。書き込み（`write.py`）・承認（`approve.py`）は変わらない。照会口と出力の表示（`PROVIDED_BY` の無い `Agency`＝「記録者の観察」）は L-2・L-3 の条件
+- ADR-002 の正典の版上げ（`ChangeProposal`・`TARGETS`・`changeKind`。段階 L の最初）とは**別の版**にする（v0.13 → v0.14）。試験を分けて書けるため（決めごと 12）
+- 順：段階 L の最初に、試験を先に書いて v0.13（1-B）と SEM-REC-04（2-B）と入口・受付の規則（3-A）を入れる → `check_drift.py` FAIL 0・`uv run pytest -q` → L-1 に進む
 
-## 6. 河原さんに決めてもらうこと（はい／いいえ）
+## 6. 決まったこと（2026-11-10 河原さん。確認点 L-0）
+
+河原さんの可否：1〜6・9〜13 はい。2 は `Correspondence` を足して 6 値。7 は表示の条件つき。8 はいいえ（禁忌は止め、推奨ケアは通す）。
 
 論点 1
 
-1. 面接 1 回を `SupportLog` 1 件にし、聞いた事実は `Record` に分ける（案 1-B）。── はい／いいえ（いいえなら 1-A か 1-C を指定）
-2. `SupportLog` に任意の項目 `contactKind`（`Visit`・`OfficeVisit`・`Phone`・`Accompaniment`・`Meeting` の 5 値。nest-support だけ。「その他」は作らない）を足す。── はい／いいえ
-3. 同席者は `situation` に役割の名前で書き、人のノードと結ぶ新しい関係は作らない。── はい／いいえ
-4. `SupportLog` の根拠（`EVIDENCED_BY`）は、案の事実の引用 1 つ（接触の一文）に結ぶ。── はい／いいえ（いいえなら、同じ案の全部の事実に結ぶ）
-5. `effectiveness` は案に書かせない（判定は職員。要るなら承認の後に修正の案で）。── はい／いいえ
+1. **はい。** 面接 1 回を `SupportLog` 1 件にし、聞いた事実は `Record` に分ける（案 1-B）
+2. **はい。ただし 6 値。** `SupportLog` に任意の項目 `contactKind` を足す。値は `Visit`（訪問）・`OfficeVisit`（来所）・`Phone`（電話）・`Accompaniment`（同行）・`Meeting`（会議）・`Correspondence`（文書・メール・FAX 等のやり取り）。nest-support だけ。「その他」は作らない
+3. **はい。** 同席者は `situation` に役割の名前で書き、人のノードと結ぶ新しい関係は作らない
+4. **はい。** `SupportLog` の根拠（`EVIDENCED_BY`）は、案の事実の引用 1 つ（接触の一文）に結ぶ
+5. **はい。** `effectiveness` は案に書かせない（判定は職員。要るなら承認の後に修正の案で）
 
 論点 2
 
-6. 見立ては値を足さずに表す（`certainty: Inference`、`informantKind` はもとになった情報源、記録者は `AUTHORED_BY`。案 2-B）。── はい／いいえ（いいえなら 2-A。約束 v1.2 と tsunagu-net への提案が要る）
-7. 職員自身の観察・見立ての情報源を `Agency`（自分の事業所）と読む。── はい／いいえ（いいえなら、`Recorder` の値を足す 2-A に戻る）
-8. 根拠が見立て（`Inference`）の記録だけの禁忌・推奨ケアの候補は、入口の点検が**注意を出して通す**。── はい／いいえ（いいえなら止める）
+6. **はい。** 見立ては値を足さずに表す（`certainty: Inference`、`informantKind` はもとになった情報源、記録者は `AUTHORED_BY`。案 2-B）。約束 v1.1 は変えない。tsunagu-net へ出す提案は無い
+7. **はい。条件つき。** 職員自身の観察・見立ての情報源を `Agency`（自分の事業所）と読む。**条件：照会口と出力は、`PROVIDED_BY` の無い `Agency` を「記録者の観察」と表示する。これを L-2（承認・差し戻しの MCP）と L-3（支援の輪の確認事項の出力）の条件に書く**
+8. **いいえ。** 根拠が見立て（`Inference`）の記録だけの候補は、**禁忌（`NgAction`）は入口の点検で止め、推奨ケア（`CarePreference`）は注意を出して通す**
 
 論点 3
 
-9. 入口の点検で、事実の `recordKind`・`informantKind` の有無と列挙値、`supportLog` の必須と列挙値を見る（案 3-A）。── はい／いいえ
-10. どの `toldBy`・`concerns` にも使われない新しい人は、入口で**止める**（今の注意から変える）。── はい／いいえ
-11. 受付の検証にも「AI 由来の `Person` は同じ依頼の `TOLD_BY`・`CONCERNS`・`RELATED_TO` のどれかで結ばれている」規則を足す。── はい／いいえ
+9. **はい。** 入口の点検で、事実の `recordKind`・`informantKind` の有無と列挙値、`supportLog` の必須と列挙値を見る（案 3-A）
+10. **はい。** どの `toldBy`・`concerns` にも使われない新しい人は、入口で止める（今の注意から変える）
+11. **はい。** 受付の検証にも「AI 由来の `Person` は同じ依頼の `TOLD_BY`・`CONCERNS`・`RELATED_TO` のどれかで結ばれている」規則を足す
 
 正典の版
 
-12. 今回の正典の変更を SCHEMA v0.13 とし、ADR-002 の `ChangeProposal` の版上げ（v0.14）と分ける。── はい／いいえ（いいえなら一つの版にまとめる）
-13. 機械検証ブロックの `"version"`（`0.5`）は今回も触らない。── はい／いいえ
+12. **はい。** 今回の正典の変更を SCHEMA v0.13 とし、ADR-002 の `ChangeProposal` の版上げ（v0.14）と分ける
+13. **はい。** 機械検証ブロックの `"version"`（`0.5`）は今回も触らない
+
+次に行うこと（段階 L の最初。段階 J の制約が外れていることを先に確かめる）：試験を先に書く → SCHEMA v0.13（`contactKind` 6 値）と SEMANTICS SEM-REC-04・表示名 → 入口の点検と受付の検証（3-A と決めごと 8） → `check_drift.py` FAIL 0・`uv run pytest -q` → 台帳に決めごと 13 項目を写す → L-1。L-2・L-3 の計画の行に決めごと 7 の表示の条件を足す（`docs/proposals/2026-11-08-stage-L-M.md` を計画に移すとき）。
 
 ## 7. 今回扱わなかった論点との関係（一行ずつ）
 
