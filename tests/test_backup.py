@@ -167,3 +167,55 @@ def test_prune_refuses_a_name_that_is_not_an_existing_generation(tmp_path, befor
     out = backup.prune(root, before, write=True)
     assert not out["ok"] and out["errors"]
     assert sorted(p.name for p in root.iterdir()) == ["20261110-114507", "20261110-121315"]
+
+
+# N-46 詰まり #13：restore が止まっても、続けて打った find が本人を返し、戻せたように見えた。
+# 戻した中身の数を出す（DB を起こした後に count）。起ききるまで待つ（#12 の再試行の行も出さない）。
+
+class _Drv:
+    def __init__(self, fails=0, rows=None):
+        self.fails, self.rows, self.queries = fails, rows or [], []
+
+    def verify_connectivity(self):
+        if self.fails:
+            self.fails -= 1
+            raise OSError("まだ起きていない")
+
+    def execute_query(self, q, *a, **k):
+        self.queries.append(q)
+        return self.rows, None, None
+
+
+def test_counts_waits_for_the_db_and_returns_label_counts():
+    d = _Drv(fails=2, rows=[{"label": "Record", "n": 40}, {"label": "Client", "n": 3}])
+    out = backup.counts(d, wait=5, sleep=lambda s: None)
+    assert out["ok"], out["errors"]
+    assert out["counts"] == {"Client": 3, "Record": 40}
+    assert len(d.queries) == 1 and "labels(" in d.queries[0]
+
+
+def test_counts_gives_up_when_the_db_never_comes_up():
+    d = _Drv(fails=10 ** 6)
+    out = backup.counts(d, wait=3, sleep=lambda s: None)
+    assert not out["ok"] and any("起き" in e for e in out["errors"]) and d.queries == []
+
+
+def test_restore_success_says_to_count_after_up(tmp_path, capsys, monkeypatch):
+    from doc_commands import load
+    mod = load("backup.py")
+    gen = tmp_path / "20261110-114507"
+    gen.mkdir()
+    (gen / "neo4j.dump").write_bytes(b"x")
+    monkeypatch.setattr(mod.backup, "restore", lambda *a, **k: {"ok": True, "errors": []})
+    assert mod.main(["restore", "20261110-114507", "--root", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "戻した：20261110-114507" in out and "backup.py count" in out
+
+
+def test_count_command_prints_the_counts(capsys, monkeypatch):
+    from doc_commands import load
+    mod = load("backup.py")
+    monkeypatch.setattr(mod.backup, "counts", lambda d, **k: {"ok": True, "errors": [], "counts": {"Client": 3, "Record": 40}})
+    assert mod.main(["count"], driver=object()) == 0
+    out = capsys.readouterr().out
+    assert "Client 3" in out and "Record 40" in out

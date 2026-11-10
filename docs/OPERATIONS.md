@@ -243,11 +243,19 @@ uv run python scripts/backup.py list       # 世代の一覧
 戻すとき（今の個人の側を、その世代で置き換えます）：
 
 ```bash
+docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d          # 止めていたら起こす
+uv run python scripts/new_client.py add --staff STF-… --family 確かめ --given 戻し     # 試走のときだけ：取った後に架空の本人を一人足す
+uv run python scripts/backup.py count                                        # 戻す前の数（控える）
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down
 uv run python scripts/backup.py restore <日時>
 docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d
-uv run python scripts/new_client.py find --family 氏 --given 名     # 戻ったことを、知っている本人で確かめる
+uv run python scripts/backup.py count                                        # 戻した後の数。戻す前と比べる
+uv run python scripts/new_client.py find --family 確かめ --given 戻し        # 試走のときだけ：「見つからない」なら戻せた
 ```
+
+- restore が「戻した：…」を出さず「止めた：…」を出したら、戻っていません。先に進まない（その後の数も find も、戻す前の DB を見ているだけです）
+- 戻せたかは数で見ます。戻した後の数が、その世代を取ったときの中身と合うかを確かめます。知っている本人を find で引くだけでは、戻す前の DB にも同じ本人がいるので区別できません
+- 試走のときだけ、取った後に架空の本人（確かめ 戻し）を一人足してから戻します。戻せていれば、その本人は find で「見つからない」になり、本人（Client）の数が一つ減ります。実データでは、この 2 行を飛ばします
 
 - バックアップは要配慮個人情報の写しです。外のサービス（クラウドのドライブなど）に置きません
 
@@ -275,11 +283,13 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down
 uv run python scripts/backup.py dump                                       # 「取った：…/<日時>」の日時が <新しい世代>。控える
 uv run python scripts/backup.py restore <新しい世代>                        # 取ったばかりの世代で戻せるかを確かめる
 docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d
-uv run python scripts/new_client.py find --family 氏 --given 名            # 戻ったことを、知っている本人で確かめる
+uv run python scripts/backup.py count                                      # 戻した後の数。廃棄の前より、消した件数だけ減っている
+uv run python scripts/new_client.py find --family 氏 --given 名            # 廃棄した本人の氏名で引き、「見つからない」こと
 uv run python scripts/backup.py prune --before <新しい世代>                 # 消す世代の一覧（何も消さない）。<新しい世代> は残る
 uv run python scripts/backup.py prune --before <新しい世代> --write         # 消して、残った世代を出す
 ```
 
+- restore が「止めた：…」を出したら先に進まない（7 と同じ。古い世代も消さない）
 - `--before` に在る世代の名前を打たないと、何も消さずに止まります（打ち間違えで新しい方を消さないため）。消すのは `<新しい世代>` より前の世代だけです
 
 点検：人が確かめる（試しの実行の件数、消した後のバックアップ）。音声の残りは [9]、バックアップの置き場所は [8]

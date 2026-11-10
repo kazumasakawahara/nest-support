@@ -15,6 +15,7 @@ NEEDS_UP = (
     "scripts/new_client.py",
     "scripts/review_proposals.py",
     "scripts/purge_client.py",
+    "scripts/backup.py count",
     "field-ui/server.py",
     "api_server.py",
 )
@@ -316,3 +317,66 @@ def test_purge_client_after_write_shows_the_backup_commands(monkeypatch, capsys)
     out = capsys.readouterr().out
     for k in ("scripts/backup.py dump", "scripts/backup.py restore", "scripts/backup.py prune --before", "--write"):
         assert k in out, k
+
+
+# 詰まり #13：段 7 の「戻ったことを、知っている本人で確かめる」は、戻す前の DB にも同じ本人がいるので区別できない。
+
+def _box_lines(sec, which=None):
+    import re
+    blocks = re.findall(r"```bash\n(.*?)```", sec, re.S)
+    if which is not None:
+        blocks = [blocks[which]]
+    out = []
+    for b in blocks:
+        for l in b.splitlines():
+            code, _, note = l.partition("  #")
+            if code.strip() and not code.strip().startswith("#"):
+                out.append((code.strip(), note.strip()))
+    return out
+
+
+def _restore_box():
+    sec = _section("## 7. バックアップを取る・戻す")
+    return _box_lines(sec[sec.index("戻すとき"):], 0)
+
+
+def test_section_7_restore_compares_counts_and_finds_the_added_fictitious_client():
+    """段 7 の戻す枠：(試走のときだけ) 架空の本人を足す → 数 → down → restore → up → 数 → 足した本人が find で見つからない"""
+    lines = [c for c, _ in _restore_box()]
+    def at(k, start=0):
+        return next(i for i, l in enumerate(lines) if k in l and i >= start)
+    add = at("new_client.py add")
+    before = at("backup.py count")
+    down = at(" down")
+    restore = at("backup.py restore")
+    up = at(" up -d", restore)
+    after = at("backup.py count", up)
+    find = at("new_client.py find", after)
+    assert add < before < down < restore < up < after < find
+    import shlex
+    a, f = shlex.split(lines[add]), shlex.split(lines[find])
+    assert a[a.index("--family") + 1] == f[f.index("--family") + 1] and a[a.index("--given") + 1] == f[f.index("--given") + 1]
+
+
+def test_section_7_trial_lines_are_marked_and_the_known_client_check_is_gone():
+    box = _restore_box()
+    for code, note in box:
+        if "new_client.py" in code:
+            assert "試走のときだけ" in note, code
+    assert not any("知っている本人" in n for _, n in box)
+    sec = _section("## 7. バックアップを取る・戻す")
+    assert "「戻した：" in sec and "先に進まない" in sec
+
+
+def test_section_8_after_purge_checks_counts_and_the_purged_client_is_not_found():
+    """段 8 の消した後：restore → up → 数 → 廃棄した本人が find で見つからない"""
+    sec = _section("## 8. 本人を廃棄する")
+    box = _box_lines(sec, 1)
+    lines = [c for c, _ in box]
+    r = next(i for i, l in enumerate(lines) if "backup.py restore" in l)
+    rest = lines[r:]
+    up = next(i for i, l in enumerate(rest) if l.endswith(" up -d"))
+    cnt = next(i for i, l in enumerate(rest) if "backup.py count" in l)
+    fnd = next(i for i, l in enumerate(rest) if "new_client.py find" in l)
+    assert up < cnt < fnd
+    assert "見つからない" in box[r + fnd][1] and "廃棄" in box[r + fnd][1]

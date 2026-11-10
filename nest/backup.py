@@ -121,3 +121,27 @@ def prune(root, before, write=False):
     out["kept"] = [g.name for g in gens if g.name >= before]
     out["ok"] = True
     return out
+
+
+COUNTS = "MATCH (n) UNWIND labels(n) AS label RETURN label, count(*) AS n"
+
+
+def counts(driver, wait=90, sleep=None):
+    """個人の側のラベルごとの数（名前・本文は読まない）。DB が起ききるまで wait 秒まで待つ。返り値 {ok, errors, counts}。
+    戻した後に、戻す前の数と比べて、戻したことを確かめる（N-46 詰まり #13。待つのは #12 の再試行の行を出さないため）。"""
+    import time
+    sleep = sleep or time.sleep
+    out = {"ok": False, "errors": [], "counts": {}}
+    for _ in range(max(1, int(wait))):
+        try:
+            driver.verify_connectivity()
+            break
+        except Exception:
+            sleep(1)
+    else:
+        out["errors"].append("個人の側の DB が %d 秒たっても起きない。up -d を打ったかを確かめる" % wait)
+        return out
+    rows, _, _ = driver.execute_query(COUNTS, routing_="r", database_="neo4j")
+    out["counts"] = {r["label"]: r["n"] for r in sorted(rows, key=lambda r: r["label"])}
+    out["ok"] = True
+    return out

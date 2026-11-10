@@ -56,8 +56,10 @@ def _purge(d, a):
         print("次に、手順書 8 の「消した後」の枠を打つ（新しいバックアップを取り、戻せることを確かめてから、前の世代を消す）：")
         print("  docker compose --env-file ~/.config/nest/neo4j-redesign.env down")
         print("  uv run python scripts/backup.py dump                # 出た世代の名前（<新しい世代>）を控える")
-        print("  uv run python scripts/backup.py restore <新しい世代>")
+        print("  uv run python scripts/backup.py restore <新しい世代>   # 「止めた」が出たら先に進まない")
         print("  docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d")
+        print("  uv run python scripts/backup.py count               # 消した件数だけ減っている")
+        print("  uv run python scripts/new_client.py find --family 氏 --given 名   # 廃棄した本人が「見つからない」こと")
         print("  uv run python scripts/backup.py prune --before <新しい世代>          # 消す世代の一覧（消さない）")
         print("  uv run python scripts/backup.py prune --before <新しい世代> --write  # 消して、残った世代を出す")
     return 0
