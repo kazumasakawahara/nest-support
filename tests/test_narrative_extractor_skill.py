@@ -122,3 +122,8 @@ def test_the_skill_states_the_l0_rules():
     for words in (("supportLog", "面接 1 回"), ("見立て", "Inference", "もとになった"), ("effectiveness", "書かない"),
                   ("SEM-REC-04",), ("toldBy", "concerns", "新しい人")):
         assert all(w in SKILL for w in words), words
+
+
+def test_the_skill_tells_the_pseudonym_and_count_from_the_reply():
+    steps = _skill_section("手順")
+    assert "summary" in steps and "仮名と件数" in steps

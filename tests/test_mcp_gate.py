@@ -168,3 +168,23 @@ def test_the_script_and_the_tool_share_the_same_core():
     script = load("submit_proposal.py")
     assert "proposal.submit(" in inspect.getsource(script._run)
     assert not hasattr(script, "intake") and not hasattr(script, "gw")
+
+
+# 2026-11-10 河原さん：返事に、入れた先の仮名と件数が必ず出る（通っても止まっても）
+
+def test_a_passed_reply_names_the_pseudonym_and_the_count(sent):
+    out = _mcp()._submit(FakeDriver(), CODE, ORIGINAL, _proposal())
+    assert out["code"] == CODE and out["pending"] == 1
+    assert CODE in out["summary"] and "1 件" in out["summary"] and "Record 1" in out["summary"] and "未確定" in out["summary"]
+
+
+@pytest.mark.parametrize("known", [True, False])
+def test_a_stopped_reply_names_the_pseudonym_and_zero(sent, known):
+    bad = _proposal(facts=[{"quote": "原文に無い文", "recordKind": "Interview", "certainty": "SelfReport", "informantKind": "Self"}])
+    out = _mcp()._submit(FakeDriver(known=known), CODE, ORIGINAL, bad)
+    assert not out["ok"] and out["code"] == CODE and out["pending"] == 0 and out["counts"] == {}
+    assert CODE in out["summary"] and "0 件" in out["summary"] and "何も入れていない" in out["summary"]
+
+
+def test_the_tool_description_says_to_tell_the_summary():
+    assert "summary" in _mcp().submit_proposal.__doc__

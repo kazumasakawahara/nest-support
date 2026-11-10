@@ -194,7 +194,7 @@ def test_recent_voice_and_other_files_are_fine(tmp_path):
 
 # ---- N-38：新しい Mac の手順の結果。~/.config/nest/ のほかの設定のファイル ----
 
-CONFIG_FILES = ("field-ui-staff.json", "external-api-record.json", "external-api-features.json")
+CONFIG_FILES = ("field-ui-staff.json", "external-api-record.json", "external-api-features.json", "nest-gate.env")  # nest-gate.env は G-96 (f)
 
 
 def test_other_config_files_absent_are_warned(tmp_path):
@@ -204,12 +204,12 @@ def test_other_config_files_absent_are_warned(tmp_path):
     lines = out.stdout.splitlines()
     for name in CONFIG_FILES:
         assert any("WARN" in line and name in line for line in lines), out.stdout
-    assert "3 warned" in out.stdout
+    assert "%d warned" % len(CONFIG_FILES) in out.stdout
 
 
 def test_no_warning_when_the_other_config_files_are_there(tmp_path):
     out = _run(tmp_path, [], config_files={n: 0o600 for n in CONFIG_FILES})
-    assert "0 warned" in out.stdout and not any("WARN" in l and ".json" in l for l in out.stdout.splitlines())
+    assert "0 warned" in out.stdout and not any("WARN" in l and (".json" in l or ".env" in l) for l in out.stdout.splitlines())
 
 
 def test_other_config_files_pass_when_600(tmp_path):

@@ -7,6 +7,10 @@
     "nest-resource": {
       "command": "uv",
       "args": ["run", "--quiet", "--directory", "<nest-support のフォルダ>", "python", "-m", "nest.mcp_resource"]
+    },
+    "nest-gate": {
+      "command": "uv",
+      "args": ["run", "--quiet", "--directory", "<nest-support のフォルダ>", "python", "-m", "nest.mcp_gate"]
     }
   }
 }

@@ -5,7 +5,8 @@
 - 職員の ID は道具の引数で受けない。環境変数 NEST_GATE_STAFF_ID か ~/.config/nest/nest-gate.env から読む（中身は Claude に読ませない）。
   Claude が別の人の名で案を出す余地を作らない
 - 照会口と同じ歯止め（mcp_guard.require_personal_allowed）を通す：NEXT-02 がそろうか、架空の印のある DB のときだけ動く
-- 書くのはゲート（nest/gate/）だけ。通った案は未確定（Pending）で入る。返すのは仮名・件数・新しい ID・理由だけで、実名も clientId も返さない
+- 書くのはゲート（nest/gate/）だけ。通った案は未確定（Pending）で入る。返すのは仮名・件数・新しい ID・理由だけで、実名も clientId も返さない。
+  入れた先の仮名と件数は、通っても止まっても（0 件）必ず返す（summary・code・pending・counts。2026-11-10 河原さん）
 
 起動：uv run --quiet python -m nest.mcp_gate
 """
@@ -42,7 +43,13 @@ def staff_id():
 def _submit(driver, code, original, proposal_):
     mcp_guard.require_personal_allowed(driver)
     out = proposal.submit(driver, staff_id(), code, original, proposal_)
-    return dict(out, code=code, next=DONE if out["ok"] else AGAIN)
+    if out["ok"]:
+        parts = "・".join("%s %d" % (k, v) for k, v in sorted(out["counts"].items()))
+        summary = "%s に未確定（Pending）で %d 件入れた（%s）" % (code, out["pending"], parts)
+    else:
+        out = dict(out, pending=0, counts={})
+        summary = "%s には何も入れていない（0 件）" % code
+    return dict(out, code=code, summary=summary, next=DONE if out["ok"] else AGAIN)
 
 
 @server.tool()
@@ -51,6 +58,7 @@ def submit_proposal(code: str, original: str, proposal: dict) -> dict:
 
     呼ぶ前に、対象の本人の仮名（C-……）を職員に復唱して確かめ、「はい」を得てから呼ぶ（取り違えを防ぐ）。
     code は本人の仮名、original は職員が渡した原文（引用の照合と指紋にだけ使い、DB に入れない）、proposal は案。
+    返り値の summary（入れた先の仮名と件数）は、通っても止まっても、そのまま職員に伝える。復唱した仮名と同じかを職員が確かめる。
     返り値の ok が偽なら何も書いていない。errors の理由を職員に示し、理由のとおりに案を作り直して出し直す。
     stage は止まった場所（input：案の形・本人の指定、intake：入口の点検、gate：ゲート）。"""
     from nest import connections

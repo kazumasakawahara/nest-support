@@ -1,9 +1,10 @@
-"""Claude Desktop の設定に nest-personal・nest-resource を足す・足したか確かめる（N-46 詰まり #8。2026-11-09 河原さん）。
+"""Claude Desktop の設定に nest-personal・nest-resource・nest-gate を足す・足したか確かめる（N-46 詰まり #8。2026-11-09 河原さん。
+書き込み受付の nest-gate は台帳 G-96 (f)。2026-11-10 河原さん）。
 
-- add：設定（~/Library/Application Support/Claude/claude_desktop_config.json）に 2 つを足す。ほかの道具の設定は消さない。
+- add：設定（~/Library/Application Support/Claude/claude_desktop_config.json）に 3 つを足す。ほかの道具の設定は消さない。
   このフォルダの完全なパスと、uv の完全なパスを自動で埋める。前の設定は同じ場所に .bak として残す。
   設定が JSON として読めなければ、何も書かずに止める
-- check：2 つがあり、このフォルダと、在る uv を指しているかを確かめる
+- check：3 つがあり、このフォルダと、在る uv を指しているかを確かめる。nest-gate の職員の ID は scripts/gate_staff.py で設定する
 
 使い方:
   uv run python scripts/desktop_config.py add
@@ -17,7 +18,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT = Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
-MODULES = {"nest-personal": "nest.mcp_personal", "nest-resource": "nest.mcp_resource"}
+MODULES = {"nest-personal": "nest.mcp_personal", "nest-resource": "nest.mcp_resource", "nest-gate": "nest.mcp_gate"}
+NAMES = "・".join(MODULES)
 which = shutil.which
 
 
@@ -55,7 +57,7 @@ def add(path):
         shutil.copyfile(path, path.with_name(path.name + ".bak"))
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
-    print("足した：nest-personal・nest-resource（フォルダ %s、uv %s）。Claude Desktop を ⌘Q で終了して起動し直す" % (REPO, uv))
+    print("足した：%s（フォルダ %s、uv %s）。Claude Desktop を ⌘Q で終了して起動し直す" % (NAMES, REPO, uv))
     return 0
 
 
@@ -78,7 +80,7 @@ def check(path):
     if bad:
         print("足していない：" + "、".join(bad) + "。uv run python scripts/desktop_config.py add を打つ")
         return 1
-    print("足してある：nest-personal・nest-resource（%s）" % path)
+    print("足してある：%s（%s）" % (NAMES, path))
     return 0
 
 

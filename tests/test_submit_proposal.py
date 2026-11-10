@@ -274,8 +274,9 @@ def test_missing_informant_kind_now_stops_at_the_intake_not_the_gate(run, capsys
     assert "止めた：事実 1: 必須の informantKind が無い" in out and "止めた（ゲート）" not in out
 
 
-def test_section_4_5_c_says_ask_claude_to_remake_not_edit_json():
+def test_section_4_5_spare_says_ask_claude_to_remake_not_edit_json():
+    """道具は 2026-11-10 に 4.5 の末尾の「MCP が使えないときの予備」に移した"""
     s = _section("## 4.5")
-    c = s[s.index("### (c)"):]
+    c = s[s.index("### MCP が使えないときの予備"):]
     for word in ("止めた（ゲート）", "手で直さない", "作り直して", "打ち直します"):
         assert word in c, word
