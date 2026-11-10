@@ -231,6 +231,7 @@ uv run python scripts/review_proposals.py list --rejected                       
 
 ```bash
 docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d          # 止めていたら起こす（音声を消すため）
+uv run python scripts/backup.py count                                        # DB が起ききるまで待つ（数も出る）
 uv run python scripts/purge_voice.py                                         # 週に一度の日：消す音声を数える（消さない）
 uv run python scripts/purge_voice.py --write                                 # 週に一度の日：消す
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down
@@ -244,18 +245,19 @@ uv run python scripts/backup.py list       # 世代の一覧
 
 ```bash
 docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d          # 止めていたら起こす
+uv run python scripts/backup.py count                                        # 起ききるまで待つ。戻す前の数（控える）
 uv run python scripts/new_client.py add --staff STF-… --family 確かめ --given 戻し     # 試走のときだけ：取った後に架空の本人を一人足す
-uv run python scripts/backup.py count                                        # 戻す前の数（控える）
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down
-uv run python scripts/backup.py restore <日時>
+uv run python scripts/backup.py restore <日時>                               # list に出た名前をそのまま（例：20261110-114507）
 docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d
-uv run python scripts/backup.py count                                        # 戻した後の数。戻す前と比べる
+uv run python scripts/backup.py count                                        # 起ききるまで待つ。戻した後の数が、戻す前の数と同じこと
 uv run python scripts/new_client.py find --family 確かめ --given 戻し        # 試走のときだけ：「見つからない」なら戻せた
 ```
 
 - restore が「戻した：…」を出さず「止めた：…」を出したら、戻っていません。先に進まない（その後の数も find も、戻す前の DB を見ているだけです）
 - 戻せたかは数で見ます。戻した後の数が、その世代を取ったときの中身と合うかを確かめます。知っている本人を find で引くだけでは、戻す前の DB にも同じ本人がいるので区別できません
-- 試走のときだけ、取った後に架空の本人（確かめ 戻し）を一人足してから戻します。戻せていれば、その本人は find で「見つからない」になり、本人（Client）の数が一つ減ります。実データでは、この 2 行を飛ばします
+- 試走のときだけ、戻す前の数を控えた後に架空の本人（確かめ 戻し）を一人足してから戻します。戻せていれば、その本人は find で「見つからない」になり、戻した後の数は控えた数と同じです（戻せていなければ本人（Client）が一つ多い）。実データでは、この 2 行を飛ばします
+- `up -d` の後の `count` は、DB が起ききるまで待ってから数を出します（起きる前に道具を打つと再試行の行が出るため）
 
 - バックアップは要配慮個人情報の写しです。外のサービス（クラウドのドライブなど）に置きません
 
@@ -281,9 +283,9 @@ uv run python scripts/purge_client.py purge --admin STF-… --code C-…… --wr
 ```bash
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down
 uv run python scripts/backup.py dump                                       # 「取った：…/<日時>」の日時が <新しい世代>。控える
-uv run python scripts/backup.py restore <新しい世代>                        # 取ったばかりの世代で戻せるかを確かめる
+uv run python scripts/backup.py restore <新しい世代>                        # dump の「取った：…/20261110-121315」の最後の名前をそのまま
 docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d
-uv run python scripts/backup.py count                                      # 戻した後の数。廃棄の前より、消した件数だけ減っている
+uv run python scripts/backup.py count                                      # 起ききるまで待つ。廃棄の前より、消した件数だけ減っている
 uv run python scripts/new_client.py find --family 氏 --given 名            # 廃棄した本人の氏名で引き、「見つからない」こと
 uv run python scripts/backup.py prune --before <新しい世代>                 # 消す世代の一覧（何も消さない）。<新しい世代> は残る
 uv run python scripts/backup.py prune --before <新しい世代> --write         # 消して、残った世代を出す

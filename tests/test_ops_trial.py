@@ -341,7 +341,8 @@ def _restore_box():
 
 
 def test_section_7_restore_compares_counts_and_finds_the_added_fictitious_client():
-    """段 7 の戻す枠：(試走のときだけ) 架空の本人を足す → 数 → down → restore → up → 数 → 足した本人が find で見つからない"""
+    """段 7 の戻す枠：数を控える →（試走のときだけ）架空の本人を足す → down → restore → up → 数 → 足した本人が find で見つからない
+    （#12 で、up -d の直後に待つ count を置くため、数を控えてから足す順にした）"""
     lines = [c for c, _ in _restore_box()]
     def at(k, start=0):
         return next(i for i, l in enumerate(lines) if k in l and i >= start)
@@ -352,7 +353,7 @@ def test_section_7_restore_compares_counts_and_finds_the_added_fictitious_client
     up = at(" up -d", restore)
     after = at("backup.py count", up)
     find = at("new_client.py find", after)
-    assert add < before < down < restore < up < after < find
+    assert before < add < down < restore < up < after < find
     import shlex
     a, f = shlex.split(lines[add]), shlex.split(lines[find])
     assert a[a.index("--family") + 1] == f[f.index("--family") + 1] and a[a.index("--given") + 1] == f[f.index("--given") + 1]
@@ -380,3 +381,23 @@ def test_section_8_after_purge_checks_counts_and_the_purged_client_is_not_found(
     fnd = next(i for i, l in enumerate(rest) if "new_client.py find" in l)
     assert up < cnt < fnd
     assert "見つからない" in box[r + fnd][1] and "廃棄" in box[r + fnd][1]
+
+
+# 詰まり #12：restore に「20261110」と打って止まった。<日時> の形が手順書に無かった。up -d の直後の道具が再試行の行を出した。
+
+def test_restore_lines_say_to_type_the_name_from_list_with_an_example():
+    import re
+    for sec in ("## 7. バックアップを取る・戻す", "## 8. 本人を廃棄する"):
+        for code, note in _box_lines(_section(sec)):
+            if "backup.py restore" in code:
+                assert re.search(r"\d{8}-\d{6}", note) and ("list" in note or "取った" in note), (sec, note)
+
+
+def test_every_up_in_sections_7_and_8_is_followed_by_count_which_waits():
+    """起動を待つのは道具の側（count が起ききるまで待つ）。up -d の次の行は count"""
+    for sec in ("## 7. バックアップを取る・戻す", "## 8. 本人を廃棄する"):
+        lines = [c for c, _ in _box_lines(_section(sec))]
+        for i, l in enumerate(lines):
+            if l.endswith(" up -d"):
+                assert i + 1 < len(lines) and "backup.py count" in lines[i + 1], (sec, lines[i + 1:i + 2])
+    assert "待" in _section("## 7. バックアップを取る・戻す")

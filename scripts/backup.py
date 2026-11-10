@@ -59,6 +59,10 @@ def main(argv=None, driver=None):
     else:
         if not a.generation:
             ap.error("restore には世代（list で出る名前）が要る")
+        if a.generation not in [g.name for g in backup.generations(root)]:
+            print("止めた：%s という世代は無い。list に出た名前をそのまま打つ（在る世代：%s）。何も戻していない"
+                  % (a.generation, "・".join(g.name for g in backup.generations(root)) or "なし"))
+            return 1
         out = backup.restore(root / a.generation, a.data, image)
         if out["ok"]:
             print("戻した：%s。DB を起こしてから uv run python scripts/backup.py count で数を見て、戻す前の数と比べる" % a.generation)

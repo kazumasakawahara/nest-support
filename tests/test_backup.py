@@ -219,3 +219,14 @@ def test_count_command_prints_the_counts(capsys, monkeypatch):
     assert mod.main(["count"], driver=object()) == 0
     out = capsys.readouterr().out
     assert "Client 3" in out and "Record 40" in out
+
+
+def test_restore_with_a_wrong_name_lists_the_generations(tmp_path, capsys):
+    """詰まり #12：世代の名前を打ち間違えたら、在る世代の名前を出す（何も戻さない）"""
+    from doc_commands import load
+    mod = load("backup.py")
+    for n in ("20261110-114507", "20261110-121315"):
+        (tmp_path / n).mkdir()
+    assert mod.main(["restore", "20261110", "--root", str(tmp_path)]) == 1
+    out = capsys.readouterr().out
+    assert "20261110-114507" in out and "20261110-121315" in out and "list" in out
