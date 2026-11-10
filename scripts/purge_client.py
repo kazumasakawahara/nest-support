@@ -8,7 +8,7 @@
   # 3. 消す（仮名の打ち返しが要る）
   uv run python scripts/purge_client.py purge --admin STF-… --code C-…… --write --confirm C-……
 
-消した後：新しいバックアップを取り、戻せることを確かめてから、消した日より前のバックアップを人が消す（docs/PRIVACY_GUIDELINES.md §5）。
+消した後：新しいバックアップを取り、戻せることを確かめてから、消した日より前のバックアップを scripts/backup.py prune で消す（docs/PRIVACY_GUIDELINES.md §5）。
 """
 import argparse
 import sys
@@ -52,7 +52,14 @@ def _purge(d, a):
     print("- 残す人（ほかの本人にもつながる）：%d 人。つながりだけ外す：%s" % (out["keptPersons"], "・".join(out["keptLinked"]) or "なし"))
     print("- もとにした保存の判断：%s" % out["retentionId"])
     if out["written"]:
-        print("- 監査ログ：%s。次に、新しいバックアップを取り、消した日より前のバックアップを消す" % out["auditId"])
+        print("- 監査ログ：%s" % out["auditId"])
+        print("次に、手順書 8 の「消した後」の枠を打つ（新しいバックアップを取り、戻せることを確かめてから、前の世代を消す）：")
+        print("  docker compose --env-file ~/.config/nest/neo4j-redesign.env down")
+        print("  uv run python scripts/backup.py dump                # 出た世代の名前（<新しい世代>）を控える")
+        print("  uv run python scripts/backup.py restore <新しい世代>")
+        print("  docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d")
+        print("  uv run python scripts/backup.py prune --before <新しい世代>          # 消す世代の一覧（消さない）")
+        print("  uv run python scripts/backup.py prune --before <新しい世代> --write  # 消して、残った世代を出す")
     return 0
 
 

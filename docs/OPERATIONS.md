@@ -268,7 +268,19 @@ uv run python scripts/purge_client.py purge --admin STF-… --code C-…… --wr
 
 - (2) で、消す件数・残す人（ほかの本人にもつながる人）の数・他の機関から受け取った記録の件数・音声の件数を見ます。他の機関から受け取った記録を消してよいかは、人が確かめます
 - (3) は音声を先に消し、そのあと DB を消します。音声を一つでも消せなければ DB は消さず、理由を出して止まります。音声を手で消してから、もう一度流します
-- 消した後：7 の手順で新しいバックアップを取り、戻せることを確かめてから、消した日より前のバックアップを人が消します（`docs/PRIVACY_GUIDELINES.md` §5）
+- 消した後：新しいバックアップを取り、戻せることを確かめてから、消した日より前のバックアップを消します（`docs/PRIVACY_GUIDELINES.md` §5）。次の枠を上から打ちます。`rm` は使いません
+
+```bash
+docker compose --env-file ~/.config/nest/neo4j-redesign.env down
+uv run python scripts/backup.py dump                                       # 「取った：…/<日時>」の日時が <新しい世代>。控える
+uv run python scripts/backup.py restore <新しい世代>                        # 取ったばかりの世代で戻せるかを確かめる
+docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d
+uv run python scripts/new_client.py find --family 氏 --given 名            # 戻ったことを、知っている本人で確かめる
+uv run python scripts/backup.py prune --before <新しい世代>                 # 消す世代の一覧（何も消さない）。<新しい世代> は残る
+uv run python scripts/backup.py prune --before <新しい世代> --write         # 消して、残った世代を出す
+```
+
+- `--before` に在る世代の名前を打たないと、何も消さずに止まります（打ち間違えで新しい方を消さないため）。消すのは `<新しい世代>` より前の世代だけです
 
 点検：人が確かめる（試しの実行の件数、消した後のバックアップ）。音声の残りは [9]、バックアップの置き場所は [8]
 

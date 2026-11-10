@@ -258,3 +258,61 @@ def test_sos_press_does_not_send_in_the_current_state_without_the_files(sos_pres
     assert denied, "歯止めが止めなかった"
     assert _Sent.made == 0 and _Sent.posts == []
     assert resp.status_code == 500
+
+
+# 詰まり #14：段 8 の「消した後」に、古い世代を消すコマンドが無く、rm を手で打つことになっていた。
+
+def _section(title):
+    from doc_commands import DOC
+    t = DOC.read_text(encoding="utf-8")
+    i = t.index(title)
+    return t[i:t.find("\n## ", i + 1)]
+
+
+def test_section_8_after_purge_is_a_box_of_commands_in_order():
+    """段 8：消した後 → 新しいバックアップを取る → 戻せることを確かめる → 古い世代を試しに一覧 → 消す、が枠の行で並ぶ"""
+    import re
+    sec = _section("## 8. 本人を廃棄する")
+    lines = [l.split("  #")[0].strip() for b in re.findall(r"```bash\n(.*?)```", sec, re.S) for l in b.splitlines()]
+    lines = [l for l in lines if l and not l.startswith("#")]
+    order = ["purge --admin STF-… --code C-…… --write", "backup.py dump", "backup.py restore", "backup.py prune --before",
+             "backup.py prune --before <新しい世代> --write"]
+    pos = [next((i for i, l in enumerate(lines) if k in l), None) for k in order]
+    assert None not in pos, list(zip(order, pos))
+    assert pos == sorted(pos) and pos[3] < pos[4]
+    assert not any(l.startswith("rm ") for l in lines)
+
+
+def test_section_8_prune_lines_delete_only_the_generation_before_the_new_one(tmp_path, capsys):
+    """段 8 の prune の 2 行をそのまま流す：試しでは何も消えず、--write で廃棄の前の世代だけが消え、残った世代が出る"""
+    from doc_commands import argv, lines, load
+    root = tmp_path / "bk"
+    for n in ("20261110-114507", "20261110-121315"):
+        (root / n).mkdir(parents=True)
+        (root / n / "neo4j.dump").write_bytes(b"x")
+    prune = [l for l in lines("backup.py") if " prune " in l]
+    assert len(prune) == 2, prune
+    mod = load("backup.py")
+    fill = {"<新しい世代>": "20261110-121315"}
+    assert mod.main(argv(prune[0], fill) + ["--root", str(root)]) == 0
+    assert sorted(p.name for p in root.iterdir()) == ["20261110-114507", "20261110-121315"]
+    dry = capsys.readouterr().out
+    assert "20261110-114507" in dry and "消していない" in dry
+    assert mod.main(argv(prune[1], fill) + ["--root", str(root)]) == 0
+    assert [p.name for p in root.iterdir()] == ["20261110-121315"]
+    out = capsys.readouterr().out
+    assert "残った世代" in out and "20261110-121315" in out
+
+
+def test_purge_client_after_write_shows_the_backup_commands(monkeypatch, capsys):
+    """段 8 (3) の後の案内が、取る・戻せるか確かめる・古い世代を消すコマンドを具体的に示す"""
+    from types import SimpleNamespace
+    from doc_commands import load
+    mod = load("purge_client.py")
+    done = {"ok": True, "written": True, "purgedCounts": [], "voiceFiles": 0, "voiceFilesRemoved": 0, "errors": [],
+            "providedRecords": 0, "keptPersons": 0, "keptLinked": [], "retentionId": "RD-1", "auditId": "AUD-1"}
+    monkeypatch.setattr(mod.purge, "purge", lambda *a, **k: done)
+    mod._purge(None, SimpleNamespace(admin="STF-1", code="C-ABCDEF", write=True, confirm="C-ABCDEF"))
+    out = capsys.readouterr().out
+    for k in ("scripts/backup.py dump", "scripts/backup.py restore", "scripts/backup.py prune --before", "--write"):
+        assert k in out, k

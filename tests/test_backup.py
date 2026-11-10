@@ -126,3 +126,44 @@ def test_the_default_place_is_outside_the_repository():
 
 def test_the_old_shell_script_is_gone():
     assert not (REPO / "scripts" / "backup.sh").exists()
+
+
+# N-46 詰まり #14：廃棄の後に、消した日より前の世代を消すコマンドが無く、rm を手で打つことになっていた。
+
+def _gens(root, *names):
+    root.mkdir(exist_ok=True)
+    for n in names:
+        (root / n).mkdir()
+        (root / n / "neo4j.dump").write_bytes(b"x")
+
+
+def test_prune_dry_run_lists_older_generations_and_deletes_nothing(tmp_path):
+    root = tmp_path / "bk"
+    _gens(root, "20261109-090000", "20261110-114507", "20261110-121315")
+    out = backup.prune(root, "20261110-121315")
+    assert out["ok"], out["errors"]
+    assert out["removed"] == ["20261109-090000", "20261110-114507"] and not out["written"]
+    assert out["kept"] == ["20261110-121315"]
+    assert sorted(p.name for p in root.iterdir()) == ["20261109-090000", "20261110-114507", "20261110-121315"]
+
+
+def test_prune_write_deletes_only_older_generations(tmp_path):
+    root = tmp_path / "bk"
+    _gens(root, "20261110-114507", "20261110-121315", "20261111-090000")
+    (root / "README.txt").write_text("人のメモ", encoding="utf-8")
+    (root / "keep-me").mkdir()
+    out = backup.prune(root, "20261110-121315", write=True)
+    assert out["ok"] and out["written"]
+    assert out["removed"] == ["20261110-114507"]
+    assert out["kept"] == ["20261110-121315", "20261111-090000"]
+    assert sorted(p.name for p in root.iterdir()) == ["20261110-121315", "20261111-090000", "README.txt", "keep-me"]
+
+
+@pytest.mark.parametrize("before", ["20261110-121316", "20261110", "../x", "20261110-12131"])
+def test_prune_refuses_a_name_that_is_not_an_existing_generation(tmp_path, before):
+    """名前を打ち間違えたら何も消さない（新しい方を消さないため、基準は在る世代の名前だけ）"""
+    root = tmp_path / "bk"
+    _gens(root, "20261110-114507", "20261110-121315")
+    out = backup.prune(root, before, write=True)
+    assert not out["ok"] and out["errors"]
+    assert sorted(p.name for p in root.iterdir()) == ["20261110-114507", "20261110-121315"]
