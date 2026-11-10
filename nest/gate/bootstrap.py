@@ -13,7 +13,10 @@ from nest.gate import write as gw
 def _create(tx, props, request_id, now, new_id):
     n = list(tx.run("MATCH (s:Staff) RETURN count(s) AS n"))[0]["n"]
     if n:
-        raise gw.Rejected(["既に職員が %d 人いる。2 人目からは Administrator がゲートで登録する" % n])
+        admins = [r["staffId"] for r in tx.run(
+            "MATCH (s:Staff {role: 'Administrator', status: 'Active'}) RETURN s.staffId AS staffId ORDER BY staffId")]
+        raise gw.Rejected(["既に職員が %d 人いる。2 人目からは Administrator がゲートで登録する（今の Administrator：%s）"
+                           % (n, "、".join(admins) or "いない")])
     tx.run("CREATE (n:Staff) SET n = $props", props=props)
     tx.run(gw.AUDIT_QUERY % ("Staff", "staffId"), id=props["staffId"], actor=props["staffId"],
            props=gw.audit_props(new_id, now, "Create", "Staff", props["staffId"], request_id, "Human"))

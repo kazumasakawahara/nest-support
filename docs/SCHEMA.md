@@ -1,6 +1,6 @@
-# nest-support スキーマ正典 — v0.11
+# nest-support スキーマ正典 — v0.12
 
-- 状態：v0.11（2026-11-06。廃棄のための保存の判断 `RetentionDecision`・`DECIDES_ON`・`retentionDecision`、監査ログの `Purge` と件数の項目を、tsunagu-net の正典 v0.29〜v0.30 と同じ名前で足した（止まる点 F-1。台帳 G-74）。v0.10 で推奨ケア → 特性のリレーションを `ADDRESSES` から `RESPONDS_TO` に改めた（台帳 G-64）。v0.9 で取り込みの案から禁忌・推奨ケアの候補を作る形を §6 に書いた（台帳 G-63）。v0.8 で任意後見・任意代理を tsunagu-net の正典 v0.31（SEMANTICS v0.32 の BRS-49）に合わせた（§4.5、台帳 G-62）。v0.7 で関わりを本人以外の人にも向けられるようにした（§4.3、台帳 G-60）。v0.6 で関わりの種類の定義と推定の根拠を足した（§4.5、台帳 G-40・G-57）。それより前は 止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43・G-44 の判断（§9 の 10〜13）を反映した）
+- 状態：v0.12（2026-11-06。監査ログに差し戻しの理由 `reason` を足した（台帳 G-91）。v0.11 で廃棄のための保存の判断 `RetentionDecision`・`DECIDES_ON`・`retentionDecision`、監査ログの `Purge` と件数の項目を、tsunagu-net の正典 v0.29〜v0.30 と同じ名前で足した（止まる点 F-1。台帳 G-74）。v0.10 で推奨ケア → 特性のリレーションを `ADDRESSES` から `RESPONDS_TO` に改めた（台帳 G-64）。v0.9 で取り込みの案から禁忌・推奨ケアの候補を作る形を §6 に書いた（台帳 G-63）。v0.8 で任意後見・任意代理を tsunagu-net の正典 v0.31（SEMANTICS v0.32 の BRS-49）に合わせた（§4.5、台帳 G-62）。v0.7 で関わりを本人以外の人にも向けられるようにした（§4.3、台帳 G-60）。v0.6 で関わりの種類の定義と推定の根拠を足した（§4.5、台帳 G-40・G-57）。それより前は 止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43・G-44 の判断（§9 の 10〜13）を反映した）
 - 根拠：ADR-001（承認 2026-11-05。D1〜D11。D3 は 2026-11-05 に 2 回改めた）、約束 v1.1（`~/Dev-Work/tsunagu-net/docs/contracts/nest-support-shared.md`。2026-11-05 改め。v1 は 2026-11-04 確定）
 - 扱う範囲：個人の側の DB の、ラベル・リレーション・プロパティ・列挙値の**名前と構造**、ID の形、制約。資源の側は tsunagu-net の正典を参照するだけ
 - 扱わない範囲：業務上の意味・運用の規則・列挙値の日本語の表示名（nest-support の意味の文書 `docs/SEMANTICS.md` に置く。まだ無い。ADR D1）。機械が読む JSON は N-07 で §11 に置き、この表と一致させる（N-08 の乖離の検査）
@@ -115,7 +115,7 @@
 |---|---|---|
 | `Record` | `recordId`✅, `kind`✅(enum), `text`✅, `quote`✅, `certainty`✅(enum), `informantKind`✅(enum), `sourceHash`✅, `aboutDate`(Date), `heardOn`(Date), `documentHash`, `providerCertainty`(enum), `receivedOn`(Date) | 聞いた記録（D4・D5 の根拠）。項目は tsunagu-net の `Record` とすべて同じ名前（§10）。面談は `kind: Interview`。`certainty`・`text`・`quote`・`informantKind`・`documentHash`・`providerCertainty` は作った後に変えない。`sourceHash` の一致で二重の登録を止める |
 | `Review` | `reviewId`✅, `domain`✅(enum), `reviewedAt`✅(DateTime), `informantKind`✅(enum), `note` | 確かめた記録。「確かめた上で 0 件」と「確かめていない」を分ける。追記だけ |
-| `AuditLog` | `auditId`✅, `at`✅(DateTime), `action`✅(enum), `targetLabel`✅, `targetId`✅, `requestId`✅, `selfApproval`(Boolean。action が Approve のときだけ), `retentionId`（Purge のとき：もとにした保存の判断）, `purgedCounts`(List。Purge のとき：消したものの種類ごとの件数 `Record:52` の形), `keptPersons`(Integer。Purge のとき：ほかの本人にもつながるので残した人の数) | 監査ログ。追記だけ。行った人は `ACTED_BY` で `Staff` の ID を指し、名前を残さない |
+| `AuditLog` | `auditId`✅, `at`✅(DateTime), `action`✅(enum), `targetLabel`✅, `targetId`✅, `requestId`✅, `selfApproval`(Boolean。action が Approve のときだけ), `retentionId`（Purge のとき：もとにした保存の判断）, `purgedCounts`(List。Purge のとき：消したものの種類ごとの件数 `Record:52` の形), `keptPersons`(Integer。Purge のとき：ほかの本人にもつながるので残した人の数), `reason`（Reject のときだけ・任意：差し戻しの理由を一行・200 字まで。名前を書かない。決まりは `RetentionDecision.reason` と同じ） | 監査ログ。追記だけ。行った人は `ACTED_BY` で `Staff` の ID を指し、名前を残さない |
 | `RetentionDecision` | `retentionId`✅, `decidedOn`✅(Date), `decision`✅(enum), `reason`✅, `nextReviewOn`(Date) | 保存の判断（v0.11）。本人のデータを残すか消すか。常に CREATE。Administrator がゲートで書く。人の操作だけで、AI の案からは作らない（`origin: Human`、未確定を経ない）。`reason` に名前を書かない |
 
 - 人を指すプロパティは ID で持つ。名前で持たない
@@ -312,6 +312,7 @@
 | `staffRole` | `Approver` がある | 無い | §9 の 8 |
 | `APPROVED.selfApproval` | 無い | 必須 | D9 |
 | `AuditLog.selfApproval` | 無い | 任意（Approve のとき） | D9 |
+| `AuditLog.reason` | 無い | 任意（Reject のとき） | 差し戻しの理由を残し、同じ案がまた来たときに見分けるため（v0.12。台帳 G-91）。tsunagu-net にも同じ名前で提案している（台帳 G-40） |
 | `Person` のプロパティ | `birthDate`・`recordedSex`・`nameConsentAt` など | `phone`・`note` | 本人は `Client`。周りの人には連絡先が要り、生年月日は要らない |
 | `DECIDES_ON` の終点 | Household | Client | 本人が中心（世帯を持たない）。廃棄は本人一人ずつ（v0.11。台帳 G-74） |
 | `guardianshipType` | 5 値 | 5 値（同じ） | v0.8 で tsunagu-net の v0.31 に合わせた（台帳 G-62）。前は §9 の 7 で nest-support だけ 4 値 |
@@ -347,7 +348,7 @@
       "SupportLog":       {"required": ["supportLogId", "date", "situation"], "optional": ["action", "effectiveness", "note", "nextAction"], "unique": ["supportLogId"]},
       "Record":           {"required": ["recordId", "kind", "text", "quote", "certainty", "informantKind", "sourceHash"], "optional": ["aboutDate", "heardOn", "documentHash", "providerCertainty", "receivedOn"], "unique": ["recordId"]},
       "Review":           {"required": ["reviewId", "domain", "reviewedAt", "informantKind"], "optional": ["note"], "unique": ["reviewId"]},
-      "AuditLog":         {"required": ["auditId", "at", "action", "targetLabel", "targetId", "requestId"], "optional": ["selfApproval", "retentionId", "purgedCounts", "keptPersons"], "unique": ["auditId"]},
+      "AuditLog":         {"required": ["auditId", "at", "action", "targetLabel", "targetId", "requestId"], "optional": ["selfApproval", "retentionId", "purgedCounts", "keptPersons", "reason"], "unique": ["auditId"]},
       "RetentionDecision": {"required": ["retentionId", "decidedOn", "decision", "reason"], "optional": ["nextReviewOn"], "unique": ["retentionId"]}
     },
     "relationships": {
@@ -447,6 +448,7 @@
 
 ## 変更履歴
 
+- v0.12（2026-11-06）：河原さんの決定（台帳 G-91）。`AuditLog` に `reason`（文字列。差し戻し `Reject` のときだけ・任意・一行・名前を書かない）を足した。ゲートの却下（`nest.gate.approve.reject`）が書く。tsunagu-net の AuditLog には無い（§10）
 - v0.11（2026-11-06）：河原さんの決定（止まる点 F-1。台帳 G-74）。本人のデータの廃棄（計画 N-32）のために、tsunagu-net の正典 v0.29（保存の判断）・v0.30（監査ログの Purge）と同じ名前で足した：ノード `RetentionDecision`（接頭辞 `RTD`）、`DECIDES_ON`（→ `Client`。tsunagu-net は → `Household`）、列挙値 `retentionDecision`（`Keep`・`Delete`）、`auditAction` の `Purge`、`AuditLog` の `retentionId`・`purgedCounts`・`keptPersons`。事案の終了（`CaseClosure`）と見直しの一覧は足さない
 - v0.10（2026-11-06）：河原さんの決定（台帳 G-64 の (b)）。推奨ケア → 特性のリレーション `ADDRESSES` を `RESPONDS_TO` に改めた。個人の側の読み取りの包みが、住所の項目（`address`）の部分一致で `ADDRESSES` を拒否するため。包みの検査は緩めない。tsunagu-net の正典・意味の文書に `RESPONDS_TO` は無い（2026-11-06 に確かめた）。新しい DB は `ADDRESSES` を一度も書いていない
 - v0.9（2026-11-06）：河原さんの決定（台帳 G-63）。取り込みの案に禁忌・推奨ケアの候補の欄を足した。候補は同じ案の事実を根拠に指し、確度を持たず、`Pending` で入る（§6）。推奨ケアにも由来によらず根拠の記録を求める（同日、河原さんの判断で AI 由来だけから広げた。人が直接知ったことは先に職員の `Record`（`kind: Observation`）を作って根拠にする）。ノード・リレーション・プロパティは変わらない

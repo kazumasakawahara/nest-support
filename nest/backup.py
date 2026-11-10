@@ -7,7 +7,7 @@
 - 世代は 4 つ。世代は YYYYmmdd-HHMMSS の名前のフォルダで、その中に neo4j.dump（権限 600）。古いものは、この名前の形のフォルダだけを消す
 - 資源の側は取らない（tsunagu-net の配布の一式から読み直せる）
 - いつ取るか：DB に書き込んだ日の作業の終わりに、DB を止めてから。廃棄（scripts/purge_client.py）の後にも取り、
-  戻せることを確かめてから、消した日より前の世代を人が消す
+  戻せることを確かめてから、消した日より前の世代を prune で消す（rm を手で打たない）
 """
 import os
 import re
@@ -100,5 +100,48 @@ def restore(gen, data, image, runner=run):
     if code != 0:
         out["errors"].append("戻せなかった：%s" % (text.strip().splitlines()[-1:] or ["?"])[0])
         return out
+    out["ok"] = True
+    return out
+
+
+def prune(root, before, write=False):
+    """世代 before（在る世代の名前）より前の世代を消す。write が偽なら一覧だけ。返り値 {ok, errors, written, removed, kept}。
+    廃棄（scripts/purge_client.py）の後に、新しい世代を取り、戻せることを確かめてから使う（N-46 詰まり #14）。"""
+    out = {"ok": False, "errors": [], "written": False, "removed": [], "kept": []}
+    gens = generations(root)
+    if not GENERATION.fullmatch(before or "") or before not in [g.name for g in gens]:
+        out["errors"].append("%s は在る世代の名前ではない。list で出る名前を打つ。何も消していない" % before)
+        return out
+    old = [g for g in gens if g.name < before]
+    out["removed"] = [g.name for g in old]
+    if write:
+        for g in old:
+            shutil.rmtree(g)
+        out["written"] = True
+    out["kept"] = [g.name for g in gens if g.name >= before]
+    out["ok"] = True
+    return out
+
+
+COUNTS = "MATCH (n) UNWIND labels(n) AS label RETURN label, count(*) AS n"
+
+
+def counts(driver, wait=90, sleep=None):
+    """個人の側のラベルごとの数（名前・本文は読まない）。DB が起ききるまで wait 秒まで待つ。返り値 {ok, errors, counts}。
+    戻した後に、戻す前の数と比べて、戻したことを確かめる（N-46 詰まり #13。待つのは #12 の再試行の行を出さないため）。"""
+    import time
+    sleep = sleep or time.sleep
+    out = {"ok": False, "errors": [], "counts": {}}
+    for _ in range(max(1, int(wait))):
+        try:
+            driver.verify_connectivity()
+            break
+        except Exception:
+            sleep(1)
+    else:
+        out["errors"].append("個人の側の DB が %d 秒たっても起きない。up -d を打ったかを確かめる" % wait)
+        return out
+    rows, _, _ = driver.execute_query(COUNTS, routing_="r", database_="neo4j")
+    out["counts"] = {r["label"]: r["n"] for r in sorted(rows, key=lambda r: r["label"])}
     out["ok"] = True
     return out

@@ -126,3 +126,107 @@ def test_the_default_place_is_outside_the_repository():
 
 def test_the_old_shell_script_is_gone():
     assert not (REPO / "scripts" / "backup.sh").exists()
+
+
+# N-46 詰まり #14：廃棄の後に、消した日より前の世代を消すコマンドが無く、rm を手で打つことになっていた。
+
+def _gens(root, *names):
+    root.mkdir(exist_ok=True)
+    for n in names:
+        (root / n).mkdir()
+        (root / n / "neo4j.dump").write_bytes(b"x")
+
+
+def test_prune_dry_run_lists_older_generations_and_deletes_nothing(tmp_path):
+    root = tmp_path / "bk"
+    _gens(root, "20261109-090000", "20261110-114507", "20261110-121315")
+    out = backup.prune(root, "20261110-121315")
+    assert out["ok"], out["errors"]
+    assert out["removed"] == ["20261109-090000", "20261110-114507"] and not out["written"]
+    assert out["kept"] == ["20261110-121315"]
+    assert sorted(p.name for p in root.iterdir()) == ["20261109-090000", "20261110-114507", "20261110-121315"]
+
+
+def test_prune_write_deletes_only_older_generations(tmp_path):
+    root = tmp_path / "bk"
+    _gens(root, "20261110-114507", "20261110-121315", "20261111-090000")
+    (root / "README.txt").write_text("人のメモ", encoding="utf-8")
+    (root / "keep-me").mkdir()
+    out = backup.prune(root, "20261110-121315", write=True)
+    assert out["ok"] and out["written"]
+    assert out["removed"] == ["20261110-114507"]
+    assert out["kept"] == ["20261110-121315", "20261111-090000"]
+    assert sorted(p.name for p in root.iterdir()) == ["20261110-121315", "20261111-090000", "README.txt", "keep-me"]
+
+
+@pytest.mark.parametrize("before", ["20261110-121316", "20261110", "../x", "20261110-12131"])
+def test_prune_refuses_a_name_that_is_not_an_existing_generation(tmp_path, before):
+    """名前を打ち間違えたら何も消さない（新しい方を消さないため、基準は在る世代の名前だけ）"""
+    root = tmp_path / "bk"
+    _gens(root, "20261110-114507", "20261110-121315")
+    out = backup.prune(root, before, write=True)
+    assert not out["ok"] and out["errors"]
+    assert sorted(p.name for p in root.iterdir()) == ["20261110-114507", "20261110-121315"]
+
+
+# N-46 詰まり #13：restore が止まっても、続けて打った find が本人を返し、戻せたように見えた。
+# 戻した中身の数を出す（DB を起こした後に count）。起ききるまで待つ（#12 の再試行の行も出さない）。
+
+class _Drv:
+    def __init__(self, fails=0, rows=None):
+        self.fails, self.rows, self.queries = fails, rows or [], []
+
+    def verify_connectivity(self):
+        if self.fails:
+            self.fails -= 1
+            raise OSError("まだ起きていない")
+
+    def execute_query(self, q, *a, **k):
+        self.queries.append(q)
+        return self.rows, None, None
+
+
+def test_counts_waits_for_the_db_and_returns_label_counts():
+    d = _Drv(fails=2, rows=[{"label": "Record", "n": 40}, {"label": "Client", "n": 3}])
+    out = backup.counts(d, wait=5, sleep=lambda s: None)
+    assert out["ok"], out["errors"]
+    assert out["counts"] == {"Client": 3, "Record": 40}
+    assert len(d.queries) == 1 and "labels(" in d.queries[0]
+
+
+def test_counts_gives_up_when_the_db_never_comes_up():
+    d = _Drv(fails=10 ** 6)
+    out = backup.counts(d, wait=3, sleep=lambda s: None)
+    assert not out["ok"] and any("起き" in e for e in out["errors"]) and d.queries == []
+
+
+def test_restore_success_says_to_count_after_up(tmp_path, capsys, monkeypatch):
+    from doc_commands import load
+    mod = load("backup.py")
+    gen = tmp_path / "20261110-114507"
+    gen.mkdir()
+    (gen / "neo4j.dump").write_bytes(b"x")
+    monkeypatch.setattr(mod.backup, "restore", lambda *a, **k: {"ok": True, "errors": []})
+    assert mod.main(["restore", "20261110-114507", "--root", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "戻した：20261110-114507" in out and "backup.py count" in out
+
+
+def test_count_command_prints_the_counts(capsys, monkeypatch):
+    from doc_commands import load
+    mod = load("backup.py")
+    monkeypatch.setattr(mod.backup, "counts", lambda d, **k: {"ok": True, "errors": [], "counts": {"Client": 3, "Record": 40}})
+    assert mod.main(["count"], driver=object()) == 0
+    out = capsys.readouterr().out
+    assert "Client 3" in out and "Record 40" in out
+
+
+def test_restore_with_a_wrong_name_lists_the_generations(tmp_path, capsys):
+    """詰まり #12：世代の名前を打ち間違えたら、在る世代の名前を出す（何も戻さない）"""
+    from doc_commands import load
+    mod = load("backup.py")
+    for n in ("20261110-114507", "20261110-121315"):
+        (tmp_path / n).mkdir()
+    assert mod.main(["restore", "20261110", "--root", str(tmp_path)]) == 1
+    out = capsys.readouterr().out
+    assert "20261110-114507" in out and "20261110-121315" in out and "list" in out

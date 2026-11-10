@@ -143,3 +143,14 @@ def test_involvement_of_a_parent_shows_up_for_review_with_its_quote(driver, admi
     inv = items[out["ids"]["i"]]
     assert [q["quote"] for q in inv["quotes"]] == ["母が相談した %s" % mark]
     assert inv["content"]["kind"] == "Consultation"
+
+
+def test_reject_keeps_the_reason_on_the_audit_log(driver, admin, client):
+    """G-91：理由は AuditLog の reason に一行で残る。理由が無ければ項目を置かない"""
+    from nest.gate import approve as ga
+    with_reason, without = _two_pending(driver, admin, client)
+    assert ga.reject(driver, admin, with_reason, _rid(), reason="引用と中身が合わない（架空）")["ok"]
+    assert ga.reject(driver, admin, without, _rid())["ok"]
+    q = "MATCH (a:AuditLog {action: 'Reject', targetId: $r}) RETURN a.reason AS reason, 'reason' IN keys(a) AS has"
+    assert _one(driver, q, r=with_reason["id"]) == [{"reason": "引用と中身が合わない（架空）", "has": True}]
+    assert _one(driver, q, r=without["id"]) == [{"reason": None, "has": False}]

@@ -91,15 +91,19 @@ def test_file_load_csv_is_off(drivers, side):
 
 
 def test_data_is_not_visible_across(drivers):
+    """分離は、この試験が置いた印（probe の値）だけで見る。試走の DB には段 1 の live_mark.py の印が残っているので、
+    終わった後は「始める前と同じ数」で、自分の印を消し切ったことを見る（N-46 詰まり #16）"""
     probe = "probe-" + uuid.uuid4().hex
     personal, resource = drivers["personal"], drivers["resource"]
+    marks_before = _read(personal, "MATCH (n:NestLiveProbe) RETURN count(n) AS n")
     personal.execute_query("CREATE (:NestLiveProbe {probe: $probe, _fictional: true})", {"probe": probe}, database_="neo4j")
     try:
         assert _read(personal, "MATCH (n:NestLiveProbe {probe: $probe}) RETURN count(n) AS n", probe=probe) == [{"n": 1}]
         assert _read(resource, "MATCH (n {probe: $probe}) RETURN count(n) AS n", probe=probe) == [{"n": 0}]
     finally:
         personal.execute_query("MATCH (n:NestLiveProbe {probe: $probe}) DELETE n", {"probe": probe}, database_="neo4j")
-    assert _read(personal, "MATCH (n:NestLiveProbe) RETURN count(n) AS n") == [{"n": 0}]
+    assert _read(personal, "MATCH (n:NestLiveProbe {probe: $probe}) RETURN count(n) AS n", probe=probe) == [{"n": 0}]
+    assert _read(personal, "MATCH (n:NestLiveProbe) RETURN count(n) AS n") == marks_before
 
 
 @pytest.mark.parametrize("side,other", [("personal", "resource"), ("resource", "personal")])

@@ -36,13 +36,12 @@ def test_retention_decision_enum_is_keep_or_delete():
 
 def test_purge_is_an_audit_action_with_counts_only():
     assert "Purge" in C["enums"]["auditAction"]
-    assert NODES["AuditLog"]["optional"] == ["selfApproval", "retentionId", "purgedCounts", "keptPersons"]
+    assert NODES["AuditLog"]["optional"][:4] == ["selfApproval", "retentionId", "purgedCounts", "keptPersons"]  # v0.12 で reason が後に続く（G-91）
     assert C["types"]["AuditLog.purgedCounts"] == "List"
     assert C["types"]["AuditLog.keptPersons"] == "Integer"
 
 
 def test_the_table_and_history_say_v0_11():
     text = (REPO / "docs" / "SCHEMA.md").read_text(encoding="utf-8")
-    assert text.startswith("# nest-support スキーマ正典 — v0.11")
     assert "| `RetentionDecision` |" in text and "| `DECIDES_ON` | RetentionDecision → Client |" in text
     assert "- v0.11（2026-11-06）" in text

@@ -2,7 +2,8 @@
 
 - list：未確定（Pending）の一覧を古い順（registeredAt）に出す。本人は仮名（displayCode）で出す。実名は出さない
 - show：一件の根拠の引用（記録の quote）を出す
-- approve・reject：一件ずつ承認（Active）・差し戻し（Inactive）する。ゲートの承認（nest.gate.approve）を通すので、
+- list --rejected：差し戻したものを、差し戻した順に理由と出す（台帳 G-91）
+- approve・reject：一件ずつ承認（Active）・差し戻し（Inactive）する。差し戻しには理由を一行添えられる（--reason。AuditLog の reason。名前を書かない）。ゲートの承認（nest.gate.approve）を通すので、
   AuditLog（Approve・Reject）が残る。自分で登録したものを承認したら selfApproval が付く（自己承認）
 - まとめての承認はしない。ID の形から種類（ラベル）を決め、承認の対象でない ID は DB に触れる前に止める
 
@@ -10,7 +11,8 @@
   uv run python scripts/review_proposals.py list
   uv run python scripts/review_proposals.py show --id REC-…
   uv run python scripts/review_proposals.py approve --staff STF-… --id REC-…
-  uv run python scripts/review_proposals.py reject --staff STF-… --id REC-…
+  uv run python scripts/review_proposals.py reject --staff STF-… --id REC-… [--reason "…"]
+  uv run python scripts/review_proposals.py list --rejected
 """
 import argparse
 import sys
@@ -30,18 +32,25 @@ OPTIONAL MATCH (n)<-[:TOLD_BY]-(:Record)-[:ABOUT]->(t:Client)
 WITH n, [x IN collect(DISTINCT c.displayCode) + collect(DISTINCT t.displayCode) WHERE x IS NOT NULL] AS codes
 RETURN labels(n)[0] AS label, n.origin AS origin, n.registeredAt AS at, codes, n AS node
 ORDER BY at, label"""
+REJECTED = """MATCH (a:AuditLog {action: 'Reject'})-[:ACTED_BY]->(s:Staff)
+WHERE $id IS NULL OR a.targetId = $id
+RETURN a.targetLabel AS label, a.targetId AS id, a.at AS at, a.reason AS reason, s.staffId AS by
+ORDER BY at, id"""
 
 
 def parse(argv):
     p = argparse.ArgumentParser()
     sub = p.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("list", help="未確定の一覧（古い順）")
+    s = sub.add_parser("list", help="未確定の一覧（古い順）")
+    s.add_argument("--rejected", action="store_true", help="差し戻したものを理由と出す")
     s = sub.add_parser("show", help="一件の根拠の引用")
     s.add_argument("--id", required=True)
     for name in ("approve", "reject"):
         s = sub.add_parser(name)
         s.add_argument("--staff", required=True, help="決める職員の ID（STF-…）")
         s.add_argument("--id", required=True)
+        if name == "reject":
+            s.add_argument("--reason", help="差し戻しの理由を一行（任意。名前を書かない）")
     return p.parse_args(argv)
 
 
@@ -69,6 +78,24 @@ def _list(d):
     return 0
 
 
+def _rejected(s, target_id=None):
+    return s.execute_read(lambda tx: [r.data() for r in tx.run(REJECTED, id=target_id)])
+
+
+def _print_rejected(r):
+    print("  差し戻し %s（%s）理由：%s" % (r["at"], r["by"], r["reason"] or "―（書いていない）"))
+
+
+def _list_rejected(d):
+    with d.session(database="neo4j") as s:
+        rows = _rejected(s)
+    print("差し戻したもの %d 件（差し戻した順）" % len(rows))
+    for r in rows:
+        print("%s  %s" % (r["id"], r["label"]))
+        _print_rejected(r)
+    return 0
+
+
 def _show(d, label, target_id):
     with d.session(database="neo4j") as s:
         rows = s.execute_read(lambda tx: [r.data() for r in tx.run(
@@ -77,14 +104,17 @@ def _show(d, label, target_id):
             print("止めた：%s %s は無い" % (label, target_id))
             return 1
         quotes = s.execute_read(ap._quotes, label, gw.key_of(label), target_id)
+        rejected = _rejected(s, target_id)
     print("%s  %s  状態 %s  由来 %s" % (target_id, label, rows[0]["status"], rows[0]["origin"]))
     _print_quotes(quotes)
+    for r in rejected:
+        _print_rejected(r)
     return 0
 
 
 def _decide(d, a, label):
-    fn = ap.approve if a.cmd == "approve" else ap.reject
-    out = fn(d, a.staff, {"label": label, "id": a.id}, "req-review-" + uuid.uuid4().hex)
+    target, rid = {"label": label, "id": a.id}, "req-review-" + uuid.uuid4().hex
+    out = ap.approve(d, a.staff, target, rid) if a.cmd == "approve" else ap.reject(d, a.staff, target, rid, reason=a.reason)
     if not out["ok"]:
         print("止めた：" + "；".join(out["errors"]))
         return 1
@@ -93,14 +123,14 @@ def _decide(d, a, label):
         if out.get("selfApproval"):
             print("自己承認（自分で登録したもの）として記録した（selfApproval）")
     else:
-        print("差し戻した：%s %s → Inactive" % (label, a.id))
+        print("差し戻した：%s %s → Inactive（理由：%s）" % (label, a.id, a.reason or "―（書いていない）"))
     _print_quotes(out["shown"])
     return 0
 
 
 def _run(d, a):
     if a.cmd == "list":
-        return _list(d)
+        return _list_rejected(d) if a.rejected else _list(d)
     label = label_of(a.id)
     if a.cmd == "show":
         return _show(d, label, a.id)
