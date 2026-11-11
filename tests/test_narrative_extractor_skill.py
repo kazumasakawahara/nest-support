@@ -177,3 +177,18 @@ def test_the_skill_says_which_record_kind_a_contact_sentence_takes():
     contact = proposal["supportLog"]["quote"]
     (fact,) = [f for f in proposal["facts"] if f["quote"] == contact]
     assert fact["recordKind"] == "Observation"  # 例の接触の一文も同じ決まり
+
+
+VIEW_KIND = {"Self": "Interview", "Family": "Interview", "Agency": "Observation", "DocumentOnly": "Document"}
+
+
+def test_the_view_takes_the_record_kind_of_its_source():
+    """2026-11-12 河原さん（台帳 G-100。L-0 の案 2-B の一文を正典に写した）：見立ての記録の種類は、もとになった情報に合わせる。
+    Self・Family なら Interview、Agency（記録者の観察）なら Observation、書面だけなら Document"""
+    rules = _skill_section("守ること")
+    for words in ("見立て", "もとになった情報", "`Self`・`Family` なら `Interview`", "`Agency`", "`Observation`",
+                  "`DocumentOnly`", "`Document`", "記録の種類に見立ての意味を持たせない"):
+        assert words in rules, words
+    proposal = json.loads(_block("example-proposal", "json"))
+    (view,) = [f for f in proposal["facts"] if f["certainty"] == "Inference"]
+    assert view["recordKind"] == VIEW_KIND[view["informantKind"]]

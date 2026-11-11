@@ -29,7 +29,7 @@ description: 母親・支援者の語り（ナラティブ）、自分の面談�
 8. **本人の `clientId` は書かない。** 本人は仮名（`C-……`）で指し、書き込み受付が仮名から入れる。clientId は書かない（別の本人の ID が書いてあると止まる）
 9. **事実ごとに `recordKind` と `informantKind` を必ず書く**（正典の値だけ。日本語や別の値に読み替えない）
    - 接触そのものを述べる一文（記録者がしたこと・見たこと。例：「自宅を訪問。母と本人に会う。」「姉から電話。」「事業所の生活支援員から電話で聞き取りました。」「〜に電話し、様子を聞いた」）は `Observation`。相手が語った中身（例：「本人は週五日、休まず通っているとのこと。」「母は『夜に薬を出し忘れた』と話した。」）は `Interview`。「聞き取りました」と書いてあっても、聞いたという行為を述べるだけの一文は `Observation` にする
-10. **見立て**（記録者自身の受け取り方・推測。原文の【推測】の一文）は、値を足さずに書く（SEMANTICS SEM-REC-04）：`certainty: Inference`、`informantKind` はその見立てのもとになった情報源（本人の話から `Self`、家族の話から `Family`、職員が自分で見たことから `Agency`、記録だけから `DocumentOnly`）。`toldBy` は書かない（誰かが言ったことではない）。根拠が見立てだけの禁忌の候補は作らない（止まる）。推奨ケアの候補は作れるが注意が付く
+10. **見立て**（記録者自身の受け取り方・推測。原文の【推測】の一文）は、値を足さずに書く（SEMANTICS SEM-REC-04）：`certainty: Inference`、`informantKind` はその見立てのもとになった情報源（本人の話から `Self`、家族の話から `Family`、職員が自分で見たことから `Agency`、記録だけから `DocumentOnly`）。`toldBy` は書かない（誰かが言ったことではない）。`recordKind` はもとになった情報に合わせる：`Self`・`Family` なら `Interview`、`Agency`（記録者の観察）なら `Observation`、`DocumentOnly` なら `Document`（見立てであることは `Inference` が表すので、記録の種類に見立ての意味を持たせない）。根拠が見立てだけの禁忌の候補は作らない（止まる）。推奨ケアの候補は作れるが注意が付く
 11. **面接記録**（訪問・来所・電話・同行・会議・文書のやり取り）は、面接 1 回を `supportLog` 一つにし、聞いた事実・見たことは事実ごとに `facts` に分ける（SEM-REC-04）。`supportLog` の `quote` は接触の一文の事実の引用。同席者は `situation` に役割の名前で書く。次の調整は `nextAction` に置き、事実にしない。`effectiveness` は書かない（効果の判定は職員）。`supportLog` の本文に原文に無い数字を足さない
 12. **新しい人（`newPeople`）は、どれかの事実の `toldBy` か関わりの `concerns` に使う。** どこにも使わない人は案に入れない（止まる）
 13. 開発と試験では架空の文だけを使う
@@ -109,7 +109,7 @@ description: 母親・支援者の語り（ナラティブ）、自分の面談�
   {"quote": "受給者証の更新のことで、区役所の窓口に行ったことがある",
    "recordKind": "Interview", "certainty": "Hearsay", "informantKind": "Family", "toldBy": "mother"},
   {"quote": "予定が急に変わると落ち着かないのだろうと、私は受け取った",
-   "recordKind": "Interview", "certainty": "Inference", "informantKind": "Agency"}],
+   "recordKind": "Observation", "certainty": "Inference", "informantKind": "Agency"}],
  "involvements": [
   {"quote": "受給者証の更新のことで、区役所の窓口に行ったことがある", "kind": "Administrative"}],
  "ngActions": [
@@ -122,7 +122,7 @@ description: 母親・支援者の語り（ナラティブ）、自分の面談�
 
 - 本人は仮名で指すので、案に `clientId` を書かない。出す前に「対象は C-…… の本人です。この本人に未確定で入れてよいですか」と復唱する
 - 面接 1 回を `supportLog` 一つにし、根拠は接触の一文（「自宅を訪問。母と本人に会う。」）の事実に結ぶ。次の調整は `nextAction` に置き、事実にしない。`effectiveness` は書かない
-- 見立て（「予定が急に変わると落ち着かないのだろうと、私は受け取った」）は `Inference`。職員が自分で見たことから受け取ったので `informantKind` は `Agency`、`toldBy` は書かない。これだけを根拠に禁忌の候補は作らない
+- 見立て（「予定が急に変わると落ち着かないのだろうと、私は受け取った」）は `Inference`。職員が自分で見たことから受け取ったので `informantKind` は `Agency`、記録の種類は観察に合わせて `Observation`、`toldBy` は書かない。これだけを根拠に禁忌の候補は作らない
 - 禁忌の候補は、母の話の事実を根拠に指す。確度は根拠の事実の `Hearsay` を引き継ぐので、候補には書かない
 - 「音楽を聴くと落ち着く」は推奨ケアの候補にもできるが、どう支えるか（`instruction`）が原文に無いので、事実として残すだけにした
 - 「10月2日」には年が無いので、`aboutDate` を書かない

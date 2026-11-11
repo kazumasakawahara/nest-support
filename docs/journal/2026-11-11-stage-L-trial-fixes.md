@@ -110,3 +110,12 @@ DB を使う試験（G-97 の後。河原さんの許可の後）：1350 passed�
 - **語りから、すでに終わった関わりを作る形**（案 B：終わった値も書け、`endDate` は原文に年月日まであるときだけ、状態は承認で `Active`。SCHEMA の一文を交代・終わりの場面に限る変更が要る。案 C：終わった値の関わりは承認で `Inactive` にする。承認の流れが変わる）。終わりの日が年月日まで無いとき、終わっているのに承認で有効になることをどうするか
 
 DB を使う試験（G-98 の後。河原さんの許可の後）：1365 passed（落ち 0）。試走の DB の中身は消していない。
+
+## 見立ての記録の種類：L-0 の決定を正典に写すときに一文が落ちていた（2026-11-12 河原さん。台帳 G-100）
+
+- 確認点 L-0 の決めごと 6 で採った案 2-B（`docs/proposals/2026-11-10-L0-entrance-decisions.md` §2.2）には、「`recordKind` は、面接の中で受け取ったなら `Interview`、観察からなら `Observation`」の一文があった。決めごとの文（§6）と台帳 G-95 は `certainty`・`informantKind`・`AUTHORED_BY` の三つだけを書き、SEMANTICS SEM-REC-04 の「見立て」の項にもこの一文が入らなかった
+- そのため narrative-extractor の例は、見立ての一文を `Interview`・`Agency`（職員が自分で見たこと）にしていた。L-0 の提案の例（fact-11）は `Interview`・`Self` で、決まりに合っていた
+- 2026-11-12、河原さんの承認で SEM-REC-04「見立て」の項に一行を写した：見立ての記録の種類は、もとになった情報に合わせる（`Self`・`Family` なら `Interview`、`Agency`（記録者の観察）なら `Observation`、`DocumentOnly` なら `Document`）。見立てであることは確度 `Inference` が表し、記録の種類に見立ての意味を持たせない。SCHEMA と共通の約束は変えていない
+- narrative-extractor の守ること 10 に同じ決まりを足し、例の見立てを `Observation` にした。試験の VIEW_Q（`tests/test_intake_org_name.py`）も `Observation` にした
+- 入口の点検は、見立ての記録の種類と話し手の組み合わせを確かめていない（`informantKind` が無いときに止めるだけ）。足すかは河原さんが決める
+- 同じ日に、ほかの写し漏れを調べた（案 1-B・2-B・3-A の文と SCHEMA・SEMANTICS を突き合わせ）。正典に書くと案に書かれていたもので落ちていたのは、この一文だけだった

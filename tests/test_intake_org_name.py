@@ -112,7 +112,7 @@ def test_an_unmarked_record_gives_unspecified_not_inference():
 
 def test_a_view_gives_inference_without_a_basis():
     p = _with_facts({"quote": VIEW_Q, "orgName": "つばさ"},
-                    {"quote": VIEW_Q, "recordKind": "Interview", "certainty": "Inference", "informantKind": "Agency"})
+                    {"quote": VIEW_Q, "recordKind": "Observation", "certainty": "Inference", "informantKind": "Agency"})
     rep = intake.check(p, ORIGINAL2, ACTOR, "req-1")
     assert rep["ok"], rep["errors"]
     props = _involvement(rep)["properties"]

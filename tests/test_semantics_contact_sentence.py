@@ -35,3 +35,24 @@ def test_the_heading_and_the_ledger_name_the_change():
     ledger = (ROOT / "docs" / "gray-decisions.md").read_text(encoding="utf-8")
     (row,) = [l for l in ledger.splitlines() if l.startswith("| G-99 |")]
     assert "SEM-REC-04" in row and "Observation" in row and "Interview" in row
+
+
+# ---- 2026-11-12 河原さんの承認（台帳 G-100）：L-0 の案 2-B の一文（見立ての記録の種類）を正典に写す ----
+VIEW_LINE = ("- 見立ての記録の種類（`kind`）は、もとになった情報に合わせる：本人・家族の話から（`informantKind` が `Self`・`Family`）なら "
+             "`Interview`、記録者の観察から（`Agency`）なら `Observation`、既存の記録だけから（`DocumentOnly`）なら `Document`。"
+             "見立てであることは確度 `Inference` が表し、記録の種類に見立ての意味を持たせない")
+
+
+def test_rec_04_views_state_the_record_kind_rule():
+    s = _sec("SEM-REC-04")
+    views = s.split("見立て（記録者自身の受け取り方・推測）の書き方\n", 1)[1].split("\n\n", 1)[0]
+    assert VIEW_LINE in views.splitlines()
+    assert TEXT.count(VIEW_LINE) == 1
+
+
+def test_the_heading_and_the_ledger_name_the_view_change():
+    head = TEXT[TEXT.index("### SEM-REC-04"):].splitlines()[0]
+    assert "G-100" in head
+    ledger = (ROOT / "docs" / "gray-decisions.md").read_text(encoding="utf-8")
+    (row,) = [l for l in ledger.splitlines() if l.startswith("| G-100 |")]
+    assert "SEM-REC-04" in row and "案 2-B" in row and "Inference" in row
