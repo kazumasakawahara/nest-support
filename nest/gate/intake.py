@@ -62,7 +62,9 @@ FULL_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 CANDIDATES = {"ngActions": ("NgAction", "MUST_AVOID", {"quote", "action", "riskLevel", "reason"}, ("action", "reason")),
               "carePreferences": ("CarePreference", "REQUIRES", {"quote", "category", "instruction", "priority"},
                                   ("category", "instruction"))}
-INVOLVEMENT_KEYS = {"quote", "kind", "orgId", "concerns"}
+# orgName（原文に書かれた機関の名前）・serviceTypeName は任意（2026-11-11 河原さん）。機関 ID は案に書かせない（N-24）
+INVOLVEMENT_KEYS = {"quote", "kind", "orgId", "concerns", "orgName", "serviceTypeName"}
+ORG_NAME_MIN = 2  # 候補を引く名前の短さの下限（nest.org_candidates.MIN_LENGTH と同じ）
 SCHEMA = Path(__file__).resolve().parents[2] / "docs" / "SCHEMA.md"
 # 推定の結果の basis → 関わりの inferenceBasis（正典 v0.6。台帳 G-57）。住所も区のコードも持たない
 INFERENCE_BASIS = {"AtTheTime": "ResidenceAreaAtTheTime", "CurrentFallback": "CurrentResidenceArea"}
@@ -140,6 +142,15 @@ def _check_involvements(p, estimate, errors):
         org = inv.get("orgId")
         if org is not None and org not in offered:
             errors.append("%s: orgId %r は担当機関の推定の候補に無い（候補の中から選ぶ。選べなければ書かない）" % (where, org))
+        name = inv.get("orgName")
+        if name is not None:
+            if not isinstance(name, str) or len(_norm(name)) < ORG_NAME_MIN:
+                errors.append("%s: orgName は原文に書かれた機関の名前（%d 字以上の文字列。%r）" % (where, ORG_NAME_MIN, name))
+            elif _norm(name) not in _norm(inv.get("quote") if isinstance(inv.get("quote"), str) else ""):
+                errors.append("%s: orgName %r がこの関わりの quote（根拠の記録の引用）に無い（引用に書かれた名前だけを写す）" % (where, name))
+        service = inv.get("serviceTypeName")
+        if service is not None and (not isinstance(service, str) or not service.strip()):
+            errors.append("%s: serviceTypeName は原文に書かれたサービスの種類の文字列（%r）" % (where, service))
         target = inv.get("concerns")
         if target is not None and not (ids.is_valid_id(target, "PER") or target in people):
             errors.append("%s: concerns %r は既にいる人の ID（PER-…）か newPeople の ref（名前で結び付けない）" % (where, target))
@@ -359,6 +370,8 @@ def _request(p, original, actor_staff_id, request_id, provider_org_id, estimate=
         ref = "involvement-%d" % n
         nodes.append({"ref": ref, "label": "Involvement", "origin": "AiExtracted",
                       "properties": {"kind": inv["kind"], "howEnded": "Unknown", "certainty": "Inference"}})
+        if inv.get("serviceTypeName"):
+            nodes[-1]["properties"]["serviceTypeName"] = inv["serviceTypeName"].strip()
         target = inv.get("concerns")
         rels.append({"type": "CONCERNS", "from": ref,
                      "to": client if target is None else {"label": "Person", "id": target} if target.startswith("PER-") else target})
