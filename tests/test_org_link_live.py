@@ -55,8 +55,10 @@ def test_the_round_trip_links_the_chosen_org_and_keeps_the_involvement_pending(d
     assert choice["orgName"] == NAME and choice["candidates"], "候補が出ない（資源の側の一式を確かめる）"
     assert all({"areas", "serviceTypes", "kind", "name", "orgId"} <= set(c) for c in choice["candidates"])
     inv = choice["involvementId"]
-    assert _q(personal, "MATCH (i:Involvement {involvementId: $id}) RETURN i.serviceTypeName AS s, i.status AS st", id=inv) == \
-        [{"s": "生活介護", "st": "Pending"}]
+    # 2026-11-11（SEM-REC-05）：名前のある関わりは根拠の記録の確度を写す。印の無い一文なので Unspecified。推定の根拠は無い
+    assert _q(personal, "MATCH (i:Involvement {involvementId: $id}) RETURN i.serviceTypeName AS s, i.status AS st, "
+                        "i.certainty AS c, i.inferenceBasis AS b", id=inv) == \
+        [{"s": "生活介護", "st": "Pending", "c": "Unspecified", "b": None}]
 
     chosen = choice["candidates"][0]["orgId"]  # 人が番号で選んだことに当たる。名前も ID も出さない
     linked = mcp_gate._link(personal, resource, setup["code"], inv, NAME, chosen)

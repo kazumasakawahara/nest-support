@@ -214,3 +214,11 @@ def test_show_says_the_org_is_undecided_when_nothing_is_linked(capsys):
 def test_show_of_other_labels_has_no_org_line(capsys):
     out = _show(dict(BASE, ngActionId=NGA, action="卵を食べさせる", riskLevel="LifeThreatening"), NGA, capsys)
     assert "機関：" not in out
+
+
+def test_show_prints_the_certainty_of_an_involvement(capsys):
+    """2026-11-11：名前のある関わりは根拠の記録の確度を写す。show の確度の行は今どおり出る"""
+    node = dict(BASE, involvementId=INV, kind="ServiceProvision", howEnded="Unknown", certainty="Hearsay")
+    assert _script().main(["show", "--id", INV], driver=FakeDriver(node=node), resource_driver=FakeResource({})) == 0
+    out = capsys.readouterr().out
+    assert "%s：Hearsay（伝聞）" % semantics.field_names()["Involvement"]["certainty"] in out

@@ -81,3 +81,62 @@ def test_service_type_name_must_be_text(name):
 
 def test_an_org_id_is_still_not_accepted_from_the_proposal():
     _stopped(_check(_proposal(orgName="つばさ", orgId="ORG-01HPPPPPPPPPPPPPPPPPPPPPPP")), "orgId", "候補")
+
+
+# ---- 2026-11-11 河原さんの決めごと（SEMANTICS SEM-REC-05）：名前のある関わりの確度は根拠の記録の確度を写す ----
+MARKED = "母が「つばさ」に毎週通っていると話した。"
+VIEW_Q = "「つばさ」に通うのが合っているのだろうと、私は受け取った。"
+ORIGINAL2 = ORIGINAL + MARKED + "【伝聞】\n" + VIEW_Q + "【推測】\n"
+
+
+def _with_facts(inv, *facts):
+    p = _proposal(**inv)
+    p["facts"] = p["facts"] + list(facts)
+    return p
+
+
+def test_a_named_involvement_copies_the_certainty_of_its_record():
+    p = _with_facts({"quote": MARKED, "orgName": "つばさ"},
+                    {"quote": MARKED, "recordKind": "Interview", "certainty": "Hearsay", "informantKind": "Family"})
+    rep = intake.check(p, ORIGINAL2, ACTOR, "req-1")
+    assert rep["ok"], rep["errors"]
+    props = _involvement(rep)["properties"]
+    assert props["certainty"] == "Hearsay" and "inferenceBasis" not in props
+
+
+def test_an_unmarked_record_gives_unspecified_not_inference():
+    rep = _check(_proposal(orgName="つばさ"))
+    assert rep["ok"], rep["errors"]
+    assert _involvement(rep)["properties"]["certainty"] == "Unspecified"
+
+
+def test_a_view_gives_inference_without_a_basis():
+    p = _with_facts({"quote": VIEW_Q, "orgName": "つばさ"},
+                    {"quote": VIEW_Q, "recordKind": "Interview", "certainty": "Inference", "informantKind": "Agency"})
+    rep = intake.check(p, ORIGINAL2, ACTOR, "req-1")
+    assert rep["ok"], rep["errors"]
+    props = _involvement(rep)["properties"]
+    assert props["certainty"] == "Inference" and "inferenceBasis" not in props
+
+
+def test_an_involvement_without_a_name_stays_inference():
+    rep = _check(_proposal(serviceTypeName="生活介護"))
+    assert rep["ok"], rep["errors"]
+    assert _involvement(rep)["properties"]["certainty"] == "Inference"
+
+
+def test_a_name_and_an_estimated_org_together_stop():
+    org = "ORG-01HPPPPPPPPPPPPPPPPPPPPPPP"
+    est = {"basis": "CurrentFallback", "candidates": [{"orgId": org, "kind": "DisabilityDivision"}]}
+    p = _proposal(orgName="つばさ", orgId=org, kind="Administrative")
+    _stopped(intake.check(p, ORIGINAL, ACTOR, "req-1", estimate=est), "orgName", "orgId", "両方")
+
+
+def test_a_named_involvement_on_a_provision_document_is_not_decided_yet():
+    """情報提供の書面のときの扱いは決めていない（2026-11-11）。決めるまで止める（確度を推し量って入れない）"""
+    p = _proposal(orgName="つばさ")
+    p.update(documentKind="ProvisionDocument", providerName="つばさ")
+    p["facts"][0].update(recordKind="Document", certainty="Unspecified", providerCertainty="Unspecified")
+    p["facts"][1].update(recordKind="Document", certainty="Hearsay", providerCertainty="Hearsay")
+    rep = intake.check(p, ORIGINAL, ACTOR, "req-1", provider_org_id="ORG-01HPPPPPPPPPPPPPPPPPPPPPPP")
+    _stopped(rep, "orgName", "情報提供の書面")

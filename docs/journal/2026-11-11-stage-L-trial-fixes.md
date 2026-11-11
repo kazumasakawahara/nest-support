@@ -73,3 +73,14 @@
 
 DB を使う試験（河原さんの許可の後）：1 回目 1339 passed・2 failed（`tests/test_review_proposals_live.py` の show の二件。手順書の最初の show の行が 4.5 (c) の `show --id INV-…` になり、試験が REC-… を埋められなかった。道具ではなく試験の側。埋める欄をすべて持つ行を選ぶように直した）。2 回目 1341 passed（落ち 0）。試走の DB の中身は消していない。
 名前を人が選んで結んだ関わりの今の値：`certainty: Inference`、`inferenceBasis` は無い（null）。住所からの推定の値（`CurrentResidenceArea` など）は入らない（直していない。報告だけ）。
+
+## 機関の名前のある関わりの確度（2026-11-11 河原さんの決めごと。台帳 G-97）
+
+- 決めごと：名前のある関わりは根拠の記録（同じ引用の事実）の確度を写す。強くしない。機関に結んだか機関未確定かで分けない。名前の無い関わり（住所からの推定）は今までどおり `Inference` と `inferenceBasis`。印の無い原文は `Unspecified` のまま。`orgName` と推定の候補からの `orgId` の両方があれば止める
+- SEMANTICS：SEM-AREA-04 の一文を名前の無い言及に限り、SEM-REC-05 を足した（河原さんの承認の範囲）。SCHEMA と共通の約束は変えていない
+- 道具：`nest/gate/intake.py`（確度を写す・両方を止める・説明と理由の文）。試験：`tests/test_intake_org_name.py`・`tests/test_semantics_org_name_certainty.py`・`tests/test_review_show_content.py`（関わりの確度が show に出る）・`tests/test_org_link_live.py`（印の無い一文なので `Unspecified`、`inferenceBasis` は無い）
+- 私が決めたこと（承認の範囲の外。報告して確かめる）：情報提供の書面（`ProvisionDocument`）の関わりに `orgName` を書いたら、入口の点検が止める（決めるまで推し量って入れない）。今は書き込み受付が書面を受けないので、この道は通らない。SEMANTICS には書いていない
+- 試走の DB にすでにある名前のある関わり（DB を使う試験で入った 4 件）は `Inference` のまま残る（確度は作った後に変えない）
+
+先の論点（記録だけ）：
+- **情報提供の書面のときの、名前のある関わりの確度。** 受けた側から見た確度（`certainty`）を写すか、提供元の確度（`providerCertainty`）も関わりに持たせるか。正典の `Involvement` は確度を一つしか持たない

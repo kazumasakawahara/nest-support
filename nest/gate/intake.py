@@ -30,7 +30,8 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
   org_candidates.by_name で候補を出し、職員が選んだ機関 ID を provider_org_id で渡す。渡すまでは未確定で、依頼を作らない（N-24。D3）
 - 機関の名前が無い言及（「区役所の窓口で」）は involvements [{"quote", "kind", "orgId"?, "concerns"?}] に書く（N-24a）。quote は事実の引用のどれか
   （その記録を根拠に結ぶ）。orgId は担当機関の推定（org_estimate.estimate。estimate で渡す）の候補の中からだけ。無ければ機関未確定。
-  確度は書かせず、いつも Inference・終わり方 Unknown・AI 由来（Pending）。候補から選んだら、推定の根拠（inferenceBasis）を推定の結果から付ける（案には書かせない）。後見は推定で作らない。推定の注記は結果の notes に載せる
+  確度は書かせず、機関の名前の無い関わりはいつも Inference・終わり方 Unknown・AI 由来（Pending）。
+  orgName のある関わりは、根拠の記録（同じ引用の事実）の確度を写す（SEMANTICS SEM-REC-05。2026-11-11 河原さん）。候補から選んだら、推定の根拠（inferenceBasis）を推定の結果から付ける（案には書かせない）。後見は推定で作らない。推定の注記は結果の notes に載せる
 - 禁忌・推奨ケアの候補（G-63。正典 v0.9）：quote は案の事実の引用のどれかで、その記録を根拠に結ぶ（EVIDENCED_BY）。
   根拠が同じ案の中に無い候補は作らない。確度は書かせない（根拠の記録の確度を引き継ぐ。§6）。本文に引用に無い数字を足さない。
   いつも AI 由来（Pending）。本人から MUST_AVOID・REQUIRES で結ぶ
@@ -132,7 +133,7 @@ def _check_involvements(p, estimate, errors):
             errors.append("%s: オブジェクトでなければならない" % where)
             continue
         for k in sorted(set(inv) - INVOLVEMENT_KEYS):
-            errors.append("%s: %s という項目は無い（確度は Inference に決まっている。窓口までは絞らない）" % (where, k))
+            errors.append("%s: %s という項目は無い（確度は書かない。点検が決める。窓口までは絞らない）" % (where, k))
         if _norm(inv.get("quote")) not in quotes:
             errors.append("%s: quote は案の事実の引用のどれか（根拠の記録に結ぶ）" % where)
         if inv.get("kind") not in kinds:
@@ -148,6 +149,10 @@ def _check_involvements(p, estimate, errors):
                 errors.append("%s: orgName は原文に書かれた機関の名前（%d 字以上の文字列。%r）" % (where, ORG_NAME_MIN, name))
             elif _norm(name) not in _norm(inv.get("quote") if isinstance(inv.get("quote"), str) else ""):
                 errors.append("%s: orgName %r がこの関わりの quote（根拠の記録の引用）に無い（引用に書かれた名前だけを写す）" % (where, name))
+        if name is not None and org is not None:
+            errors.append("%s: orgName と orgId（住所からの推定の候補）を一つの関わりに両方書かない（確度の決まりが違う。SEM-REC-05）" % where)
+        if name is not None and p.get("documentKind") == "ProvisionDocument":
+            errors.append("%s: 情報提供の書面の関わりに orgName を書いたときの扱いは決めていない（決めるまで止める）" % where)
         service = inv.get("serviceTypeName")
         if service is not None and (not isinstance(service, str) or not service.strip()):
             errors.append("%s: serviceTypeName は原文に書かれたサービスの種類の文字列（%r）" % (where, service))
@@ -370,6 +375,9 @@ def _request(p, original, actor_staff_id, request_id, provider_org_id, estimate=
         ref = "involvement-%d" % n
         nodes.append({"ref": ref, "label": "Involvement", "origin": "AiExtracted",
                       "properties": {"kind": inv["kind"], "howEnded": "Unknown", "certainty": "Inference"}})
+        if inv.get("orgName"):  # 名前のある関わりは根拠の記録の確度を写す。強くしない（SEM-REC-05）
+            evidence = next(n for n in nodes if n["ref"] == fact_refs[_norm(inv["quote"])])
+            nodes[-1]["properties"]["certainty"] = evidence["properties"]["certainty"]
         if inv.get("serviceTypeName"):
             nodes[-1]["properties"]["serviceTypeName"] = inv["serviceTypeName"].strip()
         target = inv.get("concerns")
