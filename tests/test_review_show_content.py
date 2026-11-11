@@ -23,10 +23,12 @@ class _Rec(dict):
 
 
 class FakeTx:
-    def __init__(self, node, rows):
-        self.node, self.rows = node, rows
+    def __init__(self, node, rows, orgs=()):
+        self.node, self.rows, self.orgs = node, rows, list(orgs)
 
     def run(self, query, **params):
+        if "HAS_INVOLVEMENT]->(:Involvement" in query:
+            return [_Rec(orgId=o) for o in self.orgs]
         if "RETURN n AS node" in query:
             return [_Rec(node=self.node)] if self.node is not None else []
         if "EVIDENCED_BY]->(e:Record)" in query:
@@ -39,8 +41,8 @@ class FakeTx:
 
 
 class FakeDriver:
-    def __init__(self, node=None, rows=()):
-        self.tx = FakeTx(node, list(rows))
+    def __init__(self, node=None, rows=(), orgs=()):
+        self.tx = FakeTx(node, list(rows), orgs)
 
     def session(self, **kw):
         driver = self
@@ -172,3 +174,43 @@ def test_the_manual_says_to_approve_the_evidence_first():
     sec = t[t.index("### 書き込みの案を点検して承認する"):]
     sec = sec[:sec.index("\n## ")]
     assert "根拠の記録を先に承認" in sec and "未確定。先に承認する" in sec and "止まります" in sec
+
+
+# ---- 2026-11-11：関わりに、サービスの種類と、結ばれた機関の名前（無ければ「機関未確定」）を出す ----
+INV = "INV-01AAAAAAAAAAAAAAAAAAAAAAAA"
+ORG = "ORG-01AAAAAAAAAAAAAAAAAAAAAAAA"
+
+
+class FakeResource:
+    def __init__(self, names):
+        self.names = names
+
+    def execute_query(self, query, params=None, **kw):
+        class Out:
+            records = [{"orgId": o, "name": n} for o, n in self.names.items() if o in (params or {}).get("ids", [])]
+        return Out()
+
+
+def _show_inv(orgs, names, capsys):
+    node = dict(BASE, involvementId=INV, kind="ServiceProvision", howEnded="Unknown", certainty="Inference",
+                serviceTypeName="生活介護")
+    rc = _script().main(["show", "--id", INV], driver=FakeDriver(node=node, orgs=orgs), resource_driver=FakeResource(names))
+    assert rc == 0
+    return capsys.readouterr().out
+
+
+def test_show_prints_the_service_type_and_the_linked_org_name(capsys):
+    out = _show_inv([ORG], {ORG: "つばさ（架空）"}, capsys)
+    assert "%s：生活介護" % semantics.field_names()["Involvement"]["serviceTypeName"] in out
+    assert "機関：つばさ（架空）" in out and "機関未確定" not in out
+    assert out.index("機関：") < out.index("根拠 %s" % REC)
+
+
+def test_show_says_the_org_is_undecided_when_nothing_is_linked(capsys):
+    out = _show_inv([], {}, capsys)
+    assert "機関：機関未確定" in out
+
+
+def test_show_of_other_labels_has_no_org_line(capsys):
+    out = _show(dict(BASE, ngActionId=NGA, action="卵を食べさせる", riskLevel="LifeThreatening"), NGA, capsys)
+    assert "機関：" not in out

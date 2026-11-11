@@ -3,7 +3,8 @@
 - list：未確定（Pending）の一覧を古い順（registeredAt）に出す。本人は仮名（displayCode）で出す。実名は出さない。
   --code C-…… で本人に絞る。本人「―」は、どの本人にも結ばれていないもの（2026-11-11 河原さん）
 - show：一件の中身を「対象の項目（正典の順。項目は SEMANTICS SEM-FIELD-01 の表示名、列挙値は表示名を添える）→ 根拠の引用（記録の quote）」の順に出す。
-  伏せる項目（実名・かな・電話・住所・生年月日）と、ゲートが付ける項目（ID・状態・由来・登録日時・指紋）は出さない
+  伏せる項目（実名・かな・電話・住所・生年月日）と、ゲートが付ける項目（ID・状態・由来・登録日時・指紋）は出さない。
+  関わりには、結ばれた機関の名前（資源の側から引く。無ければ「機関未確定」）も出す（2026-11-11 河原さん）
 - list --rejected：差し戻したものを、差し戻した順に理由と出す（台帳 G-91）
 - approve・reject：一件ずつ承認（Active）・差し戻し（Inactive）する。差し戻しには理由を一行添えられる（--reason。AuditLog の reason。名前を書かない）。ゲートの承認（nest.gate.approve）を通すので、
   AuditLog（Approve・Reject）が残る。自分で登録したものを承認したら selfApproval が付く（自己承認）
@@ -136,7 +137,15 @@ def _list_rejected(d):
     return 0
 
 
-def _show(d, label, target_id):
+def _org_lines(s, resource_driver, target_id):
+    orgs = s.execute_read(lambda tx: [r["orgId"] for r in tx.run(ap.INVOLVEMENT_ORGS, id=target_id)])
+    if not orgs:
+        return ["  機関：機関未確定"]
+    names = ap._org_names(resource_driver, orgs)
+    return ["  機関：%s（%s）" % (names.get(o) or "名前を引けない", o) for o in orgs]
+
+
+def _show(d, label, target_id, resource_driver=None):
     with d.session(database="neo4j") as s:
         rows = s.execute_read(lambda tx: [r.data() for r in tx.run(
             "MATCH (n:%s {%s: $id}) RETURN n AS node" % (label, gw.key_of(label)), id=target_id)])
@@ -145,6 +154,7 @@ def _show(d, label, target_id):
             return 1
         quotes = s.execute_read(ap._quotes, label, gw.key_of(label), target_id)
         rejected = _rejected(s, target_id)
+        orgs = _org_lines(s, resource_driver, target_id) if label == "Involvement" else []
     node = dict(rows[0]["node"])
     print("%s  %s  状態 %s  由来 %s" % (target_id, label, node.get("status"), node.get("origin")))
     items = items_of(label, node)
@@ -152,6 +162,8 @@ def _show(d, label, target_id):
         print("  項目：無い")
     for key, value in items:
         print("  %s：%s" % (key, value))
+    for line in orgs:
+        print(line)
     _print_quotes(quotes, target_id)
     for r in rejected:
         _print_rejected(r)
@@ -174,16 +186,16 @@ def _decide(d, a, label):
     return 0
 
 
-def _run(d, a):
+def _run(d, a, resource_driver=None):
     if a.cmd == "list":
         return _list_rejected(d) if a.rejected else _list(d, a.code)
     label = label_of(a.id)
     if a.cmd == "show":
-        return _show(d, label, a.id)
+        return _show(d, label, a.id, resource_driver)
     return _decide(d, a, label)
 
 
-def main(argv=None, driver=None):
+def main(argv=None, driver=None, resource_driver=None):
     a = parse(argv)
     if a.cmd == "list" and a.code is not None and not is_display_code(a.code):
         print("止めた：%r は本人の仮名（C-と 6 字）の形でない" % (a.code,))
@@ -192,9 +204,12 @@ def main(argv=None, driver=None):
         print("止めた：%r は承認の対象の ID の形でない" % (a.id,))
         return 1
     if driver is not None:
-        return _run(driver, a)
+        return _run(driver, a, resource_driver)
     from nest import connections
     with connections.driver("personal") as d:
+        if a.cmd == "show" and label_of(a.id) == "Involvement":  # 機関の名前は資源の側から引く（読むだけ）
+            with connections.driver("resource") as r:
+                return _run(d, a, r)
         return _run(d, a)
 
 
