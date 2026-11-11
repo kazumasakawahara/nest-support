@@ -35,4 +35,14 @@
 - show と承認の出力の根拠の行に、記録の状態を添える（「未確定。先に承認する」「差し戻し済み」）。対象そのものの記録には付けない
 - 手順書の 5 の段の後半に「根拠の記録を先に承認する」を足した
 - 試験：`tests/test_gate_approve.py`（偽の DB）・`tests/test_review_show_content.py`。DB を使う試験 `tests/test_gate_approve_live.py::test_a_fact_waits_until_its_evidence_is_approved` を書いたが、**まだ流していない**（河原さんが承認を試した後に流す）
-- 今ある二件（NGA-…92・SLG-…PH）は、根拠の記録 REC-…FMFJ9 を承認すれば状態がそろう。先に有効になった承認の記録（AuditLog）はそのまま残る（消さない・書き換えない）
+- 今ある二件（NGA-…92・SLG-…PH）は、それぞれの根拠の記録を承認すれば状態がそろう。**根拠は別の記録だった**（NGA-…92 は REC-…FMFJ9、SLG-…PH は REC-…ZTC3W）。初めは「REC-…FMFJ9 一件で二件ともそろう」と書いたが誤りで、河原さんが両方を承認してそろえた。先に有効になった承認の記録（AuditLog）はそのまま残る（消さない・書き換えない）
+- 河原さんの手での確かめ：INV-…91 の承認は「先に REC-…FMFJ8 を承認する」と名指しで止まった
+
+## L-1 の残りの論点（記録だけ。2026-11-11 河原さんの気づき）
+
+- **記録の種類（`recordKind`）の選び方がぶれていないか。** REC-…ZTC3W は電話での聞き取りなのに `Observation`、REC-…FMFJ9 は `Interview` になっていた。narrative-extractor の守ること 9 と例は、職員が自分で見たことを `Observation`、聞いたことを `Interview` とするが、面接記録の接触の一文（「電話で聞き取った」など）をどちらにするかを決めていない。例では接触の一文（「自宅を訪問。母と本人に会う。」）を `Observation` にしている
+
+## DB を使う試験（2026-11-11。河原さんの許可の後）
+
+- 1 回目：1285 passed・1 failed。落ちたのは `tests/test_review_proposals_live.py::test_list_is_oldest_first_with_the_code`。手順書の最初の `list` の行が 4.5 (c) の `list --code C-……` に変わり、試験が仮名を埋めずに流したので、仮名の形の点検で止まった（道具ではなく試験の側）。試験で仮名を埋めるように直した
+- 2 回目：1286 passed（落ち 0）。DB を使わない試験は 1139 passed・147 skipped。試走の DB の中身は消していない（live_cleanup を打っていない）

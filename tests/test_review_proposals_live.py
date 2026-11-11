@@ -66,7 +66,8 @@ def _run(sub, fill, driver):
 
 
 def test_list_is_oldest_first_with_the_code(driver, setup, capsys):
-    assert _run("list", {}, driver) == 0
+    # 手順書の最初の list の行は 4.5 (c) の「list --code C-……」（2026-11-11）。仮名を埋めて流す
+    assert _run("list", {"C-……": setup["code"]}, driver) == 0
     out = capsys.readouterr().out
     a, b = setup["a"][0], setup["b"][0]
     assert a in out and b in out and out.index(a) < out.index(b)
