@@ -58,3 +58,13 @@ def test_a_provision_document_view_is_not_checked_yet():
                     "informantKind": "Agency"}]}
     rep = intake.check(p, ORIGINAL, ACTOR, "req-view-kind", provider_org_id="ORG-01HPPPPPPPPPPPPPPPPPPPPPPP")
     assert not _kind_errors(rep), rep["errors"]
+
+
+def test_a_view_without_an_informant_names_every_source_in_the_reason():
+    """2026-11-12 河原さん：見立てに informantKind が無いときの理由にも Neighbor を出す"""
+    p = {"documentKind": "OwnCaseRecord", "clientId": CLIENT,
+         "facts": [{"quote": VIEW, "recordKind": "Interview", "certainty": "Inference"}]}
+    rep = intake.check(p, ORIGINAL, ACTOR, "req-view-kind")
+    (err,) = [e for e in rep["errors"] if "informantKind に書く" in e]
+    for words in ("Self", "Family", "Neighbor", "Agency", "DocumentOnly"):
+        assert words in err, words

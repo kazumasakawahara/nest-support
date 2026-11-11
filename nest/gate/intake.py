@@ -317,7 +317,7 @@ def check(proposal, original, actor_staff_id, request_id, provider_org_id=None, 
             errors.append("%s: toldBy の %r は既にいる人の ID（PER-…）・newPeople の ref・client のどれでもない（名前で結び付けない）" % (where, told))
         if "informantKind" not in f and f.get("certainty") == "Inference":
             errors.append("%s: 見立て（確度 推測）には、もとになった情報源を informantKind に書く（本人の話なら Self、"
-                          "家族の話なら Family、職員の観察なら Agency、記録だけなら DocumentOnly）" % where)
+                          "家族の話なら Family、近隣・知人の話なら Neighbor、職員の観察なら Agency、記録だけなら DocumentOnly）" % where)
         for key, enum in (("recordKind", "recordKind"), ("informantKind", "informantKind")):
             if key not in f:
                 if not (key == "informantKind" and f.get("certainty") == "Inference"):
