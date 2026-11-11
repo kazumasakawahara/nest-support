@@ -67,10 +67,18 @@ def test_the_spare_lines_still_run_with_the_tool():
     assert TEXT.index(line[0]) > TEXT.index("### MCP が使えないときの予備")
 
 
-def test_b_says_desktop_chat_not_claude_code_and_no_folder():
-    """段階 L の確かめ（2026-11-11）の詰まり 4：相手は Claude Desktop のチャット。フォルダーを選ぶ画面は Claude Code で nest-gate が無い。"""
+def test_b_follows_the_screen_that_worked():
+    """2026-11-11 河原さん：今朝通った形に合わせる。アプリで「新規作成」→「プロジェクトまたはフォルダー」は選ばない→右下は「手動」のまま。
+    区別として残すのは「ターミナルで claude と打って起動したものには nest-gate がつながっていない」だけ。選んだ場合のことは書かない。"""
     b = _sub("### (b)")
-    assert "Claude Code" in b and "フォルダー" in b and "チャット" in b
+    for words in ("新規作成", "「プロジェクトまたはフォルダー」", "選ばず", "「手動」", "ターミナルで `claude` と打って起動したもの"):
+        assert words in b, words
+    assert "フォルダーを選ばせる画面" not in b and "Claude Code" not in b
+
+
+def test_b_says_to_check_the_pseudonym_before_allowing_the_tool():
+    b = _sub("### (b)")
+    assert "許可を求められたら、仮名を確かめてから許可する" in b
 
 
 def test_b_says_to_paste_the_heading_line_with_the_date():
