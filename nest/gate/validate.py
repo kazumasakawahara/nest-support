@@ -212,7 +212,7 @@ def validate(req):
             frm = rel.get("from")
             if isinstance(frm, dict) or origins_by_ref.get(frm) != "AiExtracted" or labels_by_ref.get(frm) != "Person":
                 ck.errors.append("%s: AI 由来の RELATED_TO は、同じ依頼で作る AI 由来の新しい Person からだけ張れる"
-                                 "（既にいる人に後から続柄を足す道は無い）" % where)
+                                 "（既にいる人に後から続柄を足す道は無い）。AI 由来のものと職員が作る続柄は、別の依頼に分ける" % where)
         props = ck.check_props(where, rtype, spec, raw, managed)
         if rtype == "RELATED_TO":
             for rid in props.get("evidenceRecordIds") or []:

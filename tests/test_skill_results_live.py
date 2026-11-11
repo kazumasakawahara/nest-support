@@ -88,18 +88,22 @@ def fictional(driver, admin):
                     driver)
     assert out["ok"], out["errors"]
     ids = dict(out["ids"], client=client["id"])
-    # キーパーソン（根拠の記録の ID が要るので二つ目の依頼）・承認待ちの AI 由来の記録・確認の記録
-    out2 = gw.submit({"requestId": "req-" + uuid.uuid4().hex, "actorStaffId": admin,
-                      "nodes": [{"ref": "ai", "label": "Record", "origin": "AiExtracted",
-                                 "properties": _rec("架空の話 %s：未確定の話" % mark)}],
-                      "relationships": [{"type": "ABOUT", "from": "ai", "to": client},
-                                        {"type": "AUTHORED_BY", "from": "ai", "to": staff},
-                                        {"type": "RELATED_TO", "from": {"label": "Person", "id": ids["p"]}, "to": client,
+    # キーパーソン（根拠の記録の ID が要るので二つ目の依頼）・承認待ちの AI 由来の記録・確認の記録。
+    # 2026-11-12 河原さん（案 B）：AI 由来の記録と職員が作る続柄は別の依頼に分ける（混ぜると止まる。正典 v0.14 §7。台帳 G-102）
+    out2 = gw.submit({"requestId": "req-" + uuid.uuid4().hex, "actorStaffId": admin, "nodes": [],
+                      "relationships": [{"type": "RELATED_TO", "from": {"label": "Person", "id": ids["p"]}, "to": client,
                                          "properties": {"kind": "KeyPerson", "certainty": "Hearsay", "rank": 1,
                                                         "evidenceRecordIds": [ids["r0"]], "status": "Active"}}]},
                      driver)
     assert out2["ok"], out2["errors"]
-    ids["ai"] = out2["ids"]["ai"]
+    out3 = gw.submit({"requestId": "req-" + uuid.uuid4().hex, "actorStaffId": admin,
+                      "nodes": [{"ref": "ai", "label": "Record", "origin": "AiExtracted",
+                                 "properties": _rec("架空の話 %s：未確定の話" % mark)}],
+                      "relationships": [{"type": "ABOUT", "from": "ai", "to": client},
+                                        {"type": "AUTHORED_BY", "from": "ai", "to": staff}]},
+                     driver)
+    assert out3["ok"], out3["errors"]
+    ids["ai"] = out3["ids"]["ai"]
     rv = gw.record_review(driver, admin, client["id"], "Guardianship", dt.datetime.now(dt.timezone.utc).isoformat(),
                           "Family", [ids["r0"]], "req-" + uuid.uuid4().hex)
     assert rv["ok"], rv["errors"]

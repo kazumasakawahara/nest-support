@@ -91,3 +91,12 @@ def test_write_replaces_the_evidence_ref_with_the_issued_record_id():
     assert rel["props"]["evidenceRecordIds"] == [plan["ids"]["fact-1"]]
     assert rel["props"]["status"] == "Pending"
     assert any(a["props"]["targetLabel"] == "RELATED_TO" for a in plan["audits"])
+
+
+def test_an_ai_node_and_a_staff_keyperson_in_one_request_stop_and_say_to_split():
+    # 2026-11-12 河原さん（案 B）：AI 由来のノードと職員が作る続柄を一つの依頼に混ぜると止まる。検査は緩めない。
+    # 止めた理由から「別の依頼に分ける」と読めるようにする
+    keyperson = {"kind": "KeyPerson", "certainty": "Hearsay", "rank": 1, "evidenceRecordIds": [REC], "status": "Active"}
+    rep = gv.validate(_req(keyperson, person_origin=None, frm=PER))
+    assert not rep["ok"]
+    assert any("AI 由来のものと職員が作る続柄は、別の依頼に分ける" in e for e in rep["errors"]), rep["errors"]
