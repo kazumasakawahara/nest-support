@@ -91,6 +91,7 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down    # 使い終�
 |---|---|---|
 | `nest-redesign-personal` | 個人の側（本人・家族・支援の記録） | 127.0.0.1:37687（Bolt）・37474（ブラウザ） |
 | `nest-redesign-resource` | 資源の側（事業所などの公開情報） | 127.0.0.1:38687（Bolt）・38474（ブラウザ） |
+| `nest-redesign-test` | DB を使う試験の専用（架空の残りだけ。profile "test" なので上の `up -d` では起きない。`docs/OPERATIONS.md` 段 10） | 127.0.0.1:36687（Bolt）・36474（ブラウザ） |
 
 データはリポジトリの下の `nest_neo4j_personal_data/`・`nest_neo4j_resource_data/` に置かれます（git には入りません）。
 

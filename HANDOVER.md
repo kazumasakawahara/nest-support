@@ -17,12 +17,16 @@ DB を使う試験（結合試験のタスクのときだけ。終わったら�
 ```bash
 docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d     # nest-redesign-personal（37474/37687）・nest-redesign-resource（38474/38687）
 # 試走の DB の中身（下の「前提」）を残している間は live_cleanup.py を打たない（印のほかをすべて消す）
-NEST_LIVE_DB=1 uv run pytest -q                                       # 最後に流したのは 2026-11-10（stage-l。22:25 の時点で済んでいた）：1242 passed（落ち 0）
+docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d neo4j-test   # 試験用の DB（36474/36687。2026-11-12 台帳 G-103）
+NEST_DB_TARGET=test NEST_LIVE_DB=1 uv run pytest -q                   # DB を使う試験は試験用の DB だけ（試走の DB に向いていると止まる）
+docker compose --env-file ~/.config/nest/neo4j-redesign.env stop neo4j-test
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove-orphans は使わない
 ```
 
+- 接続してよいのは 37687（試走）・38687（資源）・36687（試験用）だけ（2026-11-12 河原さん。台帳 G-103）。試験用の DB は試験の始まりに毎回空にする（試験用の印 `NestTestDbProbe` が無ければ止まる）。初めての一度だけ `NEST_DB_TARGET=test uv run python tests/live_testdb.py mark`
+
 - `neo4j-redesign.env` の中身は読まない・表示しない（接続の部品 `nest/connections.py` と試験が読む）
-- 起動の前に `docker ps` で前の DB が動いていないことを確かめ、起動の後に 2 つとも 127.0.0.1 だけで待ち受けていることを確かめる（N-18 の条件）
+- 起動の前に `docker ps` で前の DB が動いていないことを確かめ、起動の後に 127.0.0.1 だけで待ち受けていることを確かめる（N-18 の条件。試験用の DB も同じ）
 - 2026-11-10 の夜（22:25 より前）に起こし、**起こしたまま**（河原さんの指示。止めていない）
 
 新しい Mac でゼロから入れる手順は `docs/SETUP_GUIDE.md` の「0. 新しい Mac でゼロから」（N-38）。

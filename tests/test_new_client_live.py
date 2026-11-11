@@ -1,4 +1,4 @@
-"""N-39：本人を Claude の外で作る入口（scripts/new_client.py）を、起動した個人の側（127.0.0.1:37687）で確かめる。
+"""N-39：本人を Claude の外で作る入口（scripts/new_client.py）を、試験用の DB（127.0.0.1:36687）で確かめる。
 NEST_LIVE_DB=1 のときだけ。架空のデータだけ。
 
     NEST_LIVE_DB=1 uv run pytest -q tests/test_new_client_live.py

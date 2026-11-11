@@ -1,4 +1,4 @@
-"""N-37：音声を消す道具が、起動した個人の側（127.0.0.1:37687）から「承認された記録の documentHash」を引けること。
+"""N-37：音声を消す道具が、試験用の DB（127.0.0.1:36687）から「承認された記録の documentHash」を引けること。
 NEST_LIVE_DB=1 のときだけ。
 
     NEST_LIVE_DB=1 uv run pytest -q tests/test_voice_live.py

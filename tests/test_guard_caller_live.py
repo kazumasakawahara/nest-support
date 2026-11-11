@@ -1,4 +1,4 @@
-"""判断 2（台帳 G-85）を、起動した個人の側（127.0.0.1:37687）で確かめる。NEST_LIVE_DB=1 のときだけ。架空のデータだけ。
+"""判断 2（台帳 G-85）を、試験用の DB（127.0.0.1:36687）で確かめる。NEST_LIVE_DB=1 のときだけ。架空のデータだけ。
 
     NEST_LIVE_DB=1 uv run pytest -q tests/test_guard_caller_live.py
 

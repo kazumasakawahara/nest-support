@@ -21,7 +21,8 @@ pytestmark = pytest.mark.skipif(os.environ.get("NEST_LIVE_DB") != "1", reason="N
 
 ENV_FILE = Path.home() / ".config" / "nest" / "neo4j-redesign.env"
 SIDES = {
-    "personal": ("bolt://127.0.0.1:37687", "NEST_PERSONAL_PASSWORD"),
+    # 2026-11-12 河原さん（案 A。台帳 G-103）：個人の側は試験用の DB（127.0.0.1:36687）。試走の DB には触れない
+    "personal": ("bolt://127.0.0.1:36687", "NEST_PERSONAL_PASSWORD"),
     "resource": ("bolt://127.0.0.1:38687", "NEST_RESOURCE_PASSWORD"),
 }
 

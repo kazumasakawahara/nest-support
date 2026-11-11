@@ -96,6 +96,16 @@ def test_fails_when_a_new_db_listens_on_all_addresses(tmp_path):
     assert out.returncode == 1 and "nest-redesign-personal" in out.stdout
 
 
+def test_the_test_db_is_checked_like_the_others(tmp_path):
+    # 2026-11-12 河原さん（案 A。台帳 G-103）：試験用の DB（nest-redesign-test。36687）も、動いていれば 127.0.0.1 だけで待ち受ける
+    ok = _run(tmp_path / "a", ["nest-redesign-test 127.0.0.1:36474->7474/tcp, 127.0.0.1:36687->7687/tcp"])
+    assert ok.returncode == 0 and "nest-redesign-test: 127.0.0.1 だけで待ち受けている" in ok.stdout, ok.stdout
+    bad = _run(tmp_path / "b", ["nest-redesign-test 0.0.0.0:36687->7687/tcp"])
+    assert bad.returncode == 1 and "nest-redesign-test" in bad.stdout
+    stopped = _run(tmp_path / "c", [])
+    assert "nest-redesign-test: 止まっている" in stopped.stdout
+
+
 def test_fails_when_the_settings_file_is_readable_by_others(tmp_path):
     out = _run(tmp_path, [], env_mode=0o644)
     assert out.returncode == 1 and "600" in out.stdout

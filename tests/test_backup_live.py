@@ -1,9 +1,10 @@
-"""N-33：バックアップを取って戻すことを、起動した個人の側（127.0.0.1:37687）で確かめる。NEST_LIVE_DB=1 のときだけ。
+"""N-33：バックアップを取って戻すことを、試験用の DB（127.0.0.1:36687）で確かめる。NEST_LIVE_DB=1 のときだけ。
 
-    NEST_LIVE_DB=1 uv run pytest -q tests/test_backup_live.py
+    NEST_DB_TARGET=test NEST_LIVE_DB=1 uv run pytest -q tests/test_backup_live.py
 
-いつもの個人の側は置き換えない：
-1. いつもの個人の側に架空の本人（前）を作り、コンテナを止めて書き出す（試験の一時フォルダ。~/nest-backup は使わない）。起こして、架空の本人（後）を作る
+試走の DB（37687）には触れない（2026-11-12 河原さん。案 A。台帳 G-103。前は試走の DB のコンテナを止めて書き出していた）。
+試験用の DB は置き換えない：
+1. 試験用の DB に架空の本人（前）を作り、そのコンテナを止めて書き出す（試験の一時フォルダ。~/nest-backup は使わない）。起こして、架空の本人（後）を作る
 2. 書き出しを、試験の一時のデータのフォルダに戻し、使い捨てのコンテナ（127.0.0.1:39687 だけで待ち受け。パスワードは試験ごとの乱数）で起こす
 3. 戻した DB に（前）があり（後）が無いこと、制約・索引・ラベルが正典とずれていないこと（ずれ 0 件）、正典の文書のずれ 0 件を確かめる
 戻す命令は、いつもの個人の側に戻すときと同じ（データのフォルダの場所だけが違う）。計画 N-33、台帳 G-74・G-75。
@@ -23,12 +24,13 @@ pytestmark = pytest.mark.skipif(os.environ.get("NEST_LIVE_DB") != "1", reason="N
 REPO = Path(__file__).resolve().parents[1]
 ENV = str(Path.home() / ".config" / "nest" / "neo4j-redesign.env")
 SCRATCH = "nest-backup-restore-test"
+SERVICE, CONTAINER, DATA = "neo4j-test", "nest-redesign-test", REPO / "nest_neo4j_test_data"  # 試験用の DB（docker-compose.yml）
 SCRATCH_PORT = 39687  # nest-support の 37xxx・38xxx、tsunagu-net の 17xxx・27xxx・47xxx・48xxx を避けた
 EXTRA_LABELS = {"NestLiveProbe"}  # 架空の印（ゲートを通さず人が置く。正典の外）
 
 
 def _compose(*args):
-    subprocess.run(["docker", "compose", "--env-file", ENV, *args, "neo4j-personal"], cwd=REPO, check=True,
+    subprocess.run(["docker", "compose", "--env-file", ENV, *args, SERVICE], cwd=REPO, check=True,
                    capture_output=True)
 
 
@@ -88,7 +90,7 @@ def test_dump_and_restore_bring_back_the_earlier_state_without_drift(tmp_path):
     root = tmp_path / "nest-backup"
     _compose("stop")
     try:
-        out = backup.dump(root, backup.DEFAULT_DATA, image, now=dt.datetime.now())
+        out = backup.dump(root, DATA, image, now=dt.datetime.now(), container=CONTAINER)
         assert out["ok"], out["errors"]
         assert oct(os.stat(root).st_mode & 0o777) == "0o700"
     finally:

@@ -1,4 +1,4 @@
-"""N-36：sos の本人の確認（lookup_client）が、起動した個人の側（127.0.0.1:37687）を読み取りの包みで読めること。
+"""N-36：sos の本人の確認（lookup_client）が、試験用の DB（127.0.0.1:36687）を読み取りの包みで読めること。
 NEST_LIVE_DB=1 のときだけ。
 
     NEST_LIVE_DB=1 uv run pytest -q tests/test_sos_live.py

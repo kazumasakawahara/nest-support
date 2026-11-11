@@ -125,7 +125,13 @@ def test_there_are_fifteen_queries():
 
 
 def test_q01_list_has_the_code(driver, fictional):
-    assert {"code": fictional["code"], "status": "Active"} in _run(driver, 1)
+    # 2026-11-12 河原さん：q13 と同じ直し方。照会 1 は仮名の順で、包みの上限（500 行）を超えると試験の本人が返らないことがある。
+    # 照会 1 の条件と返す形はそのままに、試験が入れた本人で絞る（スキルは変えない）
+    from nest import mcp_guard
+    head = "WHERE c.status IN ['Active', 'Pending']\n"
+    assert Q[1].count(head) == 1
+    q = Q[1].replace(head, "WHERE c.status IN ['Active', 'Pending'] AND c.displayCode = $code\n")
+    assert {"code": fictional["code"], "status": "Active"} in mcp_guard.run_read(driver, q, {"code": fictional["code"]}, personal=True)
 
 
 def test_q02_ngactions_lifethreatening_first_with_evidence_and_contradiction(driver, fictional):

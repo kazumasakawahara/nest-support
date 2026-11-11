@@ -25,7 +25,7 @@ SKILLS_DIR="${HOME}/.claude/skills"
 ENV_FILE="${HOME}/.config/nest/neo4j-redesign.env"
 DESKTOP_CONFIG="${HOME}/Library/Application Support/Claude/claude_desktop_config.json"
 OLD_CONTAINERS=(nest-support-neo4j support-db-neo4j)
-NEW_CONTAINERS=(nest-redesign-personal nest-redesign-resource)
+NEW_CONTAINERS=(nest-redesign-personal nest-redesign-resource nest-redesign-test)  # test は DB を使う試験の専用（2026-11-12 台帳 G-103）
 REMOVED_SKILLS=(wamnet-provider-sync livelihood-support)
 
 PASS=0

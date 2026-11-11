@@ -353,20 +353,25 @@ doctor の項目：[1] 前の DB は動いていない、[2] 新しい DB の待
 
 ### 試走（架空の事例の DB）のときだけ：止める前に DB つきの試験を流す
 
-試走の終わりに、DB を起こしたまま、DB つきの試験をまとめて流します。**実データを入れた DB では流しません**（試験は架空の職員・本人・案を DB に足します）。
+試走の終わりに、DB つきの試験をまとめて流します。DB つきの試験は、**試験用の DB（`nest-redesign-test`。127.0.0.1:36687）だけ**で流します。試走の DB の中身には触れません。試走の DB（37687）に向いたままでは、試験は始まりで止まります（2026-11-12。台帳 G-103）。**実データを入れた DB では流しません**。
 
 ```bash
-NEST_LIVE_DB=1 uv run pytest -q             # 最後の行に failed が無いこと
+docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d neo4j-test   # 試験用の DB を起こす
+NEST_DB_TARGET=test NEST_LIVE_DB=1 uv run pytest -q   # 最後の行に failed が無いこと
+docker compose --env-file ~/.config/nest/neo4j-redesign.env stop neo4j-test    # 試験用の DB を止める
 ```
 
-- 試験が足した架空の本人・案は残ります（試走の DB の中身も消しません）。そのため、`review_proposals.py list` などに試験のものが混ざります
-- 段 1 の `live_mark.py` で置いた架空の印は残したままでかまいません（試験は印の数が始める前と同じかを見ます）
+- 試験は始まりで試験用の DB を空にします。試験用の印（`NestTestDbProbe`）と架空の印（`NestLiveProbe`）は残します。試験用の印が無い DB では、空にせずに止まります
+- 初めての一度だけ：試験用の DB を起こした後、試験の前に `NEST_DB_TARGET=test uv run python tests/live_testdb.py mark` で試験用の印を置きます。印を置けるのは、中身が一つも無い試験用の DB だけです
+- 資源の側（38687）は試走と共有します。試験は資源の側に書きません
+- 試験用の DB のパスワードは、個人の側と同じ（`neo4j-redesign.env` の `NEST_PERSONAL_PASSWORD`）です。新しい設定は要りません
+- Claude Desktop の道具と、端末で打つ道具（`review_proposals.py`・`new_client.py` など）は、今までどおり試走の DB に向きます
 
 ### 止める
 
 ```bash
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down
-docker ps                                   # 新しい DB（nest-redesign-personal・nest-redesign-resource）が出ないこと
+docker ps                                   # 新しい DB（nest-redesign-personal・nest-redesign-resource・nest-redesign-test）が出ないこと
 ```
 
 点検：人が確かめる（`docker ps` に新しい DB の 2 つが出ないこと）
