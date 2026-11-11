@@ -40,7 +40,7 @@
 
 ## L-1 の残りの論点（記録だけ。2026-11-11 河原さんの気づき）
 
-- **記録の種類（`recordKind`）：ぶれではなく、書かれていない決まりだった（2026-11-12 河原さんが見直した）。** REC-…ZTC3W（「〜に電話し、様子を聞いた」の一文）は `Observation`、REC-…FMFJ9（相手が語った中身）は `Interview` で、Claude は「記録者が自分でしたこと・見たことは `Observation`、相手が語った中身は `Interview`」で一貫して分けていた。この決まりは SEMANTICS にも narrative-extractor にも文として無かった（SEM-REC-04 は「聞いた事実は `Interview`／職員が見たことは `Observation`」だけで、「電話で聞き取った」のような接触そのものの一文をどちらにするかを書いていない）。2026-11-12 に narrative-extractor の守ること 9 に決まりと例を足した。SEMANTICS に足すかは河原さんが決める
+- **記録の種類（`recordKind`）：ぶれではなく、書かれていない決まりだった（2026-11-12 河原さんが見直した）。** REC-…ZTC3W（「〜に電話し、様子を聞いた」の一文）は `Observation`、REC-…FMFJ9（相手が語った中身）は `Interview` で、Claude は「記録者が自分でしたこと・見たことは `Observation`、相手が語った中身は `Interview`」で一貫して分けていた。この決まりは SEMANTICS にも narrative-extractor にも文として無かった（SEM-REC-04 は「聞いた事実は `Interview`／職員が見たことは `Observation`」だけで、「電話で聞き取った」のような接触そのものの一文をどちらにするかを書いていない）。2026-11-12 に narrative-extractor の守ること 9 に決まりと例を足した。同日、河原さんの承認で SEMANTICS SEM-REC-04 に一行を足した（台帳 G-99）。見立ての一文の記録の種類は、この決まりでは決まらない（調べて報告した）
 
 ## DB を使う試験（2026-11-11。河原さんの許可の後）
 
