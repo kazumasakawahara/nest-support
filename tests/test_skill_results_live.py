@@ -194,7 +194,13 @@ def test_q12_evidence_and_told_by(driver, fictional):
 
 
 def test_q13_pending_ai_record_listed(driver, fictional):
-    rows = _run(driver, 13)
+    # 2026-11-12 河原さん：DB 全体の件数に左右されない確かめ方にする。照会 13 は古い順で、包みの上限（500 行）を超えると
+    # 新しいものが返らない。照会 13 の条件と返す形はそのままに、試験が入れた本人で絞る（スキルは変えない）
+    from nest import mcp_guard
+    head = "MATCH (n {status: 'Pending', origin: 'AiExtracted'})\n"
+    assert Q[13].count(head) == 1
+    q = Q[13].replace(head, head + "MATCH (n)-[:ABOUT]->(:Client {displayCode: $code})\n")
+    rows = mcp_guard.run_read(driver, q, {"code": fictional["code"]}, personal=True)
     assert {"label": "Record", "id": fictional["ai"]} in [{"label": r["label"], "id": r["id"]} for r in rows]
 
 
