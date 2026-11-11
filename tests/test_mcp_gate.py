@@ -68,11 +68,12 @@ def sent(monkeypatch):
 
 # ---- 形 ----
 
-def test_the_gate_server_is_separate_and_has_only_the_submit_tool():
+def test_the_gate_server_is_separate_and_has_the_submit_and_link_tools():
+    """2026-11-11：選んだ機関を関わりに結ぶ link_organization を足した（tests/test_org_link.py）。承認の道具はまだ無い（L-2）"""
     m = _mcp()
     assert m.server.name == "nest-gate"
     tools = [n for n, f in inspect.getmembers(m, inspect.isfunction) if f.__module__ == m.__name__ and not n.startswith("_")]
-    assert sorted(tools) == ["staff_id", "submit_proposal"]
+    assert sorted(tools) == ["link_organization", "staff_id", "submit_proposal"]
 
 
 def test_the_read_only_wrapper_has_no_write_tool():
