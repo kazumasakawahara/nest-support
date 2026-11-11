@@ -136,3 +136,22 @@ def test_the_skill_states_the_ref_rule_with_an_example():
     assert "英小文字で始め、英字・数字・ハイフンだけ" in text and "`supportWorker`" in text
     for ref in ("mother", "supportWorker", "sister-2"):
         assert intake.REF.match(ref) and not intake.RESERVED_REF.match(ref)
+
+
+# ---- 2026-11-11：関わりを資源の側の機関に結ぶ一往復 ----
+
+def test_the_proposal_shape_has_org_name_and_service_type():
+    shape = _skill_section("案の形")
+    assert '"orgName"' in shape and '"serviceTypeName"' in shape
+
+
+def test_the_skill_writes_the_org_name_only_as_in_the_quote_and_no_org_id():
+    rules = _skill_section("守ること")
+    assert "orgName" in rules and "引用" in rules and "serviceTypeName" in rules
+
+
+def test_the_skill_asks_the_staff_to_choose_and_never_chooses_itself():
+    steps = _skill_section("手順")
+    for words in ("orgChoices", "番号", "自分で選ばない", "一件でも", "「無い」", "link_organization", "所在地", "サービスの種類"):
+        assert words in steps, words
+    assert steps.index("submit_proposal を呼ぶ") < steps.index("link_organization")

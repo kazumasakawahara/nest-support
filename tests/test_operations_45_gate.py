@@ -90,3 +90,15 @@ def test_a_says_whose_staff_id_goes_into_gate_staff():
     a = _sub("### (a)")
     assert "案を出す人" in a and "承認する人" in a and "new_staff" in a and "selfApproval" in a
     assert "2 の段で控えた `STF-…`" not in a
+
+
+def test_b_has_the_round_trip_to_link_the_org():
+    """2026-11-11：返事に機関の候補が出たら、番号で選ぶ（無ければ「無い」）。Claude は自分で選ばない。"""
+    b = _sub("### (b)")
+    for words in ("候補", "番号", "所在地", "サービスの種類", "「無い」", "機関未確定", "link_organization", "選びません"):
+        assert words in b, words
+
+
+def test_c_checks_the_org_with_show():
+    c = _sub("### (c)")
+    assert "show --id INV-…" in c and "機関未確定" in c
