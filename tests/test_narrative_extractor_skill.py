@@ -127,3 +127,12 @@ def test_the_skill_states_the_l0_rules():
 def test_the_skill_tells_the_pseudonym_and_count_from_the_reply():
     steps = _skill_section("手順")
     assert "summary" in steps and "仮名と件数" in steps
+
+
+def test_the_skill_states_the_ref_rule_with_an_example():
+    """段階 L の確かめ（2026-11-11）の詰まり 3：名札の決まりを入口の点検と同じ言い方で一行。"""
+    from nest.gate import intake
+    text = SKILL
+    assert "英小文字で始め、英字・数字・ハイフンだけ" in text and "`supportWorker`" in text
+    for ref in ("mother", "supportWorker", "sister-2"):
+        assert intake.REF.match(ref) and not intake.RESERVED_REF.match(ref)

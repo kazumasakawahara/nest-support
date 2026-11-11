@@ -24,7 +24,7 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
 - 確度は原文の印で決める：quote の直後（同じ行）の【…】。推測＞伝聞・未確認＞本人の話＞確認済み の順で弱いほうを採る。
   印が無ければ Unspecified。知らない印は推測で読み替えずに止める。自分の記録では certainty がこれと同じこと。
   書面では providerCertainty がこれと同じで、certainty が受けた側の確度（receiver_certainty）と同じこと。上げも下げも止める（N-14）
-- 人は、既にいる人の ID（PER-…）か、案の中の新しい人の名札（英小文字で始まる、重複の無いもの）か、本人（client）だけで指す。
+- 人は、既にいる人の ID（PER-…）か、案の中の新しい人の名札（英小文字で始め、英字・数字・ハイフンだけ。重複の無いもの。点検が使う名札は除く）か、本人（client）だけで指す。
   名前で既にいる人に結び付けない。新しい人は AiExtracted（Pending）で作る（D8。N-16）
 - 提供元の機関は、案に機関 ID を書かせない（名前の一致だけで orgId を入れない）。原文の名前（providerName）から
   org_candidates.by_name で候補を出し、職員が選んだ機関 ID を provider_org_id で渡す。渡すまでは未確定で、依頼を作らない（N-24。D3）
@@ -68,7 +68,11 @@ SCHEMA = Path(__file__).resolve().parents[2] / "docs" / "SCHEMA.md"
 INFERENCE_BASIS = {"AtTheTime": "ResidenceAreaAtTheTime", "CurrentFallback": "CurrentResidenceArea"}
 FACT_KEYS = {"quote", "text", "recordKind", "certainty", "providerCertainty", "informantKind", "aboutDate", "heardOn", "toldBy"}
 PERSON_KEYS = {"ref", "familyName", "givenName", "familyNameKana", "givenNameKana"}
-REF = re.compile(r"^[a-z][a-z0-9-]*$")
+# 名札（newPeople の ref）。依頼の中の目印で、照会の文には入らない。途中の大文字は許す（2026-11-11 河原さん）
+REF = re.compile(r"^[a-z][A-Za-z0-9-]*$")
+# 点検が自分で付ける名札。新しい人の名札に使うとぶつかる
+RESERVED_REF = re.compile(r"^(client|provider|support-log|(fact|involvement|ngAction|carePreference|estimated-org)-\d+)$")
+REF_RULE = "英小文字で始め、英字・数字・ハイフンだけ（例：supportWorker、mother、sister-2）"
 DIGITS = re.compile(r"[0-9０-９]+")
 WIDE = str.maketrans("０１２３４５６７８９", "0123456789")
 MARK = re.compile(r"^\s*【([^】]+)】")
@@ -227,8 +231,12 @@ def check(proposal, original, actor_staff_id, request_id, provider_org_id=None, 
         for k in sorted(set(person) - PERSON_KEYS):
             errors.append("newPeople に %s という項目は無い（直さずに止める）" % k)
         ref = person.get("ref")
-        if not isinstance(ref, str) or not REF.match(ref) or ref in refs or ref == "client":
-            errors.append("newPeople の ref は英小文字で始まる重複の無い名札（%r）" % ref)
+        if not isinstance(ref, str) or not REF.match(ref):
+            errors.append("newPeople の ref %r は使えない：%s" % (ref, REF_RULE))
+        elif RESERVED_REF.match(ref):
+            errors.append("newPeople の ref %r は点検が使う名札なので使えない：別の名札にする（%s）" % (ref, REF_RULE))
+        elif ref in refs:
+            errors.append("newPeople の ref %r が重複している：一人に一つの名札にする" % ref)
         refs.add(ref)
     kind = p.get("documentKind")
     if kind not in DOC_KINDS:

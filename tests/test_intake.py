@@ -246,3 +246,34 @@ def test_full_stop_is_skipped_only_once_and_only_a_full_stop():
     assert i.mark_of("言葉が遅い", "言葉が遅い。。【伝聞】\n") == "Unspecified"
     assert i.mark_of("言葉が遅", "言葉が遅い。【伝聞】\n") == "Unspecified"
     assert i.mark_of("はるとは春に生まれました", "はるとは春に生まれました。保育器にいた。【伝聞】\n") == "Unspecified"
+
+
+# 段階 L の確かめ（2026-11-11 河原さん）の詰まり 3：名札 'supportWorker' が止まり、理由が何が悪いかを言い切っていなかった。
+# 途中の大文字は許す（名札は依頼の中の目印で、照会の文には入らない）。点検が付ける名札（fact-1 など）とぶつかるものは止める。
+HANA_QUOTE = "ハナに尋ねると「転んだ」と言うが、転倒の具体的な状況は話せない"
+
+
+@pytest.mark.parametrize("ref", ["supportWorker", "mother", "sister-2", "p-hana"])
+def test_new_person_ref_allows_camel_case(ref):
+    rep = _check(_proposal([_fact(HANA_QUOTE, toldBy=ref)], newPeople=[{"ref": ref}]))
+    assert rep["ok"], rep["errors"]
+
+
+@pytest.mark.parametrize("ref", ["SupportWorker", "2nd", "support_worker", "母", ""])
+def test_a_bad_ref_says_the_allowed_letters_and_an_example(ref):
+    rep = _check(_proposal([_fact(HANA_QUOTE, toldBy=ref)], newPeople=[{"ref": ref}]))
+    (e,) = [e for e in rep["errors"] if "newPeople の ref" in e]
+    assert "英小文字で始め" in e and "英字・数字・ハイフン" in e and "supportWorker" in e
+
+
+@pytest.mark.parametrize("ref", ["client", "provider", "support-log", "fact-1", "ngAction-2", "involvement-1",
+                                 "carePreference-1", "estimated-org-1"])
+def test_a_ref_the_check_uses_itself_is_stopped(ref):
+    rep = _check(_proposal([_fact(HANA_QUOTE)], newPeople=[{"ref": ref}]))
+    (e,) = [e for e in rep["errors"] if "newPeople の ref" in e]
+    assert "点検が使う名札" in e
+
+
+def test_a_duplicated_ref_says_so():
+    rep = _check(_proposal([_fact(HANA_QUOTE, toldBy="mother")], newPeople=[{"ref": "mother"}, {"ref": "mother"}]))
+    assert any("newPeople の ref" in e and "重複" in e for e in rep["errors"])
