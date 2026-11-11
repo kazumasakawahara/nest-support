@@ -1,7 +1,9 @@
 """書き込みの案（未確定のもの）を点検し、一つずつ承認・差し戻しする（計画 N-44。2026-11-06 河原さん）。職員が手元で打つ。
 
-- list：未確定（Pending）の一覧を古い順（registeredAt）に出す。本人は仮名（displayCode）で出す。実名は出さない
-- show：一件の根拠の引用（記録の quote）を出す
+- list：未確定（Pending）の一覧を古い順（registeredAt）に出す。本人は仮名（displayCode）で出す。実名は出さない。
+  --code C-…… で本人に絞る。本人「―」は、どの本人にも結ばれていないもの（2026-11-11 河原さん）
+- show：一件の中身を「対象の項目（正典の順。列挙値は表示名を添える）→ 根拠の引用（記録の quote）」の順に出す。
+  伏せる項目（実名・かな・電話・住所・生年月日）と、ゲートが付ける項目（ID・状態・由来・登録日時・指紋）は出さない
 - list --rejected：差し戻したものを、差し戻した順に理由と出す（台帳 G-91）
 - approve・reject：一件ずつ承認（Active）・差し戻し（Inactive）する。差し戻しには理由を一行添えられる（--reason。AuditLog の reason。名前を書かない）。ゲートの承認（nest.gate.approve）を通すので、
   AuditLog（Approve・Reject）が残る。自分で登録したものを承認したら selfApproval が付く（自己承認）
@@ -9,6 +11,7 @@
 
 使い方:
   uv run python scripts/review_proposals.py list
+  uv run python scripts/review_proposals.py list --code C-……
   uv run python scripts/review_proposals.py show --id REC-…
   uv run python scripts/review_proposals.py approve --staff STF-… --id REC-…
   uv run python scripts/review_proposals.py reject --staff STF-… --id REC-… [--reason "…"]
@@ -22,20 +25,26 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from nest import ids  # noqa: E402
+from nest import canon, ids, mcp_guard, semantics  # noqa: E402
 from nest.gate import approve as ap  # noqa: E402
 from nest.gate import write as gw  # noqa: E402
 
 PENDING = """MATCH (n) WHERE n.status = 'Pending' AND labels(n)[0] IN $labels
 OPTIONAL MATCH (n)--(c:Client)
 OPTIONAL MATCH (n)<-[:TOLD_BY]-(:Record)-[:ABOUT]->(t:Client)
-WITH n, [x IN collect(DISTINCT c.displayCode) + collect(DISTINCT t.displayCode) WHERE x IS NOT NULL] AS codes
+OPTIONAL MATCH (n)-[:HAS_INVOLVEMENT]-(:Involvement)-[:CONCERNS]->(v:Client)
+OPTIONAL MATCH (n)<-[:CONCERNS]-(:Involvement)-[:CONCERNS]->(w:Client)
+WITH n, [x IN collect(DISTINCT c.displayCode) + collect(DISTINCT t.displayCode) + collect(DISTINCT v.displayCode)
+         + collect(DISTINCT w.displayCode) WHERE x IS NOT NULL] AS codes
 RETURN labels(n)[0] AS label, n.origin AS origin, n.registeredAt AS at, codes, n AS node
 ORDER BY at, label"""
 REJECTED = """MATCH (a:AuditLog {action: 'Reject'})-[:ACTED_BY]->(s:Staff)
 WHERE $id IS NULL OR a.targetId = $id
 RETURN a.targetLabel AS label, a.targetId AS id, a.at AS at, a.reason AS reason, s.staffId AS by
 ORDER BY at, id"""
+SCHEMA = REPO / "docs" / "SCHEMA.md"
+NOT_SHOWN = set(mcp_guard.SENSITIVE) | {"sourceHash", "documentHash", "quote"}  # quote は根拠の引用の行で出す
+DASH = "本人「―」は、どの本人にも結ばれていないもの（本人の記録・関わりのどれともつながっていない）。承認の前に show で中身を見る"
 
 
 def parse(argv):
@@ -43,7 +52,8 @@ def parse(argv):
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("list", help="未確定の一覧（古い順）")
     s.add_argument("--rejected", action="store_true", help="差し戻したものを理由と出す")
-    s = sub.add_parser("show", help="一件の根拠の引用")
+    s.add_argument("--code", help="本人の仮名（C-……）で絞る")
+    s = sub.add_parser("show", help="一件の項目と根拠の引用")
     s.add_argument("--id", required=True)
     for name in ("approve", "reject"):
         s = sub.add_parser(name)
@@ -52,6 +62,11 @@ def parse(argv):
         if name == "reject":
             s.add_argument("--reason", help="差し戻しの理由を一行（任意。名前を書かない）")
     return p.parse_args(argv)
+
+
+def is_display_code(code):
+    body = code[2:] if code.startswith("C-") else ""
+    return len(body) == gw.DISPLAY_CODE_LENGTH and all(ch in ids.DISPLAY_ALPHABET for ch in body)
 
 
 def label_of(target_id):
@@ -68,14 +83,36 @@ def _print_quotes(quotes):
         print("  根拠 %s（確度 %s・話し手 %s）：%s" % (q["recordId"], q["certainty"], q["informantKind"], q["quote"]))
 
 
-def _list(d):
+def _list(d, code=None):
     with d.session(database="neo4j") as s:
         rows = s.execute_read(lambda tx: [r.data() for r in tx.run(PENDING, labels=sorted(ap.DECIDABLE))])
-    print("未確定 %d 件（古い順）" % len(rows))
+    if code:
+        rows = [r for r in rows if code in r["codes"]]
+    print("未確定 %d 件（古い順%s）" % (len(rows), "・本人 %s" % code if code else ""))
     for r in rows:
         node_id = r["node"][gw.key_of(r["label"])]
         print("%s  %s  %s  %s  本人 %s" % (node_id, r["label"], r["origin"], r["at"], "・".join(r["codes"]) or "―"))
+    if not code and any(not r["codes"] for r in rows):
+        print(DASH)
     return 0
+
+
+def items_of(label, node):
+    """承認の対象の項目を、正典の順（必須→任意）に [(項目, 出す値)] で返す。列挙値は「値（表示名）」。"""
+    c = canon.load(SCHEMA)
+    spec, names = c["personal"]["nodes"][label], semantics.enum_names()
+    out = []
+    for key in spec["required"] + spec["optional"]:
+        value = node.get(key)
+        if key == gw.key_of(label) or key in NOT_SHOWN or value in (None, ""):
+            continue
+        if key == "text" and value == node.get("quote"):
+            continue  # 引用と同じなら根拠の行で足りる
+        enum = c["enumBindings"].get("%s.%s" % (label, key))
+        if enum and value in names.get(enum, {}):
+            value = "%s（%s）" % (value, names[enum][value])
+        out.append((key, value))
+    return out
 
 
 def _rejected(s, target_id=None):
@@ -99,13 +136,19 @@ def _list_rejected(d):
 def _show(d, label, target_id):
     with d.session(database="neo4j") as s:
         rows = s.execute_read(lambda tx: [r.data() for r in tx.run(
-            "MATCH (n:%s {%s: $id}) RETURN n.status AS status, n.origin AS origin" % (label, gw.key_of(label)), id=target_id)])
+            "MATCH (n:%s {%s: $id}) RETURN n AS node" % (label, gw.key_of(label)), id=target_id)])
         if not rows:
             print("止めた：%s %s は無い" % (label, target_id))
             return 1
         quotes = s.execute_read(ap._quotes, label, gw.key_of(label), target_id)
         rejected = _rejected(s, target_id)
-    print("%s  %s  状態 %s  由来 %s" % (target_id, label, rows[0]["status"], rows[0]["origin"]))
+    node = dict(rows[0]["node"])
+    print("%s  %s  状態 %s  由来 %s" % (target_id, label, node.get("status"), node.get("origin")))
+    items = items_of(label, node)
+    if not items:
+        print("  項目：無い")
+    for key, value in items:
+        print("  %s：%s" % (key, value))
     _print_quotes(quotes)
     for r in rejected:
         _print_rejected(r)
@@ -130,7 +173,7 @@ def _decide(d, a, label):
 
 def _run(d, a):
     if a.cmd == "list":
-        return _list_rejected(d) if a.rejected else _list(d)
+        return _list_rejected(d) if a.rejected else _list(d, a.code)
     label = label_of(a.id)
     if a.cmd == "show":
         return _show(d, label, a.id)
@@ -139,6 +182,9 @@ def _run(d, a):
 
 def main(argv=None, driver=None):
     a = parse(argv)
+    if a.cmd == "list" and a.code is not None and not is_display_code(a.code):
+        print("止めた：%r は本人の仮名（C-と 6 字）の形でない" % (a.code,))
+        return 1
     if a.cmd != "list" and label_of(a.id) is None:
         print("止めた：%r は承認の対象の ID の形でない" % (a.id,))
         return 1
