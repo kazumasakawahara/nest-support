@@ -76,11 +76,13 @@ def label_of(target_id):
     return None
 
 
-def _print_quotes(quotes):
+def _print_quotes(quotes, target_id=None):
     if not quotes:
         print("  根拠の引用：無い")
     for q in quotes:
-        print("  根拠 %s（確度 %s・話し手 %s）：%s" % (q["recordId"], q["certainty"], q["informantKind"], q["quote"]))
+        state = "" if q["recordId"] == target_id else (
+            "・未確定。先に承認する" if q.get("status") == "Pending" else "・差し戻し済み" if q.get("status") == "Inactive" else "")
+        print("  根拠 %s（確度 %s・話し手 %s%s）：%s" % (q["recordId"], q["certainty"], q["informantKind"], state, q["quote"]))
 
 
 def _list(d, code=None):
@@ -150,7 +152,7 @@ def _show(d, label, target_id):
         print("  項目：無い")
     for key, value in items:
         print("  %s：%s" % (key, value))
-    _print_quotes(quotes)
+    _print_quotes(quotes, target_id)
     for r in rejected:
         _print_rejected(r)
     return 0
@@ -168,7 +170,7 @@ def _decide(d, a, label):
             print("自己承認（自分で登録したもの）として記録した（selfApproval）")
     else:
         print("差し戻した：%s %s → Inactive（理由：%s）" % (label, a.id, a.reason or "―（書いていない）"))
-    _print_quotes(out["shown"])
+    _print_quotes(out["shown"], a.id)
     return 0
 
 

@@ -7,6 +7,8 @@
 - 承認の出力には、事実ごとに原文の引用を並べる（review_items も同じ形。本人に直接つながるもの、本人について聞いた記録の話し手、
   本人の事実の根拠の記録、本人についての記録を根拠にした関わり（親など本人以外の人に向けたものを含む。正典 v0.7）を並べる）。関わりには中身（種類・確度・終わり方・推定の根拠・注記・機関）も添える（止まる点 4。台帳 G-59）。引用は、記録ならその記録、
   事実なら根拠（EVIDENCED_BY）の記録、人ならその人から聞いた（TOLD_BY）記録から引く
+- 根拠（EVIDENCED_BY の先の記録）が未確定（Pending）なら、対象の承認を止め、先に承認する記録を名指す。根拠を一緒には承認しない
+  （正典 §7「一回の操作で一つのノード」）。根拠がすべて差し戻し済み（Inactive）なら止める。差し戻しは止めない（2026-11-11 河原さん）
 - 承認は Staff -[:APPROVED {at, selfApproval}]-> 対象 で残す。承認・却下とも AuditLog（Approve／Reject）を残す
 - 却下には理由を一行（200 字まで）添えられる（任意）。AuditLog の reason に残す。名前を書かない（正典 v0.12。台帳 G-91）
 手本：tsunagu-net の tsunagu/gate/approve.py（読むだけ）。
@@ -26,8 +28,9 @@ OPTIONAL MATCH (t:Record)-[:TOLD_BY]->(n)
 WITH n, collect(DISTINCT e) + collect(DISTINCT t) + CASE WHEN n:Record THEN [n] ELSE [] END AS recs
 UNWIND recs AS r
 WITH DISTINCT r
-RETURN r.recordId AS recordId, r.quote AS quote, r.certainty AS certainty, r.informantKind AS informantKind
+RETURN r.recordId AS recordId, r.quote AS quote, r.certainty AS certainty, r.informantKind AS informantKind, r.status AS status
 ORDER BY recordId"""
+EVIDENCE = "MATCH (t:%s {%s: $id})-[:EVIDENCED_BY]->(e:Record) RETURN e.recordId AS id, e.status AS status ORDER BY id"
 PENDING_AROUND = """MATCH (c:Client {clientId: $c})
 CALL (c) {
   MATCH (c)--(n) WHERE n.status = 'Pending' RETURN n
@@ -50,6 +53,19 @@ def _check(tx, action, actor, label, key, target_id):
     if not rows or rows[0]["status"] != "Pending":
         return ["%s %s は Pending でない（%s）" % (label, target_id, rows[0]["status"] if rows else "無い")], None
     return [], rows[0]["origin"]
+
+
+def _evidence_errors(tx, label, key, target_id):
+    """承認の前に、根拠の記録の状態を確かめる。根拠の無い対象（記録・人など）は確かめることが無い。"""
+    rows = list(tx.run(EVIDENCE % (label, key), id=target_id))
+    pending = [r["id"] for r in rows if r["status"] == "Pending"]
+    if pending:
+        return ["%s %s の根拠の記録が未確定（%s）。先に根拠の記録を一件ずつ承認してから、この対象を承認する"
+                "（根拠が未確定のまま有効にしない。正典 §7）" % (label, target_id, "・".join(pending))]
+    if rows and not any(r["status"] == "Active" for r in rows):
+        return ["%s %s の根拠の記録がすべて差し戻し済み（%s）。この対象は承認できない。差し戻すか、新しい根拠で出し直す"
+                % (label, target_id, "・".join(r["id"] for r in rows))]
+    return []
 
 
 def _self(tx, actor, label, target_id):
@@ -84,6 +100,8 @@ def _decide_all(tx, action, actor, targets, request_id, now, new_id, reason=None
     if not errors:
         for label, key, target_id in targets:
             errs, origin = _check(tx, action, actor, label, key, target_id)
+            if not errs and action == "Approve":
+                errs = _evidence_errors(tx, label, key, target_id)
             errors.extend(errs)
             origins.append(origin)
     if not errors and len(targets) > 1 and "AiExtracted" in origins:

@@ -154,3 +154,26 @@ def test_reject_keeps_the_reason_on_the_audit_log(driver, admin, client):
     q = "MATCH (a:AuditLog {action: 'Reject', targetId: $r}) RETURN a.reason AS reason, 'reason' IN keys(a) AS has"
     assert _one(driver, q, r=with_reason["id"]) == [{"reason": "引用と中身が合わない（架空）", "has": True}]
     assert _one(driver, q, r=without["id"]) == [{"reason": None, "has": False}]
+
+
+def test_a_fact_waits_until_its_evidence_is_approved(driver, admin, client):
+    """2026-11-11 河原さん：根拠の記録が未確定のまま禁忌が有効になった。根拠を先に一件ずつ承認する（正典 §7）"""
+    from nest.gate import approve as ga
+    from nest.gate import write as gw
+    mark = uuid.uuid4().hex
+    out = gw.submit({"requestId": _rid(), "actorStaffId": admin,
+                     "nodes": [{"ref": "ng", "label": "NgAction", "origin": "AiExtracted",
+                                "properties": {"action": "架空の禁忌 %s" % mark, "riskLevel": "Panic"}},
+                               {"ref": "r0", "label": "Record", "origin": "AiExtracted",
+                                "properties": {"kind": "Interview", "text": "根拠 %s" % mark, "quote": "根拠 %s" % mark,
+                                               "certainty": "Hearsay", "informantKind": "Family"}}],
+                     "relationships": [{"type": "MUST_AVOID", "from": {"label": "Client", "id": client}, "to": "ng", "properties": {}},
+                                       {"type": "EVIDENCED_BY", "from": "ng", "to": "r0", "properties": {}}]}, driver)
+    assert out["ok"], out["errors"]
+    ng, rec = {"label": "NgAction", "id": out["ids"]["ng"]}, {"label": "Record", "id": out["ids"]["r0"]}
+    early = ga.approve(driver, admin, ng, _rid())
+    assert early["ok"] is False and any(rec["id"] in e and "先に" in e for e in early["errors"])
+    assert _one(driver, "MATCH (n:NgAction {ngActionId: $id}) RETURN n.status AS s", id=ng["id"]) == [{"s": "Pending"}]
+    assert _count(driver, "MATCH (a:AuditLog {requestId: $q}) RETURN count(a) AS n", q=early["requestId"]) == 0
+    assert ga.approve(driver, admin, rec, _rid())["ok"]
+    assert ga.approve(driver, admin, ng, _rid())["ok"]

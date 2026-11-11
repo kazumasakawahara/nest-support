@@ -14,7 +14,7 @@ SLG = "SLG-01AAAAAAAAAAAAAAAAAAAAAAAA"
 NGA = "NGA-01AAAAAAAAAAAAAAAAAAAAAAAA"
 PER = "PER-01AAAAAAAAAAAAAAAAAAAAAAAA"
 REC = "REC-01AAAAAAAAAAAAAAAAAAAAAAAA"
-QUOTE = {"recordId": REC, "quote": "自宅を訪問。母と本人に会う。", "certainty": "Unspecified", "informantKind": "Agency"}
+QUOTE = {"recordId": REC, "quote": "自宅を訪問。母と本人に会う。", "certainty": "Unspecified", "informantKind": "Agency", "status": "Pending"}
 
 
 class _Rec(dict):
@@ -106,6 +106,7 @@ def test_show_prints_a_paraphrased_text_but_not_the_hash(capsys):
     f = semantics.field_names()["Record"]
     assert "%s：母と本人に会った（言い換え）" % f["text"] in out and "0" * 64 not in out
     assert "%s：Hearsay（伝聞）" % f["certainty"] in out and "%s：Interview（聞き取り）" % f["kind"] in out
+    assert "先に承認" not in out  # 承認の対象そのものの記録には付けない
 
 
 def test_show_says_when_there_are_no_items(capsys):
@@ -156,3 +157,18 @@ def test_the_manual_checks_with_the_code():
     c = t[t.index("### (c) 未確定で入ったことを確かめる"):]
     c = c[:c.index("\n### ")]
     assert "list --code C-……" in c and "「―」" in c
+
+
+def test_show_marks_evidence_that_is_still_pending(capsys):
+    """2026-11-11：根拠の記録が未確定かどうかを、承認の前に見えるようにする。未確定なら先に承認する。"""
+    node = dict(BASE, ngActionId=NGA, action="卵を食べさせる", riskLevel="LifeThreatening")
+    out = _show(node, NGA, capsys)
+    (line,) = [l for l in out.splitlines() if l.strip().startswith("根拠 %s" % REC)]
+    assert "未確定" in line and "先に承認" in line
+
+
+def test_the_manual_says_to_approve_the_evidence_first():
+    t = doc_commands.DOC.read_text(encoding="utf-8")
+    sec = t[t.index("### 書き込みの案を点検して承認する"):]
+    sec = sec[:sec.index("\n## ")]
+    assert "根拠の記録を先に承認" in sec and "未確定。先に承認する" in sec and "止まります" in sec

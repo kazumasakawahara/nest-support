@@ -66,3 +66,87 @@ def test_reject_reason_is_at_most_the_quote_limit():
     assert over["ok"] is False and any("200" in e for e in over["errors"])
     at_limit = ga.reject(None, STAFF, {"label": "Record", "id": REC}, "", reason="あ" * 200)
     assert not any("理由" in e for e in at_limit["errors"])  # 200 字は理由として通る（requestId が無いので先で止まる）
+
+
+# ---- 段階 L の確かめ（2026-11-11 河原さん）：根拠の記録が未確定のまま、禁忌・面接記録が承認で有効になった ----
+# 正典 §7「一回の操作で一つのノード」に合わせ、根拠を一緒に承認しない。根拠（EVIDENCED_BY の先の記録）が未確定なら
+# 対象の承認を止め、先に承認する記録を名指す。根拠がすべて差し戻し済みなら止める。差し戻しは止めない。
+NGA = "NGA-" + "2" * 26
+REC2 = "REC-" + "3" * 26
+
+
+class _Session:
+    def __init__(self, tx):
+        self.tx = tx
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def execute_write(self, fn, *args):
+        return fn(self.tx, *args)
+
+
+class _Driver:
+    def __init__(self, evidence):
+        self.tx = _Tx(evidence)
+
+    def session(self, **kw):
+        return _Session(self.tx)
+
+
+class _Tx:
+    """職員は Active、対象は Pending の NgAction。evidence は [(recordId, status)]。"""
+    def __init__(self, evidence):
+        self.evidence, self.changed = evidence, []
+
+    def run(self, query, **p):
+        if "MATCH (s:Staff {staffId: $id})" in query:
+            return [{"status": "Active", "role": "Administrator"}]
+        if "RETURN t.status AS status, t.origin AS origin" in query:
+            return [{"status": "Pending", "origin": "AiExtracted"}]
+        if "-[:EVIDENCED_BY]->(e:Record) RETURN" in query:
+            return [{"id": i, "status": s} for i, s in self.evidence]
+        if "SET t.status" in query:
+            self.changed.append(query)
+            return [{"n": 1}]
+        if "RETURN r.recordId AS recordId" in query or "count(a) AS n" in query:
+            return [{"n": 0}] if "count(a)" in query else []
+        return []
+
+
+def _approve(evidence):
+    d = _Driver(evidence)
+    return ga.approve(d, STAFF, {"label": "NgAction", "id": NGA}, "req-1"), d.tx
+
+
+def test_approval_stops_while_the_evidence_is_pending_and_names_it():
+    out, tx = _approve([(REC, "Active"), (REC2, "Pending")])
+    assert out["ok"] is False and not tx.changed
+    (e,) = out["errors"]
+    assert REC2 in e and REC not in e and "先に" in e and "承認" in e
+
+
+def test_approval_stops_when_all_evidence_was_rejected():
+    out, tx = _approve([(REC, "Inactive"), (REC2, "Inactive")])
+    assert out["ok"] is False and not tx.changed
+    assert any("差し戻し" in e for e in out["errors"])
+
+
+def test_approval_passes_when_the_evidence_is_active():
+    out, tx = _approve([(REC, "Active"), (REC2, "Inactive")])
+    assert out["ok"], out["errors"]
+    assert len(tx.changed) == 1  # 対象だけ。根拠を一緒に変えない
+
+
+def test_approval_without_evidence_links_is_unchanged():
+    out, tx = _approve([])
+    assert out["ok"], out["errors"]
+
+
+def test_reject_is_not_stopped_by_pending_evidence():
+    d = _Driver([(REC2, "Pending")])
+    out = ga.reject(d, STAFF, {"label": "NgAction", "id": NGA}, "req-1")
+    assert out["ok"], out["errors"]
