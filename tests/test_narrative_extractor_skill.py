@@ -165,3 +165,15 @@ def test_the_skill_writes_ongoing_only_when_the_original_says_so():
     rules = _skill_section("守ること")
     for words in ("howEnded", "`Ongoing`", "推し量", "終わった関わり", "事実"):
         assert words in rules, words
+
+
+def test_the_skill_says_which_record_kind_a_contact_sentence_takes():
+    """2026-11-12 河原さん：接触そのものを述べる一文（記録者がしたこと・見たこと）は Observation、相手が語った中身は Interview。
+    昨日「ぶれ」と書いたが、Claude は一貫して分けていた。決まりが書かれていなかった"""
+    rules = _skill_section("守ること")
+    for words in ("接触そのもの", "電話で聞き取りました", "`Observation`", "語った中身", "とのこと", "`Interview`"):
+        assert words in rules, words
+    proposal = json.loads(_block("example-proposal", "json"))
+    contact = proposal["supportLog"]["quote"]
+    (fact,) = [f for f in proposal["facts"] if f["quote"] == contact]
+    assert fact["recordKind"] == "Observation"  # 例の接触の一文も同じ決まり
