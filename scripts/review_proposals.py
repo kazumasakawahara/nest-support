@@ -2,7 +2,7 @@
 
 - list：未確定（Pending）の一覧を古い順（registeredAt）に出す。本人は仮名（displayCode）で出す。実名は出さない。
   --code C-…… で本人に絞る。本人「―」は、どの本人にも結ばれていないもの（2026-11-11 河原さん）
-- show：一件の中身を「対象の項目（正典の順。列挙値は表示名を添える）→ 根拠の引用（記録の quote）」の順に出す。
+- show：一件の中身を「対象の項目（正典の順。項目は SEMANTICS SEM-FIELD-01 の表示名、列挙値は表示名を添える）→ 根拠の引用（記録の quote）」の順に出す。
   伏せる項目（実名・かな・電話・住所・生年月日）と、ゲートが付ける項目（ID・状態・由来・登録日時・指紋）は出さない
 - list --rejected：差し戻したものを、差し戻した順に理由と出す（台帳 G-91）
 - approve・reject：一件ずつ承認（Active）・差し戻し（Inactive）する。差し戻しには理由を一行添えられる（--reason。AuditLog の reason。名前を書かない）。ゲートの承認（nest.gate.approve）を通すので、
@@ -98,9 +98,10 @@ def _list(d, code=None):
 
 
 def items_of(label, node):
-    """承認の対象の項目を、正典の順（必須→任意）に [(項目, 出す値)] で返す。列挙値は「値（表示名）」。"""
+    """承認の対象の項目を、正典の順（必須→任意）に [(項目の表示名, 出す値)] で返す。列挙値は「値（表示名）」。"""
     c = canon.load(SCHEMA)
     spec, names = c["personal"]["nodes"][label], semantics.enum_names()
+    fields = semantics.field_names().get(label, {})
     out = []
     for key in spec["required"] + spec["optional"]:
         value = node.get(key)
@@ -111,7 +112,7 @@ def items_of(label, node):
         enum = c["enumBindings"].get("%s.%s" % (label, key))
         if enum and value in names.get(enum, {}):
             value = "%s（%s）" % (value, names[enum][value])
-        out.append((key, value))
+        out.append((fields.get(key, key), value))
     return out
 
 

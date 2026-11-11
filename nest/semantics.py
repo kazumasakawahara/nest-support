@@ -1,4 +1,4 @@
-"""意味の文書（docs/SEMANTICS.md）の表を読む（N-27。台帳 G-47）。列挙値の日本語の表示名と、原文の確度の印。
+"""意味の文書（docs/SEMANTICS.md）の表を読む（N-27。台帳 G-47）。列挙値と項目の日本語の表示名と、原文の確度の印。
 
 コードに日本語名の対応表を直に書かず、ここから読む。
 """
@@ -33,6 +33,22 @@ def _enum_names():
 def enum_names():
     """{列挙の名前: {値: 表示名}}。"""
     return {k: dict(v) for k, v in _enum_names().items()}
+
+
+@functools.cache
+def _field_names():
+    out = {}
+    for line in _section("SEM-FIELD-01").splitlines():
+        m = ROW.match(line)
+        if not m or not m.group(1).startswith("`"):
+            continue
+        out.setdefault(m.group(1).strip("`"), {})[m.group(2).strip("`")] = m.group(3)
+    return out
+
+
+def field_names():
+    """{ラベル: {項目: 表示名}}（SEM-FIELD-01。2026-11-11 河原さん）。"""
+    return {k: dict(v) for k, v in _field_names().items()}
 
 
 def certainty_marks():

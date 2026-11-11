@@ -1,6 +1,6 @@
 """段階 L の確かめ（2026-11-11 河原さん）の詰まり 1・2。scripts/review_proposals.py。DB を使わない（偽の DB）。
 
-1【B】show は、承認する対象の中身を出す：「対象の項目（列挙値は正典の表示名を添える）→ 根拠の引用」の順。
+1【B】show は、承認する対象の中身を出す：「対象の項目（項目は SEMANTICS の表示名。列挙値は表示名を添える）→ 根拠の引用」の順。
   伏せる項目（実名・かな・電話・住所・生年月日）と、ゲートが付ける項目（ID・状態・由来・登録日時・指紋）は出さない
 2【C】list --code C-…… で本人に絞る。本人「―」の行が何かを一言で出す
 """
@@ -75,17 +75,20 @@ def test_show_prints_the_support_log_items_before_the_quote(capsys):
     node = dict(BASE, supportLogId=SLG, date="2026-11-01", contactKind="Visit", situation="自宅。母と本人",
                 action="母と本人に会い、話を聞いた", nextAction="次回は通院に同行する（母と確認）")
     out = _show(node, SLG, capsys)
-    for line in ("date：2026-11-01", "contactKind：Visit（訪問）", "situation：自宅。母と本人", "action：母と本人に会い、話を聞いた",
-                 "nextAction：次回は通院に同行する（母と確認）"):
-        assert line in out, line
-    assert out.index("contactKind") < out.index("根拠 %s" % REC)
+    f = semantics.field_names()["SupportLog"]
+    for key, value in (("date", "2026-11-01"), ("contactKind", "Visit（訪問）"), ("situation", "自宅。母と本人"),
+                       ("action", "母と本人に会い、話を聞いた"), ("nextAction", "次回は通院に同行する（母と確認）")):
+        assert "  %s：%s" % (f[key], value) in out, key
+    assert out.index(f["contactKind"]) < out.index("根拠 %s" % REC)
+    assert "contactKind" not in out and "nextAction" not in out
 
 
 def test_show_prints_the_prohibition_with_the_risk_level_name(capsys):
     node = dict(BASE, ngActionId=NGA, action="卵を食べさせる", riskLevel="LifeThreatening", reason="アレルギー")
     out = _show(node, NGA, capsys)
-    name = semantics.enum_names()["riskLevel"]["LifeThreatening"]
-    assert "action：卵を食べさせる" in out and "riskLevel：LifeThreatening（%s）" % name in out and "reason：アレルギー" in out
+    name, f = semantics.enum_names()["riskLevel"]["LifeThreatening"], semantics.field_names()["NgAction"]
+    assert "%s：卵を食べさせる" % f["action"] in out and "%s：LifeThreatening（%s）" % (f["riskLevel"], name) in out
+    assert "%s：アレルギー" % f["reason"] in out
 
 
 def test_show_does_not_print_hidden_or_gate_managed_items(capsys):
@@ -93,15 +96,16 @@ def test_show_does_not_print_hidden_or_gate_managed_items(capsys):
     out = _show(node, PER, capsys)
     for word in ("架空", "はなこ", "090-0000-0000", "familyName", "phone", "registeredAt", "personId"):
         assert word not in out.split("\n", 1)[1], word
-    assert "note：母の妹" in out
+    assert "%s：母の妹" % semantics.field_names()["Person"]["note"] in out
 
 
 def test_show_prints_a_paraphrased_text_but_not_the_hash(capsys):
     node = dict(BASE, recordId=REC, kind="Interview", certainty="Hearsay", informantKind="Family", quote=QUOTE["quote"],
                 text="母と本人に会った（言い換え）", documentHash="0" * 64)
     out = _show(node, REC, capsys)
-    assert "text：母と本人に会った（言い換え）" in out and "0" * 64 not in out
-    assert "certainty：Hearsay（伝聞）" in out and "kind：Interview（聞き取り）" in out
+    f = semantics.field_names()["Record"]
+    assert "%s：母と本人に会った（言い換え）" % f["text"] in out and "0" * 64 not in out
+    assert "%s：Hearsay（伝聞）" % f["certainty"] in out and "%s：Interview（聞き取り）" % f["kind"] in out
 
 
 def test_show_says_when_there_are_no_items(capsys):

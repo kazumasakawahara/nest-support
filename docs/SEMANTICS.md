@@ -120,6 +120,82 @@ tsunagu-net の SEMANTICS v0.32 の BRS-49 と ENU-05・10・20 に合わせた�
 新しい人の根拠
 - AI が案に出す新しい人（`Person`）は、同じ案の中で、その人が話した記録（`TOLD_BY`）か、その人についての関わり（`CONCERNS`）か、本人との関係（`RELATED_TO`）のどれかで結ぶ。どれにも結ばれない新しい人は、入口の点検でも受付の検証でも止める
 
+## 項目の表示名（2026-11-11 河原さん。段階 L の確かめ）
+
+承認の前に職員が見る画面（`scripts/review_proposals.py show`）に出す項目の日本語の表示名。コード（`nest/semantics.py` の `field_names`）はこの表から読む。
+正典の項目・必須・列挙値は変えない（名前を添えるだけ）。伏せる項目（実名・かな・電話・住所・生年月日）、ID、引用（`quote`）、指紋（`sourceHash`・`documentHash`）は画面に出さないので、表に載せない。
+
+### SEM-FIELD-01 表示名
+
+| ラベル | 項目 | 表示名 |
+|---|---|---|
+| `SupportLog` | `date` | 面接・支援の日 |
+| `SupportLog` | `contactKind` | 接触の種類 |
+| `SupportLog` | `situation` | 状況 |
+| `SupportLog` | `action` | 対応 |
+| `SupportLog` | `effectiveness` | 効果 |
+| `SupportLog` | `nextAction` | 次の対応 |
+| `SupportLog` | `note` | 注記 |
+| `NgAction` | `action` | してはいけないこと |
+| `NgAction` | `riskLevel` | 危険度 |
+| `NgAction` | `reason` | 理由 |
+| `NgAction` | `validFrom` | 有効の始まり |
+| `NgAction` | `validTo` | 有効の終わり |
+| `CarePreference` | `category` | 種類 |
+| `CarePreference` | `instruction` | 支え方 |
+| `CarePreference` | `priority` | 優先度 |
+| `CarePreference` | `validFrom` | 有効の始まり |
+| `CarePreference` | `validTo` | 有効の終わり |
+| `Record` | `kind` | 記録の種類 |
+| `Record` | `text` | 要約 |
+| `Record` | `certainty` | 確度 |
+| `Record` | `informantKind` | 情報源 |
+| `Record` | `aboutDate` | 出来事の日 |
+| `Record` | `heardOn` | 聞いた日 |
+| `Record` | `providerCertainty` | 提供元の確度 |
+| `Record` | `receivedOn` | 書面を受けた日 |
+| `Person` | `note` | 注記 |
+| `Involvement` | `kind` | 関わりの種類 |
+| `Involvement` | `howEnded` | 終わり方 |
+| `Involvement` | `certainty` | 確度 |
+| `Involvement` | `startDate` | 始まり |
+| `Involvement` | `endDate` | 終わり |
+| `Involvement` | `guardianshipType` | 後見の類型 |
+| `Involvement` | `serviceTypeName` | サービスの種類 |
+| `Involvement` | `inferenceBasis` | 推定の根拠 |
+| `Involvement` | `note` | 注記 |
+| `Condition` | `name` | 特性・診断の名前 |
+| `Condition` | `diagnosisDate` | 診断の日 |
+| `Wish` | `content` | 願い |
+| `LifeHistory` | `era` | 時期 |
+| `LifeHistory` | `episode` | 出来事 |
+| `CareRole` | `name` | 役割 |
+| `CareRole` | `frequency` | 頻度 |
+| `CareRole` | `priority` | 優先度 |
+| `CareRole` | `note` | 注記 |
+| `Certificate` | `type` | 種類 |
+| `Certificate` | `grade` | 等級 |
+| `Certificate` | `issuedDate` | 交付の日 |
+| `Certificate` | `nextRenewalDate` | 次の更新の日 |
+| `PublicAssistance` | `type` | 種類 |
+| `PublicAssistance` | `startDate` | 始まり |
+| `PublicAssistance` | `endDate` | 終わり |
+| `Residence` | `certainty` | 確度 |
+| `Residence` | `areaCode` | 団体コード（区） |
+| `Residence` | `since` | 住み始め |
+| `Residence` | `until` | 住み終わり |
+| `Review` | `domain` | 確かめた領域 |
+| `Review` | `reviewedAt` | 確かめた日時 |
+| `Review` | `informantKind` | 情報源 |
+| `Review` | `note` | 注記 |
+| `RetentionDecision` | `decidedOn` | 判断の日 |
+| `RetentionDecision` | `decision` | 判断 |
+| `RetentionDecision` | `reason` | 理由 |
+| `RetentionDecision` | `nextReviewOn` | 次の見直しの日 |
+| `Client` | `displayCode` | 仮名 |
+| `Client` | `birthDatePrecision` | 生年月日の精度 |
+| `Client` | `bloodType` | 血液型 |
+
 ## 列挙値の表示名（計画 N-27。台帳 G-47）
 
 正典 §4.5 の列挙値の日本語の表示名。コード（`nest/semantics.py`）はこの表から読む。コードに日本語名の対応表を直に書かない。
