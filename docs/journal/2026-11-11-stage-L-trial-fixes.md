@@ -1,0 +1,21 @@
+# 2026-11-11 段階 L の確かめ：4.5 (a)〜(c) の詰まりを直す
+
+河原さんが手順書 4.5 の (a)〜(c) を通した（語りを Claude Desktop に貼り、nest-gate 経由で C-N5AE5P に未確定 10 件：Involvement 1・NgAction 1・Person 1・Record 6・SupportLog 1）。その報告の詰まり 1〜4 を直し、5 を直し、6 を記録した。ブランチは `stage-l`。**正典（SCHEMA・SEMANTICS）は変えていない。** DB を使う試験は流していない（流すと未確定の一覧が増えるため。流す前に河原さんに知らせる）。push は河原さんが打つ。
+
+## 直したもの
+
+| # | 詰まり | 直し方 | 試験 |
+|---|---|---|---|
+| 1【B】 | `review_proposals.py show` が承認する対象の中身を出さない（SupportLog の contactKind・date・situation・action・nextAction、NgAction の action・riskLevel） | show を「対象の項目（正典の順：必須→任意。列挙値は `値（表示名）`）→ 根拠の引用」の順にした。伏せる項目（実名・かな・電話・住所・生年月日。`mcp_guard.SENSITIVE`）と、ゲートが付ける項目（ID・状態・由来・登録日時・指紋）は出さない。`text` は引用と違うときだけ出す | `tests/test_review_show_content.py` |
+| 2【C】 | list を本人で絞れない。本人「―」の行が何か分からない | `list --code C-……` を足した（仮名の形でなければ DB に触れる前に止める）。本人を探す道に、関わり（Involvement）の `CONCERNS`・`HAS_INVOLVEMENT` を経る人を足した。「―」は、どの本人にも結ばれていないもの、と一覧の末尾に一行出す。手順書 4.5 (c) の確かめの行を `--code` つきにした | 同上 |
+| 3【B】 | 入口の点検の理由「newPeople の ref は英小文字で始まる重複の無い名札（'supportWorker'）」が何が悪いかを言い切らない | 途中の大文字を許した（名札は依頼の中の目印で、照会の文には入らない）。理由を三つに分けた：形が違う（「英小文字で始め、英字・数字・ハイフンだけ（例：supportWorker、mother、sister-2）」）・点検が使う名札（client・provider・support-log・fact-1 などの「種類-番号」）・重複。narrative-extractor の守ること 4 に一行足した | `tests/test_intake.py`・`tests/test_narrative_extractor_skill.py` |
+| 4【C】 | 4.5 (b) に、相手・画面・見出しの行・設定する ID が書いていない | (b) の 1 に「Claude Desktop（Mac のアプリ）のチャット。フォルダーは選ばない。フォルダーを選ばせる画面は Claude Code で nest-gate がつながっていない」と「原文は見出しの行（日付のある行）から貼る。無いと面接記録が作れない」を足した。(a) に「gate_staff.py に書くのは案を出す人の ID。分けるなら職員（Staff）の ID（new_staff で作る）。管理者の ID を書くと自己承認（selfApproval）になる」を書いた | `tests/test_operations_45_gate.py` |
+| 5【記録】 | `fixture_kakuu_haruto.md` §3 の「電話で聞き取りました。」に【伝聞】が付いている（記録者自身の行為） | 印を外した | 全体の試験 |
+
+## L-2 の論点へ回したもの（6）
+
+`docs/proposals/2026-11-08-stage-L-M.md` の段階 L に「L-2 で決める論点（2026-11-11 の確かめから）」として足した。
+
+1. **差し戻した禁忌を新しい根拠で出し直すと、別の 1 件になる。** 差し戻した NgAction（NGA-…91386。Inactive）と同じ内容を新しい根拠で出し直すと、新しい NgAction が入り、承認後は同じ内容が Active と Inactive で二つになる。根拠も分かれる（母の話の記録は無効の方に結ばれたまま）。承認のときに前の根拠を新しい方に結び直す手段（または、出し直しを新規でなく「修正」として扱う形。L-1 の 5 種の一つ）をどうするか
+2. **危険度が分からないときの値が無い。** `riskLevel` は 3 値（LifeThreatening・Panic・Discomfort）から選ぶしかない。今回は安全側で LifeThreatening にした。値を足すなら正典の変更（河原さんの承認）が要る
+3. **関わりにサービスの種類を書く欄が案の形に無い。** 正典の `Involvement` には `serviceTypeName`（任意）がすでにあるが、入口の点検（`nest/gate/intake.py` の `INVOLVEMENT_KEYS`）が受けない。機関を候補から選ぶ操作で埋まる想定かを確かめた：**埋まらない。** 書き込み受付（`nest/gate/proposal.py`）は担当機関の推定の候補（estimate）を入口の点検に渡していないので、nest-gate 経由では関わりの `orgId` 自体が書けない（書くと「候補に無い」で止まる）。また候補は区域の窓口（区役所・成年後見センター）の推定で、サービスの事業所は候補に出ない。案の形に `serviceTypeName` を足すか（正典の変更は要らない）、事業所を選ぶ操作と合わせるかを決める

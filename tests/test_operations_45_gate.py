@@ -65,3 +65,20 @@ def test_the_spare_lines_still_run_with_the_tool():
     line = doc_commands.lines("submit_proposal.py")
     assert len(line) == 1
     assert TEXT.index(line[0]) > TEXT.index("### MCP が使えないときの予備")
+
+
+def test_b_says_desktop_chat_not_claude_code_and_no_folder():
+    """段階 L の確かめ（2026-11-11）の詰まり 4：相手は Claude Desktop のチャット。フォルダーを選ぶ画面は Claude Code で nest-gate が無い。"""
+    b = _sub("### (b)")
+    assert "Claude Code" in b and "フォルダー" in b and "チャット" in b
+
+
+def test_b_says_to_paste_the_heading_line_with_the_date():
+    b = _sub("### (b)")
+    assert "見出しの行" in b and "日付" in b and "supportLog" in b
+
+
+def test_a_says_whose_staff_id_goes_into_gate_staff():
+    a = _sub("### (a)")
+    assert "案を出す人" in a and "承認する人" in a and "new_staff" in a and "selfApproval" in a
+    assert "2 の段で控えた `STF-…`" not in a

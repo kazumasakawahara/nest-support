@@ -133,7 +133,7 @@ uv run python scripts/new_client.py find --family 氏 --given 名     # 名前�
 
 設定の JSON は手で開きません。道具が、Claude Desktop の設定（`~/Library/Application Support/Claude/claude_desktop_config.json`）に 3 つを足します：読むだけの照会口 `nest-personal`・`nest-resource` と、書き込み受付 `nest-gate`（案を点検して未確定で入れる道具）。中身はひな形 `configs/claude_desktop_config.json` と同じで、このフォルダと uv の完全なパスを道具が埋めます。ほかの道具の設定は消しません。前の設定は同じ場所に `.bak` として残ります。
 
-続けて、書き込み受付が「誰が出した案か」を知るための職員の ID を設定します。この Mac で Claude Desktop を使う専門職の職員 ID（2 の段で控えた `STF-…`）を一つ書きます。ファイルは `~/.config/nest/nest-gate.env`（権限 600）で、道具が作ります。中身は開きません。Claude にも見せません（Claude は職員の ID を指定できません）。DB を起こしてから打ちます（Active の職員かを確かめるため）。
+続けて、書き込み受付が「誰が出した案か」を知るための職員の ID を設定します。書くのは、この Mac で Claude Desktop に語りを貼る人、つまり**案を出す人**の職員 ID（`STF-…`）を一つです。**案を出す人と承認する人を分けるときは、職員（Staff）の ID を書きます**（2 の段の後半の `new_staff` で作った職員）。承認は 5 の段の後半で、別の人の ID（管理者など）で打ちます。管理者の ID（2 の段で控えたもの）を書くと、その人が自分で出した案を自分で承認することになり、承認の記録に自己承認（selfApproval）が付きます。一人で回す試走ではそれでもかまいません。ファイルは `~/.config/nest/nest-gate.env`（権限 600）で、道具が作ります。中身は開きません。Claude にも見せません（Claude は職員の ID を指定できません）。DB を起こしてから打ちます（Active の職員かを確かめるため）。
 
 ```bash
 uv run python scripts/desktop_config.py add     # 「足した：nest-personal・nest-resource・nest-gate …」と出ること
@@ -153,7 +153,8 @@ uv run python scripts/gate_staff.py check       # 「設定してある：…」
 
 ### (b) Claude Desktop に語りを貼る（narrative-extractor → 仮名の復唱 → 未確定で入る）
 
-1. Claude Desktop で新しい会話を開き、「C-…… の面談記録から書き込みの案を作って」と頼んで、続けて原文を貼ります（`narrative-extractor` が動きます）
+1. **Claude Desktop（Mac のアプリ）のチャットで**新しい会話を開き、「C-…… の面談記録から書き込みの案を作って」と頼んで、続けて原文を貼ります（`narrative-extractor` が動きます）。フォルダーは選びません。フォルダーを選ばせる画面は Claude Code（ターミナルの Claude Code と同じもの）で、`nest-gate` がつながっていません。ターミナルの Claude Code にも貼りません
+   - **原文は、見出しの行（日付のある行。例：「2026-11-02 訪問」）から貼ります。** 見出しの行が無いと面接の日が分からず、面接記録（supportLog）が作れません
 2. 架空の事例（`fixture_kakuu_haruto.md`）は、**§2 の語りをそのまま貼ってかまいません**（§3 も同じ）。**§1（本人の登録の値。実名・住所・生年月日）は貼りません。** 実データは貼りません（台帳 G-80）
 3. 語りに確度の印を付けるなら、文の直後（句点「。」の後）に【本人の話】【伝聞】【確認済み】【未確認】【推測】のどれかを置きます。印はその直前の一文にだけかかります（文の前に置かない。ほかの語の印は点検で止まります）
 4. Claude が案の要点（事実の件数・面接記録・禁忌と推奨ケアの候補）を示し、「対象は C-…… の本人です。この本人に未確定で入れてよいですか」と仮名を復唱します。**本人の紙の記録に書き添えた仮名と一字ずつ見比べ**、合っていれば「はい」と答えます。違えば「違う。C-…… です」と正しい仮名を伝えます（「はい」と答えるまで Claude は出しません）
@@ -166,10 +167,11 @@ uv run python scripts/gate_staff.py check       # 「設定してある：…」
 ### (c) 未確定で入ったことを確かめる（review_proposals list）
 
 ```bash
-uv run python scripts/review_proposals.py list   # 入れた記録が未確定で、(b) で復唱した仮名で並ぶ
+uv run python scripts/review_proposals.py list --code C-……   # (b) で復唱した仮名の本人の分だけ、未確定で並ぶ
 ```
 
-- 並んだ件数が (b) の返事の件数と合い、仮名が復唱したものと同じかを確かめます。違う本人の行に並んでいたら、承認せずに差し戻します（5 の段の後半）
+- 並んだ件数が (b) の返事の件数と合うかを確かめます。合わないときは `--code` を外して全部を出し、違う本人の行に並んでいたら、承認せずに差し戻します（5 の段の後半）
+- 全部を出したときの本人「―」の行は、どの本人にも結ばれていないもの（本人の記録・関わりのどれともつながっていない）です。承認の前に `show` で中身を見ます
 - 承認・差し戻しは 5 の段の後半（review_proposals）で一つずつ行います
 
 点検：[3]（`nest-gate.env` が 600）・[10]（Desktop の設定に nest-personal・nest-gate がある）。仮名を見比べて「はい」と答えたこと、案が未確定で並んだことは人が確かめる（`review_proposals.py list`）
@@ -214,7 +216,7 @@ AI が作ったもの（`narrative-extractor` の案など）は未確定（Pend
 
 ```bash
 uv run python scripts/review_proposals.py list                                   # 未確定の一覧（古い順）。本人は仮名で出る
-uv run python scripts/review_proposals.py show --id REC-…                        # 一件の根拠の引用を見る
+uv run python scripts/review_proposals.py show --id REC-…                        # 一件の項目（列挙値は表示名つき）と根拠の引用を見る
 uv run python scripts/review_proposals.py approve --staff STF-… --id REC-…       # 承認する（Active になる）
 uv run python scripts/review_proposals.py reject --staff STF-… --id REC-… --reason "…"   # 差し戻す（Inactive になる）。理由は一行・任意・名前を書かない
 uv run python scripts/review_proposals.py list --rejected                        # 差し戻したものを理由と見る

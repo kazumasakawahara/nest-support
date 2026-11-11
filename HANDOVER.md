@@ -97,7 +97,7 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 
 ## 次タスク（優先度順）
 
-- A：河原さんが Claude Desktop で 4.5 (a)〜(c) を一巡する。済んだら `scripts/submit_proposal.py` と手順書の予備の小段を外す（G-94）
+- A：河原さんが 2026-11-11 に Claude Desktop で 4.5 (a)〜(c) を一巡した（C-N5AE5P に未確定 10 件）。詰まり 1〜5 を直した（`docs/journal/2026-11-11-stage-L-trial-fixes.md`。show に項目、list --code、名札の決まり、4.5 (b) の画面と見出しの行と ID）。DB を使う試験はまだ流していない（流す前に河原さんに知らせる）。`scripts/submit_proposal.py` と予備の小段を外すのは、河原さんの指示を待つ（G-94）。6 の 3 点は L-2 の論点に回した（`docs/proposals/2026-11-08-stage-L-M.md`）
 - B：仮名の復唱を道具の側で確かめる仕組みは L-2（引用の印）と合わせて決める
 - C：段階 L・M の案（K-5）を計画に移す（L-2・L-3 の行に決めごと 7 の表示の条件を書いてある）。L-1 の残り（失効・交代・修正・食い違い。正典 v0.14 の `ChangeProposal`）
 - D：残る未決は河原さんの側（G-80：Claude に実データを渡す契約の形、療育手帳の通知の照合）。tsunagu-net への提案（台帳 G-40：列挙値と、上限で切れた印）をどこから渡すかは決めていない
