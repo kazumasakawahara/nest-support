@@ -38,6 +38,8 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
   いつも AI 由来（Pending）。本人から MUST_AVOID・REQUIRES で結ぶ
 - 事実の recordKind・informantKind は必須で、正典の列挙値のどれか。見立て（certainty Inference）で informantKind が無ければ、
   もとになった情報源を書くよう理由を出して止める（確認点 L-0 の決めごと 6・9。SEMANTICS SEM-REC-04）
+- 自分の記録の見立ての記録の種類は、話し手に合わせる（Self・Family・Neighbor なら Interview、Agency なら Observation、
+  DocumentOnly なら Document）。合わなければ正しい組み合わせを出して止める（2026-11-12 河原さん。台帳 G-100・G-101）
 - 根拠が見立て（Inference）の記録だけの候補は、禁忌は止め、推奨ケアは注意を出して通す（決めごと 8）
 - 新しい人（newPeople）は、どれかの事実の toldBy か関わりの concerns に使う。使われない人は止める（決めごと 10。N-46 #10 の注意から変えた）
 - 面接記録（supportLog。決めごと 1〜5）：面接 1 回に 0 か 1 件。quote は案の事実の引用のどれか（その記録を根拠に結ぶ）。date は実在する日、
@@ -54,6 +56,10 @@ from pathlib import Path
 from nest import canon, ids, semantics
 
 DOC_KINDS = ("ProvisionDocument", "OwnCaseRecord")
+# 見立て（確度 Inference）の記録の種類は、もとになった情報に合わせる（SEMANTICS SEM-REC-04。台帳 G-100・G-101）。
+# 自分の記録だけ。情報提供の書面の見立ては決めていない
+VIEW_RECORD_KIND = {"Self": "Interview", "Family": "Interview", "Neighbor": "Interview",
+                    "Agency": "Observation", "DocumentOnly": "Document"}
 TOP_KEYS = {"documentKind", "providerName", "clientId", "receivedOn", "newPeople", "facts", "involvements",
             "ngActions", "carePreferences", "supportLog"}
 # 面接記録の欄（確認点 L-0。正典 v0.13）。effectiveness は案に書かせない（決めごと 5）
@@ -331,6 +337,11 @@ def check(proposal, original, actor_staff_id, request_id, provider_org_id=None, 
         else:
             if "providerCertainty" in f:
                 errors.append("%s: 自分の記録に提供元の確度を書かない" % where)
+            want_kind = VIEW_RECORD_KIND.get(f.get("informantKind"))
+            if f.get("certainty") == "Inference" and want_kind and f.get("recordKind") != want_kind:
+                errors.append("%s: 見立て（確度 推測）の記録の種類は、もとになった情報に合わせる（Self・Family・Neighbor なら Interview、"
+                              "Agency なら Observation、DocumentOnly なら Document）。informantKind %s なら recordKind は %s（%r は書けない）"
+                              % (where, f["informantKind"], want_kind, f.get("recordKind")))
             if f.get("certainty") != marked:
                 errors.append("%s: 確度 %r が原文の印（%s）と違う（格上げも格下げもしない）" % (where, f.get("certainty"), marked))
     _check_involvements(p, estimate, errors)
