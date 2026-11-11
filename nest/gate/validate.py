@@ -171,6 +171,8 @@ def validate(req):
         nodes_out.append({"ref": ref, "label": label, "origin": node.get("origin"), "status": status, "properties": props})
 
     rels_out = []
+    origins_by_ref = {n["ref"]: n["origin"] for n in nodes_out}
+    ai_request = "AiExtracted" in origins_by_ref.values()  # AI 由来のノードを含む依頼の RELATED_TO は AI 由来とみる
     for n, rel in enumerate(req.get("relationships", []), start=1):
         rtype = rel.get("type")
         where = "リレーション %d（%s）" % (n, rtype)
@@ -200,7 +202,24 @@ def validate(req):
             if ("*" not in spec["from"] and frm not in spec["from"]) or ("*" not in spec["to"] and to not in spec["to"]):
                 ck.errors.append("%s: %s は %s → %s をつなげない（正典は %s → %s）" % (
                     where, rtype, frm, to, "／".join(spec["from"]), "／".join(spec["to"])))
-        props = ck.check_props(where, rtype, spec, rel.get("properties"), GATE_MANAGED_REL.get(rtype, set()))
+        raw = dict(rel.get("properties") or {})
+        managed = set(GATE_MANAGED_REL.get(rtype, set()))
+        ai_relation = rtype == "RELATED_TO" and ai_request
+        if ai_relation:  # 正典 v0.14 §7（台帳 G-102）：状態はゲートが Pending にする。Pending 以外を書いていたら止める（自動で直さない）
+            if "status" in raw and raw.pop("status") != "Pending":
+                ck.errors.append("%s: AI 由来の RELATED_TO は未確定（Pending）で入る。status を Pending 以外にしない（ゲートが Pending にする）" % where)
+            managed.add("status")
+            frm = rel.get("from")
+            if isinstance(frm, dict) or origins_by_ref.get(frm) != "AiExtracted" or labels_by_ref.get(frm) != "Person":
+                ck.errors.append("%s: AI 由来の RELATED_TO は、同じ依頼で作る AI 由来の新しい Person からだけ張れる"
+                                 "（既にいる人に後から続柄を足す道は無い）" % where)
+        props = ck.check_props(where, rtype, spec, raw, managed)
+        if rtype == "RELATED_TO":
+            for rid in props.get("evidenceRecordIds") or []:
+                if not (labels_by_ref.get(rid) == "Record" or ids.is_valid_id(rid, "REC")):
+                    ck.errors.append("%s: evidenceRecordIds の %r は、同じ依頼の記録（Record）の名札か、既にある記録の ID（REC-…）" % (where, rid))
+        if ai_relation:
+            props["status"] = "Pending"
         rels_out.append({"type": rtype, "from": rel.get("from"), "to": rel.get("to"), "properties": props})
 
     _check_guardianship(ck, nodes_out)

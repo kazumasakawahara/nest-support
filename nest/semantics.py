@@ -55,3 +55,31 @@ def certainty_marks():
     """[(印の語, 確度), …]。弱い順。"""
     return [(m.group(1), m.group(2)) for m in map(MARK_ROW.match, _section("SEM-ENUM-02").splitlines())
             if m and m.group(1) != "印"]
+
+
+WORD_ROW = re.compile(r"^\|\s*(`\w+`|（続柄にしない語）)\s*\|\s*(.+?)\s*\|\s*$")
+NEUTRAL = "（続柄にしない語）"
+
+
+@functools.cache
+def _relation_words():
+    values, neutral = {}, []
+    for m in map(WORD_ROW.match, _section("SEM-REC-06").splitlines()):
+        if not m:
+            continue
+        words = [w for w in m.group(2).split("・") if w]
+        if m.group(1) == NEUTRAL:
+            neutral = words
+        else:
+            values[m.group(1).strip("`")] = words
+    return values, neutral
+
+
+def relation_words():
+    """{続柄の値: [語, …]}（SEM-REC-06 の語の一覧。2026-11-12 河原さん。台帳 G-102）。"""
+    return {k: list(v) for k, v in _relation_words()[0].items()}
+
+
+def neutral_relation_words():
+    """続柄の語を含むが続柄にしない語（「大丈夫」の「夫」、「母方」の「母」など）。"""
+    return list(_relation_words()[1])

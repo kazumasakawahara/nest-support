@@ -39,7 +39,7 @@ def test_shared_enums_and_the_machine_block_version_are_unchanged():
 
 
 def test_the_tables_and_history_say_v0_13():
-    assert TEXT.startswith("# nest-support スキーマ正典 — v0.13")
+    assert TEXT.startswith("# nest-support スキーマ正典 — v0.1")  # 2026-11-12 に v0.14（台帳 G-102）。v0.13 の記載は履歴に残る
     assert "- v0.13（2026-11-10）" in TEXT
     row = next(l for l in TEXT.splitlines() if l.startswith("| `SupportLog` |"))
     assert "`contactKind`(enum)" in row

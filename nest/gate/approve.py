@@ -9,6 +9,8 @@
   事実なら根拠（EVIDENCED_BY）の記録、人ならその人から聞いた（TOLD_BY）記録から引く
 - 根拠（EVIDENCED_BY の先の記録）が未確定（Pending）なら、対象の承認を止め、先に承認する記録を名指す。根拠を一緒には承認しない
   （正典 §7「一回の操作で一つのノード」）。根拠がすべて差し戻し済み（Inactive）なら止める。差し戻しは止めない（2026-11-11 河原さん）
+- 人（Person）の承認・却下では、その人から張った未確定の続柄（RELATED_TO）も一緒に Active・Inactive にし、関係ごとに AuditLog
+  （targetLabel RELATED_TO、targetId は人の ID）を残す。人の承認は、続柄の根拠の記録が未確定なら止まる（正典 v0.14 §7。台帳 G-102）
 - 承認は Staff -[:APPROVED {at, selfApproval}]-> 対象 で残す。承認・却下とも AuditLog（Approve／Reject）を残す
 - 却下には理由を一行（200 字まで）添えられる（任意）。AuditLog の reason に残す。名前を書かない（正典 v0.12。台帳 G-91）
 手本：tsunagu-net の tsunagu/gate/approve.py（読むだけ）。
@@ -31,6 +33,24 @@ WITH DISTINCT r
 RETURN r.recordId AS recordId, r.quote AS quote, r.certainty AS certainty, r.informantKind AS informantKind, r.status AS status
 ORDER BY recordId"""
 EVIDENCE = "MATCH (t:%s {%s: $id})-[:EVIDENCED_BY]->(e:Record) RETURN e.recordId AS id, e.status AS status ORDER BY id"
+# 人の続柄（正典 v0.14 §7。台帳 G-102）。未確定の続柄は、その人の承認・却下で一緒に変わる
+RELATIONS = """MATCH (p:Person {personId: $id})-[r:RELATED_TO]->(c:Client)
+OPTIONAL MATCH (e:Record) WHERE e.recordId IN r.evidenceRecordIds
+WITH r, c, collect(e {.recordId, .quote, .certainty, .informantKind, .status}) AS evidence
+RETURN r.kind AS kind, r.status AS status, r.certainty AS certainty, c.displayCode AS code, evidence
+ORDER BY kind, code"""
+RELATION_EVIDENCE = """MATCH (:Person {personId: $id})-[r:RELATED_TO {status: 'Pending'}]->(:Client)
+UNWIND r.evidenceRecordIds AS rid
+MATCH (e:Record {recordId: rid})
+RETURN DISTINCT e.recordId AS id, e.status AS status ORDER BY id"""
+CHANGE_RELATIONS = """MATCH (p:Person {personId: $id})-[r:RELATED_TO {status: 'Pending'}]->(c:Client)
+SET r.status = $status
+RETURN r.kind AS kind, r.status AS status, r.certainty AS certainty, c.displayCode AS code ORDER BY kind, code"""
+
+
+def relations(tx, person_id):
+    """人の続柄を、根拠の記録の引用つきで返す（承認の画面と承認の出力が使う）。"""
+    return [r.data() for r in tx.run(RELATIONS, id=person_id)]
 PENDING_AROUND = """MATCH (c:Client {clientId: $c})
 CALL (c) {
   MATCH (c)--(n) WHERE n.status = 'Pending' RETURN n
@@ -58,6 +78,8 @@ def _check(tx, action, actor, label, key, target_id):
 def _evidence_errors(tx, label, key, target_id):
     """承認の前に、根拠の記録の状態を確かめる。根拠の無い対象（記録・人など）は確かめることが無い。"""
     rows = list(tx.run(EVIDENCE % (label, key), id=target_id))
+    if label == "Person":  # 人は、未確定の続柄の根拠の記録を見る（人が話した記録は見ない。2026-11-12 河原さん）
+        rows = list(tx.run(RELATION_EVIDENCE, id=target_id))
     pending = [r["id"] for r in rows if r["status"] == "Pending"]
     if pending:
         return ["%s %s の根拠の記録が未確定（%s）。先に根拠の記録を一件ずつ承認してから、この対象を承認する"
@@ -89,7 +111,15 @@ def _change(tx, action, actor, label, key, target_id, request_id, now, new_id, r
     if reason is not None:
         props["reason"] = reason
     tx.run(gw.AUDIT_QUERY % (label, key), id=target_id, actor=actor, props=props)
-    return self_approval
+    changed = []
+    if label == "Person":  # 正典 v0.14 §7：その人から張った未確定の続柄も一緒に変え、関係ごとに AuditLog を残す
+        changed = [r.data() for r in tx.run(CHANGE_RELATIONS, id=target_id, status=NEW_STATUS[action])]
+        for _ in changed:
+            rel_props = gw.audit_props(new_id, now, action, "RELATED_TO", target_id, request_id, "Human")
+            if reason is not None:
+                rel_props["reason"] = reason
+            tx.run(gw.AUDIT_QUERY % (label, key), id=target_id, actor=actor, props=rel_props)
+    return self_approval, changed
 
 
 def _decide_all(tx, action, actor, targets, request_id, now, new_id, reason=None):
@@ -108,11 +138,13 @@ def _decide_all(tx, action, actor, targets, request_id, now, new_id, reason=None
         errors.append("AI 由来のものはまとめて承認・却下しない。一件ずつ、原文の引用と照らして決める（D9）")
     if errors:
         raise gw.Rejected(errors)
-    shown, selfs = [], []
+    shown, selfs, related = [], [], []
     for label, key, target_id in targets:
         shown.extend(_quotes(tx, label, key, target_id))
-        selfs.append(_change(tx, action, actor, label, key, target_id, request_id, now, new_id, reason))
-    return shown, selfs
+        self_approval, changed = _change(tx, action, actor, label, key, target_id, request_id, now, new_id, reason)
+        selfs.append(self_approval)
+        related.extend(changed)
+    return shown, selfs, related
 
 
 def _targets(raw, out):
@@ -146,12 +178,12 @@ def _run(action, driver, actor, raw_targets, request_id, now, new_id, database, 
         return out
     try:
         with driver.session(database=database) as s:
-            shown, selfs = s.execute_write(_decide_all, action, actor, targets, request_id,
-                                           now or datetime.now(timezone.utc), new_id, reason)
+            shown, selfs, related = s.execute_write(_decide_all, action, actor, targets, request_id,
+                                                    now or datetime.now(timezone.utc), new_id, reason)
     except gw.Rejected as e:
         out["errors"] = e.errors
         return out
-    out.update(ok=True, shown=shown, count=len(targets))
+    out.update(ok=True, shown=shown, count=len(targets), relations=related)
     if action == "Approve":
         out["selfApproval"] = selfs[0] if len(selfs) == 1 else selfs
     return out

@@ -24,9 +24,11 @@ class _Rec(dict):
 
 class FakeTx:
     def __init__(self, node, rows, orgs=()):
-        self.node, self.rows, self.orgs = node, rows, list(orgs)
+        self.node, self.rows, self.orgs, self.relations = node, rows, list(orgs), []
 
     def run(self, query, **params):
+        if "RELATED_TO]->(c:Client)" in query:  # 2026-11-12：人の続柄（台帳 G-102）
+            return [_Rec(r) for r in self.relations]
         if "HAS_INVOLVEMENT]->(:Involvement" in query:
             return [_Rec(orgId=o) for o in self.orgs]
         if "RETURN n AS node" in query:

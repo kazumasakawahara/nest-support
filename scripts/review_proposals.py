@@ -5,6 +5,8 @@
 - show：一件の中身を「対象の項目（正典の順。項目は SEMANTICS SEM-FIELD-01 の表示名、列挙値は表示名を添える）→ 根拠の引用（記録の quote）」の順に出す。
   伏せる項目（実名・かな・電話・住所・生年月日）と、ゲートが付ける項目（ID・状態・由来・登録日時・指紋）は出さない。
   関わりには、結ばれた機関の名前（資源の側から引く。無ければ「機関未確定」）も出す（2026-11-11 河原さん）
+- 人（Person）の show には続柄（「この人は本人 C-…… の〈続柄〉」）と、その根拠の引用を出す。人の承認・差し戻しで、その人の未確定の
+  続柄も一緒に変わり、結果に出す（正典 v0.14 §7。2026-11-12 河原さん。台帳 G-102）
 - list --rejected：差し戻したものを、差し戻した順に理由と出す（台帳 G-91）
 - approve・reject：一件ずつ承認（Active）・差し戻し（Inactive）する。差し戻しには理由を一行添えられる（--reason。AuditLog の reason。名前を書かない）。ゲートの承認（nest.gate.approve）を通すので、
   AuditLog（Approve・Reject）が残る。自分で登録したものを承認したら selfApproval が付く（自己承認）
@@ -137,6 +139,25 @@ def _list_rejected(d):
     return 0
 
 
+def _relation_name(kind):
+    return "%s（%s）" % (semantics.enum_names()["clientRelationKind"].get(kind, kind), kind)
+
+
+def _relation_lines(relations):
+    if not relations:
+        return ["  続柄：無い"]
+    names, out = semantics.enum_names(), []
+    for r in relations:
+        shown = names.get("status", {}).get(r["status"])
+        status = "%s（%s）" % (r["status"], shown) if shown else r["status"]
+        out.append("  続柄：この人は本人 %s の%s。状態 %s・確度 %s（%s）" % (
+            r["code"], _relation_name(r["kind"]), status, r["certainty"], names["certainty"].get(r["certainty"], r["certainty"])))
+        for e in r["evidence"]:
+            state = "・未確定。先に承認する" if e.get("status") == "Pending" else "・差し戻し済み" if e.get("status") == "Inactive" else ""
+            out.append("  続柄の根拠 %s（確度 %s・話し手 %s%s）：%s" % (e["recordId"], e["certainty"], e["informantKind"], state, e["quote"]))
+    return out
+
+
 def _org_lines(s, resource_driver, target_id):
     orgs = s.execute_read(lambda tx: [r["orgId"] for r in tx.run(ap.INVOLVEMENT_ORGS, id=target_id)])
     if not orgs:
@@ -155,6 +176,8 @@ def _show(d, label, target_id, resource_driver=None):
         quotes = s.execute_read(ap._quotes, label, gw.key_of(label), target_id)
         rejected = _rejected(s, target_id)
         orgs = _org_lines(s, resource_driver, target_id) if label == "Involvement" else []
+        if label == "Person":
+            orgs += _relation_lines(s.execute_read(ap.relations, target_id))
     node = dict(rows[0]["node"])
     print("%s  %s  状態 %s  由来 %s" % (target_id, label, node.get("status"), node.get("origin")))
     items = items_of(label, node)
@@ -182,6 +205,8 @@ def _decide(d, a, label):
             print("自己承認（自分で登録したもの）として記録した（selfApproval）")
     else:
         print("差し戻した：%s %s → Inactive（理由：%s）" % (label, a.id, a.reason or "―（書いていない）"))
+    for r in out.get("relations") or []:
+        print("続柄も %s にした：本人 %s の%s" % (r["status"], r["code"], _relation_name(r["kind"])))
     _print_quotes(out["shown"], a.id)
     return 0
 

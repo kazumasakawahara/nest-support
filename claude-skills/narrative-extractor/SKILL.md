@@ -31,8 +31,9 @@ description: 母親・支援者の語り（ナラティブ）、自分の面談�
    - 接触そのものを述べる一文（記録者がしたこと・見たこと。例：「自宅を訪問。母と本人に会う。」「姉から電話。」「事業所の生活支援員から電話で聞き取りました。」「〜に電話し、様子を聞いた」）は `Observation`。相手が語った中身（例：「本人は週五日、休まず通っているとのこと。」「母は『夜に薬を出し忘れた』と話した。」）は `Interview`。「聞き取りました」と書いてあっても、聞いたという行為を述べるだけの一文は `Observation` にする
 10. **見立て**（記録者自身の受け取り方・推測。原文の【推測】の一文）は、値を足さずに書く（SEMANTICS SEM-REC-04）：`certainty: Inference`、`informantKind` はその見立てのもとになった情報源（本人の話から `Self`、家族の話から `Family`、職員が自分で見たことから `Agency`、記録だけから `DocumentOnly`）。`toldBy` は書かない（誰かが言ったことではない）。`recordKind` はもとになった情報に合わせる：`Self`・`Family`・`Neighbor` なら `Interview`、`Agency`（記録者の観察）なら `Observation`、`DocumentOnly` なら `Document`（見立てであることは `Inference` が表すので、記録の種類に見立ての意味を持たせない。合わなければ入口の点検が止める）。根拠が見立てだけの禁忌の候補は作らない（止まる）。推奨ケアの候補は作れるが注意が付く
 11. **面接記録**（訪問・来所・電話・同行・会議・文書のやり取り）は、面接 1 回を `supportLog` 一つにし、聞いた事実・見たことは事実ごとに `facts` に分ける（SEM-REC-04）。`supportLog` の `quote` は接触の一文の事実の引用。同席者は `situation` に役割の名前で書く。次の調整は `nextAction` に置き、事実にしない。`effectiveness` は書かない（効果の判定は職員）。`supportLog` の本文に原文に無い数字を足さない
-12. **新しい人（`newPeople`）は、どれかの事実の `toldBy` か関わりの `concerns` に使う。** どこにも使わない人は案に入れない（止まる）
-13. 開発と試験では架空の文だけを使う
+12. **新しい人（`newPeople`）は、どれかの事実の `toldBy` か関わりの `concerns` か、続柄（`relation`）に使う。** どこにも使わない人は案に入れない（止まる）
+13. **続柄**（新しい人と本人との続柄。SEMANTICS SEM-REC-06）：原文に続柄が書いてあるときだけ、`newPeople` の人に `relation: {"kind", "quote"}` を書く。推し量らない。`quote` はその続柄が読める事実の引用。確度は書かない（根拠の記録から写す）。書ける値は親族の 8 つ（`Parent`・`Child`・`Spouse`・`Partner`・`Sibling`・`Grandparent`・`Grandchild`・`OtherRelative`）と `PrimaryDoctor`・`Neighbor`。`PrimaryDoctor` は個人の主治医として人を作るときだけ（医療機関の医師は、関わりと機関の側で持つ）。`KeyPerson`・`Helper`・`OtherSupporter` は書かない（判断や役割の評価を含む。`KeyPerson` は職員が決める。書くと止まる）。入口の点検が原文の続柄の語を確かめ、合わなければ止まる。止まったら理由をそのまま示す：続柄を書かない案で出し直せる（その人は本人と結ばれないので、後で結ぶ必要がある）。機関の職員（事業所の生活支援員など）には書ける続柄が無い
+14. 開発と試験では架空の文だけを使う
 
 ## 案の形
 
@@ -40,7 +41,7 @@ description: 母親・支援者の語り（ナラティブ）、自分の面談�
 {"documentKind": "OwnCaseRecord"（自分の記録） | "ProvisionDocument"（他の機関からの書面）,
  "providerName": 書面のときだけ。原文に書かれた提供元の名前,
  "receivedOn": "YYYY-MM-DD"（書面を受けた日。任意）,
- "newPeople": [{"ref"}]（任意。役割の名前で呼ぶ人。実名は書かない）,
+ "newPeople": [{"ref", "relation"?: {"kind", "quote"}}]（任意。役割の名前で呼ぶ人。実名は書かない。relation は本人との続柄）,
  "facts": [{"quote", "text"?, "recordKind", "certainty", "providerCertainty"?（書面のとき）,
             "informantKind", "aboutDate"?, "heardOn"?, "toldBy"?}],
  "involvements": [{"quote", "kind", "orgName"?（引用に書かれた機関の名前）, "serviceTypeName"?（原文のサービスの種類）, "howEnded"?（"Ongoing" だけ。orgName のあるときだけ）, "orgId"?, "concerns"?}]（任意）,
@@ -68,6 +69,7 @@ description: 母親・支援者の語り（ナラティブ）、自分の面談�
 
 1. 原文を受け取る（貼り付け・添付）。対象の本人の仮名（`C-……`）を職員に聞く（名前から探さない。clientId は書かない）
 2. 上の「守ること」に沿って案（JSON）を作る
+   - **新しい人を案に入れる前に**、nest-personal の `read_personal_cypher` で、この本人に既にいる人の続柄（`RELATED_TO`）を読む（例：`MATCH (p:Person)-[r:RELATED_TO]->(:Client {displayCode: $code}) RETURN p.personId AS person, r.kind AS kind, r.status AS status`）。同じ続柄の人がいれば「既にいる〈続柄〉の人（PER-…）として結びますか」と職員に尋ね、自分では決めない（同じ続柄でも別人のことがある。姉と兄はどちらも `Sibling`）。「同じ人」と言われたら `toldBy: "PER-…"` で指し、新しい人を作らない
 3. 案の要点（事実の件数・面接記録・禁忌と推奨ケアの候補）と、候補にできなかった「禁忌の候補」（引用の一覧。二段の 2）を職員に示す
 4. **仮名を復唱する**：「対象は C-…… の本人です。この本人に未確定で入れてよいですか」と仮名を一字ずつそのまま書いて聞き、職員の「はい」を待つ。違うと言われたら仮名を聞き直す。「はい」が無ければ出さない
 5. 「はい」の後に、書き込み受付（MCP `nest-gate`）の submit_proposal を呼ぶ：`code` に仮名、`original` に職員が渡した原文をそのまま、`proposal` に案
@@ -98,7 +100,8 @@ description: 母親・支援者の語り（ナラティブ）、自分の面談�
 <!-- example-proposal -->
 ```json
 {"documentKind": "OwnCaseRecord",
- "newPeople": [{"ref": "mother"}],
+ "newPeople": [{"ref": "mother",
+                "relation": {"kind": "Parent", "quote": "10月2日、母が電話で話した。後ろから急に声をかけるとパニックになる"}}],
  "facts": [
   {"quote": "自宅を訪問。母と本人に会う。",
    "recordKind": "Observation", "certainty": "Unspecified", "informantKind": "Agency"},
@@ -126,5 +129,5 @@ description: 母親・支援者の語り（ナラティブ）、自分の面談�
 - 禁忌の候補は、母の話の事実を根拠に指す。確度は根拠の事実の `Hearsay` を引き継ぐので、候補には書かない
 - 「音楽を聴くと落ち着く」は推奨ケアの候補にもできるが、どう支えるか（`instruction`）が原文に無いので、事実として残すだけにした
 - 「10月2日」には年が無いので、`aboutDate` を書かない
-- 母は名札 `mother` で指し、名前を書かない
+- 母は名札 `mother` で指し、名前を書かない。原文に「母」とあるので、続柄 `Parent` を、その語が読める事実の引用と一緒に書く（確度は根拠の事実の `Hearsay` を写すので書かない）。出す前に照会口で既にいる人の続柄を読み、`Parent` の人がいれば職員に尋ねる
 - 窓口の機関は推定の候補が渡されていないので `orgId` を書かない（機関未確定）

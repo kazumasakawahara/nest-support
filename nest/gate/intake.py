@@ -41,6 +41,8 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
 - 自分の記録の見立ての記録の種類は、話し手に合わせる（Self・Family・Neighbor なら Interview、Agency なら Observation、
   DocumentOnly なら Document）。合わなければ正しい組み合わせを出して止める（2026-11-12 河原さん。台帳 G-100・G-101）
 - 根拠が見立て（Inference）の記録だけの候補は、禁忌は止め、推奨ケアは注意を出して通す（決めごと 8）
+- 新しい人（newPeople）に任意の relation（本人との続柄 {kind, quote}）。値は親族の 8 つと PrimaryDoctor・Neighbor だけ。
+  引用は案の事実のどれかで、原文の続柄の語を長い語から当てて確かめる。確度は根拠の事実から写す（2026-11-12 河原さん。SEM-REC-06。台帳 G-102）
 - 新しい人（newPeople）は、どれかの事実の toldBy か関わりの concerns に使う。使われない人は止める（決めごと 10。N-46 #10 の注意から変えた）
 - 面接記録（supportLog。決めごと 1〜5）：面接 1 回に 0 か 1 件。quote は案の事実の引用のどれか（その記録を根拠に結ぶ）。date は実在する日、
   situation は必須、contactKind は書くなら正典の列挙値。effectiveness は書かせない（判定は職員）。本文に原文全体に無い数字を足さない。
@@ -79,7 +81,12 @@ SCHEMA = Path(__file__).resolve().parents[2] / "docs" / "SCHEMA.md"
 # 推定の結果の basis → 関わりの inferenceBasis（正典 v0.6。台帳 G-57）。住所も区のコードも持たない
 INFERENCE_BASIS = {"AtTheTime": "ResidenceAreaAtTheTime", "CurrentFallback": "CurrentResidenceArea"}
 FACT_KEYS = {"quote", "text", "recordKind", "certainty", "providerCertainty", "informantKind", "aboutDate", "heardOn", "toldBy"}
-PERSON_KEYS = {"ref", "familyName", "givenName", "familyNameKana", "givenNameKana"}
+PERSON_KEYS = {"ref", "familyName", "givenName", "familyNameKana", "givenNameKana", "relation"}
+# 新しい人と本人との続柄（2026-11-12 河原さん。SEMANTICS SEM-REC-06。台帳 G-102）。案に書けるのは親族の 8 つと主治医・近隣だけ
+RELATION_KEYS = {"kind", "quote"}
+PROPOSABLE_RELATIONS = ("Parent", "Child", "Spouse", "Partner", "Sibling", "Grandparent", "Grandchild", "OtherRelative",
+                        "PrimaryDoctor", "Neighbor")
+RELATION_REDO = "続柄を書かない案で出し直せる。その人は本人と結ばれないので、後で結ぶ必要がある"
 # 名札（newPeople の ref）。依頼の中の目印で、照会の文には入らない。途中の大文字は許す（2026-11-11 河原さん）
 REF = re.compile(r"^[a-z][A-Za-z0-9-]*$")
 # 点検が自分で付ける名札。新しい人の名札に使うとぶつかる
@@ -123,6 +130,60 @@ def mark_of(quote, original):
                 return value
         return None
     return "Unspecified"
+
+
+def relation_words_in(quote):
+    """引用の中の続柄の語を [(語, 値), …] で返す。長い語を先に当て、当たった字は短い語に使わない
+    （「祖母」の「母」を Parent に数えない。2026-11-12 河原さんの条件 1）。続柄にしない語（「大丈夫」など）は返さない。"""
+    text = _norm(quote)
+    words = [(w, v) for v, ws in semantics.relation_words().items() for w in ws]
+    words += [(w, None) for w in semantics.neutral_relation_words()]
+    taken, found = [False] * len(text), []
+    for word, value in sorted(words, key=lambda x: -len(x[0])):
+        start = text.find(word)
+        while start >= 0:
+            span = range(start, start + len(word))
+            if not any(taken[i] for i in span):
+                for i in span:
+                    taken[i] = True
+                if value is not None:
+                    found.append((word, value))
+            start = text.find(word, start + 1)
+    return found
+
+
+def _check_relations(p, errors):
+    """newPeople の relation（続柄）の点検（SEM-REC-06）。止めるときは理由に止まった語と、出し直し方を出す。"""
+    quotes = {_norm(f.get("quote")) for f in p.get("facts") or [] if isinstance(f.get("quote"), str)}
+    kinds = canon.load(SCHEMA)["enums"]["clientRelationKind"]
+    for person in p.get("newPeople") or []:
+        if not isinstance(person, dict) or "relation" not in person:
+            continue
+        where = "newPeople の %s の relation" % person.get("ref")
+        rel = person["relation"]
+        if not isinstance(rel, dict):
+            errors.append("%s は {kind, quote} のオブジェクト。%s" % (where, RELATION_REDO))
+            continue
+        for k in sorted(set(rel) - RELATION_KEYS):
+            errors.append("%s に %s という項目は無い（確度は書かない。根拠の記録から写す。直さずに止める）" % (where, k))
+        kind, quote = rel.get("kind"), rel.get("quote")
+        if kind not in kinds:
+            errors.append("%s の kind %r は案に書ける続柄の値（%s）のどれか。%s" % (where, kind, "・".join(PROPOSABLE_RELATIONS), RELATION_REDO))
+            continue
+        if kind not in PROPOSABLE_RELATIONS:
+            errors.append("%s の kind %s は判断や役割の評価を含むので案に書けない（KeyPerson は職員が決める）。%s" % (where, kind, RELATION_REDO))
+            continue
+        if not isinstance(quote, str) or _norm(quote) not in quotes:
+            errors.append("%s の quote は案の事実の引用のどれか（根拠の記録に結ぶ）。%s" % (where, RELATION_REDO))
+            continue
+        found = relation_words_in(quote)
+        if kind not in {v for _, v in found}:
+            if found:
+                errors.append("%s の続柄 %s：引用の続柄の語は %s で、%s の語が無い。%s" % (
+                    where, kind, "・".join("「%s」（%s）" % (w, v) for w, v in found), kind, RELATION_REDO))
+            else:
+                errors.append("%s の続柄 %s：続柄の語が引用に無い（原文に続柄が書いてあるときだけ書く。語の一覧は SEMANTICS SEM-REC-06）。%s"
+                              % (where, kind, RELATION_REDO))
 
 
 def receiver_certainty(provider):
@@ -347,7 +408,9 @@ def check(proposal, original, actor_staff_id, request_id, provider_org_id=None, 
     _check_involvements(p, estimate, errors)
     _check_candidates(p, errors, warnings)
     _check_support_log(p, original, errors)
+    _check_relations(p, errors)
     used = {f.get("toldBy") for f in facts} | {inv.get("concerns") for inv in p.get("involvements") or [] if isinstance(inv, dict)}
+    used |= {x.get("ref") for x in p.get("newPeople") or [] if isinstance(x, dict) and "relation" in x}  # SEM-REC-04：続柄でも結ばれる
     for ref in sorted(r for r in refs if isinstance(r, str) and r not in used):  # N-46 #10。確認点 L-0 の決めごと 10 で止める形に
         errors.append("newPeople の %s は、どの事実の toldBy にも、どの関わりの concerns にも使われていない"
                       "（根拠の記録にも本人にも結ばれない人になる）。どの事実の toldBy か関わりの concerns に書くか、案から外す" % ref)
@@ -370,7 +433,7 @@ def _request(p, original, actor_staff_id, request_id, provider_org_id, estimate=
         nodes.append({"ref": "provider", "label": "Organization", "origin": "Human", "properties": {"orgId": provider_org_id}})
     for person in p.get("newPeople") or []:
         nodes.append({"ref": person["ref"], "label": "Person", "origin": "AiExtracted",
-                      "properties": {k: v for k, v in person.items() if k != "ref"}})
+                      "properties": {k: v for k, v in person.items() if k not in ("ref", "relation")}})
     for n, f in enumerate(p["facts"], start=1):
         ref = "fact-%d" % n
         props = {"kind": f.get("recordKind"), "text": f.get("text") or f["quote"], "quote": f["quote"],
@@ -392,6 +455,13 @@ def _request(p, original, actor_staff_id, request_id, provider_org_id, estimate=
         elif told:
             rels.append({"type": "TOLD_BY", "from": ref, "to": {"label": "Person", "id": told} if told.startswith("PER-") else told})
     fact_refs = {_norm(f["quote"]): "fact-%d" % n for n, f in enumerate(p["facts"], start=1)}
+    for person in p.get("newPeople") or []:  # 続柄は根拠の記録の確度を写す。強くしない（SEM-REC-06）。状態はゲートが Pending にする
+        rel = person.get("relation")
+        if rel:
+            evidence = fact_refs[_norm(rel["quote"])]
+            certainty = next(n for n in nodes if n["ref"] == evidence)["properties"]["certainty"]
+            rels.append({"type": "RELATED_TO", "from": person["ref"], "to": client,
+                         "properties": {"kind": rel["kind"], "certainty": certainty, "evidenceRecordIds": [evidence]}})
     orgs = {provider_org_id: "provider"} if p["documentKind"] == "ProvisionDocument" else {}
     for n, inv in enumerate(p.get("involvements") or [], start=1):
         ref = "involvement-%d" % n

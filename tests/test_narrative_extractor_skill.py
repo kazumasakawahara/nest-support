@@ -75,7 +75,7 @@ def test_skill_states_the_two_stages():
 def test_example_has_no_real_names():
     proposal = json.loads(_block("example-proposal", "json"))
     for person in proposal.get("newPeople") or []:
-        assert set(person) == {"ref"}, person
+        assert set(person) <= {"ref", "relation"}, person  # 2026-11-12：続柄（relation）は書ける。名前の項目は書かない
 
 
 def _skill_section(title):
@@ -193,3 +193,24 @@ def test_the_view_takes_the_record_kind_of_its_source():
     proposal = json.loads(_block("example-proposal", "json"))
     (view,) = [f for f in proposal["facts"] if f["certainty"] == "Inference"]
     assert view["recordKind"] == VIEW_KIND[view["informantKind"]]
+
+
+def test_the_skill_states_the_relation_rules():
+    """2026-11-12 河原さんの承認（SEM-REC-06。台帳 G-102）：続柄は原文にあるときだけ。書ける値。KeyPerson は書かない。
+    PrimaryDoctor は個人の主治医として人を作るときだけ。新しい人を作る前に既にいる人の続柄を読み、同じ続柄なら尋ねる"""
+    rules, steps = _skill_section("守ること"), _skill_section("手順")
+    for words in ("relation", "原文に続柄", "SEM-REC-06", "`KeyPerson`", "`Helper`", "`OtherSupporter`", "個人の主治医",
+                  "続柄を書かない案で出し直せる"):
+        assert words in rules, words
+    for words in ("read_personal_cypher", "RELATED_TO", "既にいる", "PER-", "として結びますか", "自分では決めない"):
+        assert words in steps, words
+
+
+def test_the_example_gives_the_mother_a_relation_that_passes():
+    original, proposal = _example()
+    (mother,) = [p for p in proposal["newPeople"] if p["ref"] == "mother"]
+    assert mother["relation"]["kind"] == "Parent"
+    rep = intake.check(proposal, original, actor_staff_id=ACTOR, request_id="req-l1")
+    assert rep["ok"], rep["errors"]
+    assert gv.validate(rep["request"])["ok"]
+    assert [r for r in rep["request"]["relationships"] if r["type"] == "RELATED_TO"]
