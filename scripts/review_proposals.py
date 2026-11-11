@@ -7,6 +7,8 @@
   関わりには、結ばれた機関の名前（資源の側から引く。無ければ「機関未確定」）も出す（2026-11-11 河原さん）
 - 人（Person）の show には続柄（「この人は本人 C-…… の〈続柄〉」）と、その根拠の引用を出す。人の承認・差し戻しで、その人の未確定の
   続柄も一緒に変わり、結果に出す（正典 v0.14 §7。2026-11-12 河原さん。台帳 G-102）
+- list の人の行は、本人の仮名を一度だけ出し、続柄（と状態）を添える。人の show で出す項目が無いときは、伏せているから出さないと書く
+  （Claude Desktop での確かめの表示の気づき。2026-11-12 河原さん）
 - list --rejected：差し戻したものを、差し戻した順に理由と出す（台帳 G-91）
 - approve・reject：一件ずつ承認（Active）・差し戻し（Inactive）する。差し戻しには理由を一行添えられる（--reason。AuditLog の reason。名前を書かない）。ゲートの承認（nest.gate.approve）を通すので、
   AuditLog（Approve・Reject）が残る。自分で登録したものを承認したら selfApproval が付く（自己承認）
@@ -37,9 +39,11 @@ OPTIONAL MATCH (n)--(c:Client)
 OPTIONAL MATCH (n)<-[:TOLD_BY]-(:Record)-[:ABOUT]->(t:Client)
 OPTIONAL MATCH (n)-[:HAS_INVOLVEMENT]-(:Involvement)-[:CONCERNS]->(v:Client)
 OPTIONAL MATCH (n)<-[:CONCERNS]-(:Involvement)-[:CONCERNS]->(w:Client)
+OPTIONAL MATCH (n)-[r:RELATED_TO]->(rc:Client)
 WITH n, [x IN collect(DISTINCT c.displayCode) + collect(DISTINCT t.displayCode) + collect(DISTINCT v.displayCode)
-         + collect(DISTINCT w.displayCode) WHERE x IS NOT NULL] AS codes
-RETURN labels(n)[0] AS label, n.origin AS origin, n.registeredAt AS at, codes, n AS node
+         + collect(DISTINCT w.displayCode) WHERE x IS NOT NULL] AS codes,
+     collect(DISTINCT CASE WHEN r IS NULL THEN NULL ELSE {kind: r.kind, status: r.status, code: rc.displayCode} END) AS relations
+RETURN labels(n)[0] AS label, n.origin AS origin, n.registeredAt AS at, codes, relations, n AS node
 ORDER BY at, label"""
 REJECTED = """MATCH (a:AuditLog {action: 'Reject'})-[:ACTED_BY]->(s:Staff)
 WHERE $id IS NULL OR a.targetId = $id
@@ -96,7 +100,11 @@ def _list(d, code=None):
     print("未確定 %d 件（古い順%s）" % (len(rows), "・本人 %s" % code if code else ""))
     for r in rows:
         node_id = r["node"][gw.key_of(r["label"])]
-        print("%s  %s  %s  %s  本人 %s" % (node_id, r["label"], r["origin"], r["at"], "・".join(r["codes"]) or "―"))
+        codes = list(dict.fromkeys(r["codes"]))  # 続柄と話した記録の両方から同じ本人に着くので、一度だけ出す
+        line = "%s  %s  %s  %s  本人 %s" % (node_id, r["label"], r["origin"], r["at"], "・".join(codes) or "―")
+        if r["label"] == "Person":
+            line += "  続柄 %s" % ("、".join("%s・%s" % (_relation_name(x["kind"]), x["status"]) for x in r.get("relations") or []) or "無い")
+        print(line)
     if not code and any(not r["codes"] for r in rows):
         print(DASH)
     return 0
@@ -181,8 +189,8 @@ def _show(d, label, target_id, resource_driver=None):
     node = dict(rows[0]["node"])
     print("%s  %s  状態 %s  由来 %s" % (target_id, label, node.get("status"), node.get("origin")))
     items = items_of(label, node)
-    if not items:
-        print("  項目：無い")
+    if not items:  # 「無い」だけでは欠けているように読める（2026-11-12 河原さん）
+        print("  項目：名前・かな・電話・住所・生年月日は、ここでは出さない。ほかに出す項目は無い")
     for key, value in items:
         print("  %s：%s" % (key, value))
     for line in orgs:

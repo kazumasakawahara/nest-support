@@ -115,7 +115,8 @@ def test_show_prints_a_paraphrased_text_but_not_the_hash(capsys):
 
 def test_show_says_when_there_are_no_items(capsys):
     out = _show(dict(BASE, personId=PER), PER, capsys)
-    assert "項目：無い" in out
+    # 2026-11-12 河原さん：「項目：無い」は欠けているように読めるので、伏せているから出さないと書く（tests/test_review_list_relation.py）
+    assert "ほかに出す項目は無い" in out
 
 
 def test_show_of_a_missing_id_stops(capsys):

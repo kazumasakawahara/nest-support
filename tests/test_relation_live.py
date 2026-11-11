@@ -5,6 +5,7 @@
   関係ごとに AuditLog（targetLabel RELATED_TO）が残る
 - 人の差し戻しで、続柄も一緒に Inactive（根拠が未確定でも差し戻しは止めない）
 - 照会口（読み取りの包み）で続柄が読める
+- 未確定の一覧（review_proposals.py list）の人の行は、仮名を一度だけ出し、続柄を添える（2026-11-12 河原さん）
 """
 import os
 import uuid
@@ -70,3 +71,12 @@ def test_the_read_wrapper_returns_the_relation(driver, admin, client):
     rows = mcp_guard.run_read(driver, "MATCH (p:Person {personId: $p})-[r:RELATED_TO]->(c:Client) "
                                       "RETURN p.personId AS person, r.kind AS kind, r.status AS status", {"p": person}, personal=True)
     assert rows == [{"person": person, "kind": "Parent", "status": "Pending"}]
+
+
+def test_the_list_names_the_client_once_with_the_relation(driver, admin, client, capsys):
+    from tests import doc_commands
+    person, _ = _submit(driver, admin, client)
+    code = _one(driver, "MATCH (c:Client {clientId: $c}) RETURN c.displayCode AS code", c=client)[0]["code"]
+    assert doc_commands.load("review_proposals.py").main(["list", "--code", code], driver=driver) == 0
+    (line,) = [l for l in capsys.readouterr().out.splitlines() if l.startswith(person)]
+    assert line.count(code) == 1 and "本人 %s  続柄 " % code in line and "（Parent）・Pending" in line, line
