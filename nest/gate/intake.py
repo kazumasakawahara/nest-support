@@ -31,7 +31,8 @@ Claude が語り・書面・自分の面談記録から作った「書き込み�
 - 機関の名前が無い言及（「区役所の窓口で」）は involvements [{"quote", "kind", "orgId"?, "concerns"?}] に書く（N-24a）。quote は事実の引用のどれか
   （その記録を根拠に結ぶ）。orgId は担当機関の推定（org_estimate.estimate。estimate で渡す）の候補の中からだけ。無ければ機関未確定。
   確度は書かせず、機関の名前の無い関わりはいつも Inference・終わり方 Unknown・AI 由来（Pending）。
-  orgName のある関わりは、根拠の記録（同じ引用の事実）の確度を写す（SEMANTICS SEM-REC-05。2026-11-11 河原さん）。候補から選んだら、推定の根拠（inferenceBasis）を推定の結果から付ける（案には書かせない）。後見は推定で作らない。推定の注記は結果の notes に載せる
+  orgName のある関わりは、根拠の記録（同じ引用の事実）の確度を写す（SEMANTICS SEM-REC-05。2026-11-11 河原さん）。
+  終わり方（howEnded）は orgName のある関わりにだけ、Ongoing だけを書ける。終わった値は止める（2026-11-12 河原さん）。候補から選んだら、推定の根拠（inferenceBasis）を推定の結果から付ける（案には書かせない）。後見は推定で作らない。推定の注記は結果の notes に載せる
 - 禁忌・推奨ケアの候補（G-63。正典 v0.9）：quote は案の事実の引用のどれかで、その記録を根拠に結ぶ（EVIDENCED_BY）。
   根拠が同じ案の中に無い候補は作らない。確度は書かせない（根拠の記録の確度を引き継ぐ。§6）。本文に引用に無い数字を足さない。
   いつも AI 由来（Pending）。本人から MUST_AVOID・REQUIRES で結ぶ
@@ -64,7 +65,9 @@ CANDIDATES = {"ngActions": ("NgAction", "MUST_AVOID", {"quote", "action", "riskL
               "carePreferences": ("CarePreference", "REQUIRES", {"quote", "category", "instruction", "priority"},
                                   ("category", "instruction"))}
 # orgName（原文に書かれた機関の名前）・serviceTypeName は任意（2026-11-11 河原さん）。機関 ID は案に書かせない（N-24）
-INVOLVEMENT_KEYS = {"quote", "kind", "orgId", "concerns", "orgName", "serviceTypeName"}
+# howEnded は名前のある関わりに Ongoing だけ（2026-11-12 河原さん。SEM-REC-05）
+INVOLVEMENT_KEYS = {"quote", "kind", "orgId", "concerns", "orgName", "serviceTypeName", "howEnded"}
+ENDED = ("Lapsed", "DeclinedByPerson", "EndedByAgency")
 ORG_NAME_MIN = 2  # 候補を引く名前の短さの下限（nest.org_candidates.MIN_LENGTH と同じ）
 SCHEMA = Path(__file__).resolve().parents[2] / "docs" / "SCHEMA.md"
 # 推定の結果の basis → 関わりの inferenceBasis（正典 v0.6。台帳 G-57）。住所も区のコードも持たない
@@ -153,6 +156,14 @@ def _check_involvements(p, estimate, errors):
             errors.append("%s: orgName と orgId（住所からの推定の候補）を一つの関わりに両方書かない（確度の決まりが違う。SEM-REC-05）" % where)
         if name is not None and p.get("documentKind") == "ProvisionDocument":
             errors.append("%s: 情報提供の書面の関わりに orgName を書いたときの扱いは決めていない（決めるまで止める）" % where)
+        ended = inv.get("howEnded")
+        if ended is not None:
+            if name is None:
+                errors.append("%s: howEnded は機関の名前（orgName）のある関わりにだけ書ける（名前の無い関わりはいつも Unknown）" % where)
+            elif ended in ENDED:
+                errors.append("%s: howEnded %r：終わった関わりは今は案に書けない。事実の記録としては入る" % (where, ended))
+            elif ended != "Ongoing":
+                errors.append("%s: howEnded に書けるのは Ongoing だけ（原文から今も続いていると読めるとき。%r）" % (where, ended))
         service = inv.get("serviceTypeName")
         if service is not None and (not isinstance(service, str) or not service.strip()):
             errors.append("%s: serviceTypeName は原文に書かれたサービスの種類の文字列（%r）" % (where, service))
@@ -378,6 +389,8 @@ def _request(p, original, actor_staff_id, request_id, provider_org_id, estimate=
         if inv.get("orgName"):  # 名前のある関わりは根拠の記録の確度を写す。強くしない（SEM-REC-05）
             evidence = next(n for n in nodes if n["ref"] == fact_refs[_norm(inv["quote"])])
             nodes[-1]["properties"]["certainty"] = evidence["properties"]["certainty"]
+            if inv.get("howEnded") == "Ongoing":
+                nodes[-1]["properties"]["howEnded"] = "Ongoing"
         if inv.get("serviceTypeName"):
             nodes[-1]["properties"]["serviceTypeName"] = inv["serviceTypeName"].strip()
         target = inv.get("concerns")

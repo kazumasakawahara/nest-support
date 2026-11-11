@@ -140,3 +140,33 @@ def test_a_named_involvement_on_a_provision_document_is_not_decided_yet():
     p["facts"][1].update(recordKind="Document", certainty="Hearsay", providerCertainty="Hearsay")
     rep = intake.check(p, ORIGINAL, ACTOR, "req-1", provider_org_id="ORG-01HPPPPPPPPPPPPPPPPPPPPPPP")
     _stopped(rep, "orgName", "情報提供の書面")
+
+
+# ---- 2026-11-12 河原さんの決めごと（案 A。SEMANTICS SEM-REC-05）：名前のある関わりは howEnded に Ongoing だけを書ける ----
+
+def test_a_named_involvement_can_say_it_is_ongoing():
+    rep = _check(_proposal(orgName="つばさ", howEnded="Ongoing"))
+    assert rep["ok"], rep["errors"]
+    assert _involvement(rep)["properties"]["howEnded"] == "Ongoing"
+
+
+def test_without_how_ended_it_stays_unknown():
+    rep = _check(_proposal(orgName="つばさ"))
+    assert rep["ok"], rep["errors"]
+    assert _involvement(rep)["properties"]["howEnded"] == "Unknown"
+
+
+@pytest.mark.parametrize("value", ["Lapsed", "DeclinedByPerson", "EndedByAgency"])
+def test_an_ended_value_stops_and_says_the_fact_still_goes_in(value):
+    _stopped(_check(_proposal(orgName="つばさ", howEnded=value)), "howEnded",
+             "終わった関わりは今は案に書けない。事実の記録としては入る")
+
+
+@pytest.mark.parametrize("value", ["Unknown", "Transitioned", "続いている", "ongoing", 1])
+def test_other_values_stop(value):
+    _stopped(_check(_proposal(orgName="つばさ", howEnded=value)), "howEnded", "Ongoing")
+
+
+@pytest.mark.parametrize("value", ["Ongoing", "Lapsed"])
+def test_an_involvement_without_a_name_cannot_carry_how_ended(value):
+    _stopped(_check(_proposal(howEnded=value)), "howEnded", "orgName")

@@ -222,3 +222,10 @@ def test_show_prints_the_certainty_of_an_involvement(capsys):
     assert _script().main(["show", "--id", INV], driver=FakeDriver(node=node), resource_driver=FakeResource({})) == 0
     out = capsys.readouterr().out
     assert "%s：Hearsay（伝聞）" % semantics.field_names()["Involvement"]["certainty"] in out
+
+
+def test_show_prints_an_ongoing_involvement(capsys):
+    """2026-11-12：終わり方の行は今の表示のまま「終わり方：Ongoing（続いている）」と出る"""
+    node = dict(BASE, involvementId=INV, kind="ServiceProvision", howEnded="Ongoing", certainty="Unspecified")
+    assert _script().main(["show", "--id", INV], driver=FakeDriver(node=node), resource_driver=FakeResource({})) == 0
+    assert "%s：Ongoing（続いている）" % semantics.field_names()["Involvement"]["howEnded"] in capsys.readouterr().out

@@ -41,7 +41,8 @@ def setup(drivers, monkeypatch):
     phone = "本人が週一回通っている「%s」の生活支援員に電話した %s。" % (NAME, uuid.uuid4().hex[:6])
     proposal = {"documentKind": "OwnCaseRecord",
                 "facts": [{"quote": phone, "recordKind": "Interview", "certainty": "Unspecified", "informantKind": "Agency"}],
-                "involvements": [{"quote": phone, "kind": "ServiceProvision", "orgName": NAME, "serviceTypeName": "生活介護"}]}
+                "involvements": [{"quote": phone, "kind": "ServiceProvision", "orgName": NAME, "serviceTypeName": "生活介護",
+                                  "howEnded": "Ongoing"}]}
     return {"code": code, "original": "架空の面接記録\n2026-11-05 電話\n%s\n" % phone, "proposal": proposal}
 
 
@@ -57,8 +58,8 @@ def test_the_round_trip_links_the_chosen_org_and_keeps_the_involvement_pending(d
     inv = choice["involvementId"]
     # 2026-11-11（SEM-REC-05）：名前のある関わりは根拠の記録の確度を写す。印の無い一文なので Unspecified。推定の根拠は無い
     assert _q(personal, "MATCH (i:Involvement {involvementId: $id}) RETURN i.serviceTypeName AS s, i.status AS st, "
-                        "i.certainty AS c, i.inferenceBasis AS b", id=inv) == \
-        [{"s": "生活介護", "st": "Pending", "c": "Unspecified", "b": None}]
+                        "i.certainty AS c, i.inferenceBasis AS b, i.howEnded AS h", id=inv) == \
+        [{"s": "生活介護", "st": "Pending", "c": "Unspecified", "b": None, "h": "Ongoing"}]  # 2026-11-12：通っている → Ongoing
 
     chosen = choice["candidates"][0]["orgId"]  # 人が番号で選んだことに当たる。名前も ID も出さない
     linked = mcp_gate._link(personal, resource, setup["code"], inv, NAME, chosen)

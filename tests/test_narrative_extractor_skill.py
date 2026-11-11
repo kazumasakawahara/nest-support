@@ -155,3 +155,13 @@ def test_the_skill_asks_the_staff_to_choose_and_never_chooses_itself():
     for words in ("orgChoices", "番号", "自分で選ばない", "一件でも", "「無い」", "link_organization", "所在地", "サービスの種類"):
         assert words in steps, words
     assert steps.index("submit_proposal を呼ぶ") < steps.index("link_organization")
+
+
+
+def test_the_skill_writes_ongoing_only_when_the_original_says_so():
+    """2026-11-12（案 A）：名前のある関わりに howEnded は Ongoing だけ。推し量って書かない。終わった関わりは事実だけ残す"""
+    shape = _skill_section("案の形")
+    assert '"howEnded"' in shape
+    rules = _skill_section("守ること")
+    for words in ("howEnded", "`Ongoing`", "推し量", "終わった関わり", "事実"):
+        assert words in rules, words

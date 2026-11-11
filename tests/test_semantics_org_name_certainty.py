@@ -27,3 +27,12 @@ def test_rec_05_states_the_three_rules():
                   "orgName", "orgId", "止める", "inferenceBasis"):
         assert words in s, words
     assert "情報提供の書面" not in s  # 書面のときの扱いは決めていない（journal の論点。承認の範囲の外）
+
+
+def test_rec_05_states_how_ended_rules():
+    """2026-11-12（案 A）：Ongoing だけ。終わった値は止める。名前の無い関わりはいつも Unknown で、書いてあれば止める"""
+    s = _sec("SEM-REC-05")
+    for words in ("`howEnded`", "`Ongoing` だけ", "今も続いていると読めるとき", "`Unknown`",
+                  "`Lapsed`", "`DeclinedByPerson`", "`EndedByAgency`", "終わった関わりは今は案に書けない。事実の記録としては入る",
+                  "名前の無い関わり"):
+        assert words in s, words

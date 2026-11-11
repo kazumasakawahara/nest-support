@@ -25,6 +25,7 @@ description: 母親・支援者の語り（ナラティブ）、自分の面談�
 6. **年のない日付に年を足さない。** 「10月2日」は引用のまま残し、`aboutDate` には年まで原文にあるときだけ書く
 7. **機関 ID を書かない。** 書面の提供元は原文の名前（`providerName`）だけを書く。職員が候補から選ぶ（N-24）。「区役所の窓口で」のような名前の無い言及は `involvements` に書き、機関は担当機関の推定の候補からだけ選ぶ（N-24a）
    - 関わりの引用に機関の名前（呼び名を含む。例：「つばさ」）が書かれていれば、その関わりの `orgName` に引用のとおりに写す（引用に無い名前は止まる）。サービスの種類（例：生活介護）が原文に書かれていれば `serviceTypeName` に写す。機関 ID は書かない。結ぶ機関は、返事の候補から職員が選ぶ（手順 6）
+   - `orgName` のある関わりで、原文から今も続いていると読めるとき（「通っている」「利用している」など）だけ `howEnded` に `Ongoing` を書く。読めなければ書かない（推し量って書かない。`Unknown` で入る）。`orgName` の無い関わりには書かない。原文に、もうやめた・通っていないとある終わった関わりは、今は `involvements` に書けない（止まる）。事実として `facts` に残すだけにする
 8. **本人の `clientId` は書かない。** 本人は仮名（`C-……`）で指し、書き込み受付が仮名から入れる。clientId は書かない（別の本人の ID が書いてあると止まる）
 9. **事実ごとに `recordKind` と `informantKind` を必ず書く**（正典の値だけ。日本語や別の値に読み替えない）
 10. **見立て**（記録者自身の受け取り方・推測。原文の【推測】の一文）は、値を足さずに書く（SEMANTICS SEM-REC-04）：`certainty: Inference`、`informantKind` はその見立てのもとになった情報源（本人の話から `Self`、家族の話から `Family`、職員が自分で見たことから `Agency`、記録だけから `DocumentOnly`）。`toldBy` は書かない（誰かが言ったことではない）。根拠が見立てだけの禁忌の候補は作らない（止まる）。推奨ケアの候補は作れるが注意が付く
@@ -41,7 +42,7 @@ description: 母親・支援者の語り（ナラティブ）、自分の面談�
  "newPeople": [{"ref"}]（任意。役割の名前で呼ぶ人。実名は書かない）,
  "facts": [{"quote", "text"?, "recordKind", "certainty", "providerCertainty"?（書面のとき）,
             "informantKind", "aboutDate"?, "heardOn"?, "toldBy"?}],
- "involvements": [{"quote", "kind", "orgName"?（引用に書かれた機関の名前）, "serviceTypeName"?（原文のサービスの種類）, "orgId"?, "concerns"?}]（任意）,
+ "involvements": [{"quote", "kind", "orgName"?（引用に書かれた機関の名前）, "serviceTypeName"?（原文のサービスの種類）, "howEnded"?（"Ongoing" だけ。orgName のあるときだけ）, "orgId"?, "concerns"?}]（任意）,
  "ngActions": [{"quote", "action", "riskLevel", "reason"?}]（任意。禁忌の候補）,
  "carePreferences": [{"quote", "category", "instruction", "priority"?}]（任意。推奨ケアの候補）,
  "supportLog": {"quote", "date", "contactKind"?, "situation", "action"?, "nextAction"?, "note"?}（任意。面接記録。面接 1 回に一つ）}
