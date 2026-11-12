@@ -80,3 +80,13 @@ def test_the_list_names_the_client_once_with_the_relation(driver, admin, client,
     assert doc_commands.load("review_proposals.py").main(["list", "--code", code], driver=driver) == 0
     (line,) = [l for l in capsys.readouterr().out.splitlines() if l.startswith(person)]
     assert line.count(code) == 1 and "本人 %s  続柄 " % code in line and "（Parent）・Pending" in line, line
+    assert "「母が電話で話した " in line, line  # 2026-11-12：続柄の根拠の引用の冒頭を添える（本物の DB の問い合わせで確かめる）
+
+
+def test_the_list_shows_the_start_of_the_record_quote(driver, admin, client, capsys):
+    from tests import doc_commands
+    _, record = _submit(driver, admin, client)
+    code = _one(driver, "MATCH (c:Client {clientId: $c}) RETURN c.displayCode AS code", c=client)[0]["code"]
+    assert doc_commands.load("review_proposals.py").main(["list", "--code", code], driver=driver) == 0
+    (line,) = [l for l in capsys.readouterr().out.splitlines() if l.startswith(record)]
+    assert "「母が電話で話した " in line, line

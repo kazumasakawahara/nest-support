@@ -11,6 +11,8 @@
   （Claude Desktop での確かめの表示の気づき。2026-11-12 河原さん）
 - 関わり（Involvement）の承認・差し戻しの結果にも、show と同じ言い回しで機関（「機関：名前（ID）」か「機関：機関未確定」）と、
   サービスの種類・終わり方の行を出す。名前は資源の側から引く（2026-11-12 河原さん。journal 2026-11-11 の論点 5）
+- list の各行に、根拠の引用の冒頭を短く添える（記録はその引用、ほかは根拠の一つ目の引用。人は続柄の根拠の一つ目。記録の ID の順）。
+  長ければ切る。どれを承認するか一覧で選べるように（2026-11-12 河原さん）
 - list --rejected：差し戻したものを、差し戻した順に理由と出す（台帳 G-91）
 - approve・reject：一件ずつ承認（Active）・差し戻し（Inactive）する。差し戻しには理由を一行添えられる（--reason。AuditLog の reason。名前を書かない）。ゲートの承認（nest.gate.approve）を通すので、
   AuditLog（Approve・Reject）が残る。自分で登録したものを承認したら selfApproval が付く（自己承認）
@@ -45,8 +47,12 @@ OPTIONAL MATCH (n)-[r:RELATED_TO]->(rc:Client)
 WITH n, [x IN collect(DISTINCT c.displayCode) + collect(DISTINCT t.displayCode) + collect(DISTINCT v.displayCode)
          + collect(DISTINCT w.displayCode) WHERE x IS NOT NULL] AS codes,
      collect(DISTINCT CASE WHEN r IS NULL THEN NULL ELSE {kind: r.kind, status: r.status, code: rc.displayCode} END) AS relations
-RETURN labels(n)[0] AS label, n.origin AS origin, n.registeredAt AS at, codes, relations, n AS node
+RETURN labels(n)[0] AS label, n.origin AS origin, n.registeredAt AS at, codes, relations, n AS node,
+       COLLECT { MATCH (n)-[:EVIDENCED_BY]->(ev:Record) RETURN ev.quote ORDER BY ev.recordId } AS evidenceQuotes,
+       COLLECT { MATCH (n)-[rr:RELATED_TO]->(:Client) MATCH (re:Record) WHERE re.recordId IN rr.evidenceRecordIds
+                 RETURN re.quote ORDER BY re.recordId } AS relationQuotes
 ORDER BY at, label"""
+SNIPPET = 24  # 一覧に添える引用の冒頭の字数
 REJECTED = """MATCH (a:AuditLog {action: 'Reject'})-[:ACTED_BY]->(s:Staff)
 WHERE $id IS NULL OR a.targetId = $id
 RETURN a.targetLabel AS label, a.targetId AS id, a.at AS at, a.reason AS reason, s.staffId AS by
@@ -94,6 +100,16 @@ def _print_quotes(quotes, target_id=None):
         print("  根拠 %s（確度 %s・話し手 %s%s）：%s" % (q["recordId"], q["certainty"], q["informantKind"], state, q["quote"]))
 
 
+def _snippet(r):
+    """一覧の行に添える引用の冒頭。記録はその引用、ほかは根拠の一つ目（人は続柄の根拠の一つ目）。"""
+    quotes = ([r["node"].get("quote")] if r["label"] == "Record" else []) + list(r.get("evidenceQuotes") or []) \
+        + list(r.get("relationQuotes") or [])
+    quote = next((" ".join(q.split()) for q in quotes if q), None)
+    if not quote:
+        return "引用 無い"
+    return "「%s」" % (quote if len(quote) <= SNIPPET else quote[:SNIPPET] + "…")
+
+
 def _list(d, code=None):
     with d.session(database="neo4j") as s:
         rows = s.execute_read(lambda tx: [r.data() for r in tx.run(PENDING, labels=sorted(ap.DECIDABLE))])
@@ -106,7 +122,7 @@ def _list(d, code=None):
         line = "%s  %s  %s  %s  本人 %s" % (node_id, r["label"], r["origin"], r["at"], "・".join(codes) or "―")
         if r["label"] == "Person":
             line += "  続柄 %s" % ("、".join("%s・%s" % (_relation_name(x["kind"]), x["status"]) for x in r.get("relations") or []) or "無い")
-        print(line)
+        print(line + "  " + _snippet(r))
     if not code and any(not r["codes"] for r in rows):
         print(DASH)
     return 0
