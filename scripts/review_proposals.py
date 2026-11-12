@@ -9,6 +9,8 @@
   続柄も一緒に変わり、結果に出す（正典 v0.14 §7。2026-11-12 河原さん。台帳 G-102）
 - list の人の行は、本人の仮名を一度だけ出し、続柄（と状態）を添える。人の show で出す項目が無いときは、伏せているから出さないと書く
   （Claude Desktop での確かめの表示の気づき。2026-11-12 河原さん）
+- 関わり（Involvement）の承認・差し戻しの結果にも、show と同じ言い回しで機関（「機関：名前（ID）」か「機関：機関未確定」）と、
+  サービスの種類・終わり方の行を出す。名前は資源の側から引く（2026-11-12 河原さん。journal 2026-11-11 の論点 5）
 - list --rejected：差し戻したものを、差し戻した順に理由と出す（台帳 G-91）
 - approve・reject：一件ずつ承認（Active）・差し戻し（Inactive）する。差し戻しには理由を一行添えられる（--reason。AuditLog の reason。名前を書かない）。ゲートの承認（nest.gate.approve）を通すので、
   AuditLog（Approve・Reject）が残る。自分で登録したものを承認したら selfApproval が付く（自己承認）
@@ -201,7 +203,21 @@ def _show(d, label, target_id, resource_driver=None):
     return 0
 
 
-def _decide(d, a, label):
+DECIDED_ITEMS = ("serviceTypeName", "howEnded")  # 関わりの承認の結果に添える項目（show と同じ行）
+
+
+def _involvement_lines(d, target_id, resource_driver):
+    with d.session(database="neo4j") as s:
+        rows = s.execute_read(lambda tx: [r.data() for r in tx.run(
+            "MATCH (n:Involvement {involvementId: $id}) RETURN n AS node", id=target_id)])
+        out = _org_lines(s, resource_driver, target_id)
+    names = semantics.field_names()["Involvement"]
+    shown = {names.get(k, k) for k in DECIDED_ITEMS}
+    out += ["  %s：%s" % (key, value) for key, value in items_of("Involvement", dict(rows[0]["node"]) if rows else {}) if key in shown]
+    return out
+
+
+def _decide(d, a, label, resource_driver=None):
     target, rid = {"label": label, "id": a.id}, "req-review-" + uuid.uuid4().hex
     out = ap.approve(d, a.staff, target, rid) if a.cmd == "approve" else ap.reject(d, a.staff, target, rid, reason=a.reason)
     if not out["ok"]:
@@ -215,6 +231,9 @@ def _decide(d, a, label):
         print("差し戻した：%s %s → Inactive（理由：%s）" % (label, a.id, a.reason or "―（書いていない）"))
     for r in out.get("relations") or []:
         print("続柄も %s にした：本人 %s の%s" % (r["status"], r["code"], _relation_name(r["kind"])))
+    if label == "Involvement":
+        for line in _involvement_lines(d, a.id, resource_driver):
+            print(line)
     _print_quotes(out["shown"], a.id)
     return 0
 
@@ -225,7 +244,7 @@ def _run(d, a, resource_driver=None):
     label = label_of(a.id)
     if a.cmd == "show":
         return _show(d, label, a.id, resource_driver)
-    return _decide(d, a, label)
+    return _decide(d, a, label, resource_driver)
 
 
 def main(argv=None, driver=None, resource_driver=None):
@@ -240,7 +259,7 @@ def main(argv=None, driver=None, resource_driver=None):
         return _run(driver, a, resource_driver)
     from nest import connections
     with connections.driver("personal") as d:
-        if a.cmd == "show" and label_of(a.id) == "Involvement":  # 機関の名前は資源の側から引く（読むだけ）
+        if a.cmd in ("show", "approve", "reject") and label_of(a.id) == "Involvement":  # 機関の名前は資源の側から引く（読むだけ）
             with connections.driver("resource") as r:
                 return _run(d, a, r)
         return _run(d, a)
