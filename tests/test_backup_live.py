@@ -26,7 +26,7 @@ ENV = str(Path.home() / ".config" / "nest" / "neo4j-redesign.env")
 SCRATCH = "nest-backup-restore-test"
 SERVICE, CONTAINER, DATA = "neo4j-test", "nest-redesign-test", REPO / "nest_neo4j_test_data"  # 試験用の DB（docker-compose.yml）
 SCRATCH_PORT = 39687  # nest-support の 37xxx・38xxx、tsunagu-net の 17xxx・27xxx・47xxx・48xxx を避けた
-EXTRA_LABELS = {"NestLiveProbe"}  # 架空の印（ゲートを通さず人が置く。正典の外）
+EXTRA_LABELS = {"NestLiveProbe", "NestTestDbProbe"}  # 架空の印・試験用の DB の印（ゲートを通さず置く。正典の外。2026-11-12 G-103）
 
 
 def _compose(*args):

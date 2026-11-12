@@ -58,7 +58,10 @@ if __name__ == "__main__":
     from nest import connections
     if sys.argv[1:] != ["mark"]:
         sys.exit("使い方：NEST_DB_TARGET=test uv run python tests/live_testdb.py mark")
-    require_test_target()
-    with connections.driver("personal") as d:
-        place_test_mark(d, connections.uri("personal"))
+    try:  # 止めるときは理由の一行だけを出す（Traceback を出さない。2026-11-12 河原さん）
+        require_test_target()
+        with connections.driver("personal") as d:
+            place_test_mark(d, connections.uri("personal"))
+    except RuntimeError as e:
+        sys.exit(str(e))
     print("試験用の印を置いた（%s）" % connections.uri("personal"))

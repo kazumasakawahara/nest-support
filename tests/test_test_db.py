@@ -151,3 +151,13 @@ def test_a_live_run_aimed_at_the_trial_db_stops_before_any_test():
                         "tests/test_relation_live.py"], cwd=REPO, env=env, capture_output=True, text=True)
     assert p.returncode != 0
     assert "試走の DB に向いている" in p.stdout + p.stderr
+
+
+def test_marking_the_trial_db_from_the_terminal_stops_with_one_line():
+    # 2026-11-12 河原さん：止まるのは正しいが、Traceback を出さず理由の一行だけで終える（pytest の止まり方と同じ文）
+    env = {k: v for k, v in os.environ.items() if k != "NEST_DB_TARGET"}
+    p = subprocess.run(["uv", "run", "--quiet", "python", "tests/live_testdb.py", "mark"], cwd=REPO, env=env,
+                       capture_output=True, text=True)
+    assert p.returncode != 0
+    assert "Traceback" not in p.stderr + p.stdout
+    assert (p.stderr + p.stdout).strip() == live_testdb.TRIAL_MESSAGE
