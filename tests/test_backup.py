@@ -230,3 +230,12 @@ def test_restore_with_a_wrong_name_lists_the_generations(tmp_path, capsys):
     assert mod.main(["restore", "20261110", "--root", str(tmp_path)]) == 1
     out = capsys.readouterr().out
     assert "20261110-114507" in out and "20261110-121315" in out and "list" in out
+
+
+def test_dump_of_the_test_db_checks_the_test_container(tmp_path):
+    # 2026-11-12 河原さん（案 A。台帳 G-103）：DB を使う試験の書き出しは、試験用の DB のコンテナを止めて取る。試走の DB には触れない
+    busy = Fake(running="nest-redesign-test\n")
+    out = backup.dump(tmp_path / "bk", tmp_path / "data", IMAGE, busy, NOW, container="nest-redesign-test")
+    assert not out["ok"] and any("nest-redesign-test" in e for e in out["errors"])
+    other = Fake(running="nest-redesign-personal\n")
+    assert backup.dump(tmp_path / "bk2", tmp_path / "data", IMAGE, other, NOW, container="nest-redesign-test")["ok"]

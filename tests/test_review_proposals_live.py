@@ -57,16 +57,18 @@ def setup(driver):
     return {"admin": admin, "a": made[0], "b": made[1], "code": code}
 
 
-def _line(sub):
-    return next(l for l in dc.lines("review_proposals.py") if (" %s" % sub) in l)
+def _line(sub, fill=()):
+    """手順書の行のうち、その操作で、埋める欄（REC-… など）をすべて持つ最初の行（2026-11-11：4.5 (c) に show --id INV-… が入った）"""
+    return next(l for l in dc.lines("review_proposals.py") if (" %s" % sub) in l and all(k in l for k in fill))
 
 
 def _run(sub, fill, driver):
-    return dc.load("review_proposals.py").main(dc.argv(_line(sub), fill), driver=driver)
+    return dc.load("review_proposals.py").main(dc.argv(_line(sub, fill), fill), driver=driver)
 
 
 def test_list_is_oldest_first_with_the_code(driver, setup, capsys):
-    assert _run("list", {}, driver) == 0
+    # 手順書の最初の list の行は 4.5 (c) の「list --code C-……」（2026-11-11）。仮名を埋めて流す
+    assert _run("list", {"C-……": setup["code"]}, driver) == 0
     out = capsys.readouterr().out
     a, b = setup["a"][0], setup["b"][0]
     assert a in out and b in out and out.index(a) < out.index(b)

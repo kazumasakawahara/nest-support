@@ -374,7 +374,7 @@ DB に入るもの（すべて `Pending`・`origin: AiExtracted`）：
 
 正典の版
 
-12. **はい。** 今回の正典の変更を SCHEMA v0.13 とし、ADR-002 の `ChangeProposal` の版上げ（v0.14）と分ける
+12. **はい。** 今回の正典の変更を SCHEMA v0.13 とし、ADR-002 の `ChangeProposal` の版上げ（v0.14）と分ける（2026-11-12 読み替え：v0.14 は新しい人の続柄（台帳 G-102）に使い、`ChangeProposal` は v0.15 に送る）
 13. **はい。** 機械検証ブロックの `"version"`（`0.5`）は今回も触らない
 
 次に行うこと（段階 L の最初。段階 J の制約が外れていることを先に確かめる）：試験を先に書く → SCHEMA v0.13（`contactKind` 6 値）と SEMANTICS SEM-REC-04・表示名 → 入口の点検と受付の検証（3-A と決めごと 8） → `check_drift.py` FAIL 0・`uv run pytest -q` → 台帳に決めごと 13 項目を写す → L-1。L-2・L-3 の計画の行に決めごと 7 の表示の条件を足す（`docs/proposals/2026-11-08-stage-L-M.md` を計画に移すとき）。

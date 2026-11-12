@@ -1,15 +1,15 @@
-# HANDOVER — 2026-11-10 stage-j（ADR-001 の作り直し。段階 A〜I は main に合流済み（cb9a3f8）。段階 J：G-91・N-46 済み、次は止まる点 J-1）
+# HANDOVER — 2026-11-10 stage-l（ADR-001・ADR-002 の作り直し。段階 J は main に合流済み（9cb72ca。確認点 J-1 可）。確認点 L-0 は決定（80a677b）。段階 L：正典 v0.13・入口と受付の規則・書き込み受付の MCP・narrative-extractor の書き直しを stage-l に置いた）
 
 > 前の HANDOVER（2026-08-03 main。WAM NET スキル整合）は git 履歴（ce627d9）にある。そこに書かれた
 > `~/.config/nest/neo4j.env`・ポート 7687・`nest-support-neo4j` は**前の構成**で、この枝では使わない。
 
-## 再開コマンド（2026-11-10 15:11 に確かめた）
+## 再開コマンド（2026-11-10 22:10 に確かめた）
 
 ```bash
-cd ~/Dev-Work/project/nest-support && git switch stage-j
-uv run pytest -q                       # 1009 passed, 144 skipped（DB を使う試験は skip）
+cd ~/Dev-Work/project/nest-support && git switch stage-l
+uv run pytest -q                       # 1096 passed, 146 skipped（DB を使う試験は skip）
 uv run python scripts/check_drift.py   # ずれ 0 件
-./scripts/doctor.sh                    # 環境の点検：29 passed, 2 warned, 0 failed（WARN は external-api の記録と設定のファイルが無いこと）
+./scripts/doctor.sh                    # 環境の点検：31 passed, 3 warned, 0 failed（WARN は external-api の記録と設定のファイル、nest-gate.env が無いこと。nest-gate.env は手順書 4.5 (a) で作る）
 ```
 
 DB を使う試験（結合試験のタスクのときだけ。終わったら必ず止める）：
@@ -17,13 +17,17 @@ DB を使う試験（結合試験のタスクのときだけ。終わったら�
 ```bash
 docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d     # nest-redesign-personal（37474/37687）・nest-redesign-resource（38474/38687）
 # 試走の DB の中身（下の「前提」）を残している間は live_cleanup.py を打たない（印のほかをすべて消す）
-NEST_LIVE_DB=1 uv run pytest -q                                       # 最後に流したのは 2026-11-10 15:03：1151 passed・1 failed（#16 で直し、当該 1 本は通った）
+docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d neo4j-test   # 試験用の DB（36474/36687。2026-11-12 台帳 G-103）
+NEST_DB_TARGET=test NEST_LIVE_DB=1 uv run pytest -q                   # DB を使う試験は試験用の DB だけ（試走の DB に向いていると止まる）
+docker compose --env-file ~/.config/nest/neo4j-redesign.env stop neo4j-test
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove-orphans は使わない
 ```
 
+- 接続してよいのは 37687（試走）・38687（資源）・36687（試験用）だけ（2026-11-12 河原さん。台帳 G-103）。試験用の DB は試験の始まりに毎回空にする（試験用の印 `NestTestDbProbe` が無ければ止まる）。初めての一度だけ `NEST_DB_TARGET=test uv run python tests/live_testdb.py mark`
+
 - `neo4j-redesign.env` の中身は読まない・表示しない（接続の部品 `nest/connections.py` と試験が読む）
-- 起動の前に `docker ps` で前の DB が動いていないことを確かめ、起動の後に 2 つとも 127.0.0.1 だけで待ち受けていることを確かめる（N-18 の条件）
-- 2026-11-10 15:11 に down 済み（河原さんが段 10 で止めた。`docker ps` に nest の名前が無いことを確かめた）
+- 起動の前に `docker ps` で前の DB が動いていないことを確かめ、起動の後に 127.0.0.1 だけで待ち受けていることを確かめる（N-18 の条件。試験用の DB も同じ）
+- 2026-11-10 の夜（22:25 より前）に起こし、**起こしたまま**（河原さんの指示。止めていない）
 
 新しい Mac でゼロから入れる手順は `docs/SETUP_GUIDE.md` の「0. 新しい Mac でゼロから」（N-38）。
 
@@ -59,7 +63,13 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
   - [x] 段階 I の main への合流（河原さん。merge commit cb9a3f8。stage-i は残してある）
   - [x] G-91：差し戻しの理由（AuditLog の `reason`。正典 v0.12。`reject --reason`・`list --rejected`）。台帳 G-92
   - [x] **N-46 運用の試走**（2026-11-08〜11-10）：段 0〜10 を通した。詰まり 16 件、#5 のほかは直した（#5 は L-0 の提案に）。記録 `docs/journal/2026-11-08-n46-trial.md`
-  - [ ] **止まる点 J-1**（河原さんが決める）：詰まりが無くなった状態として、実データの登録（Claude には渡さない範囲）を始められると宣言するか
+  - [x] **止まる点 J-1**：可（main に合流。merge commit 9cb72ca）
+  - [x] **確認点 L-0**（2026-11-10 河原さん）：1-B ＋ 2-B ＋ 3-A。決めごと 13 項目（`docs/proposals/2026-11-10-L0-entrance-decisions.md` §6。台帳 G-95）
+  - [x] 段階 L の最初（枝 `stage-l`。2026-11-10）：正典 SCHEMA v0.13（`SupportLog.contactKind` 6 値）・SEMANTICS SEM-REC-04（ba69fe4）、入口の点検と受付の検証の規則（9c6ae0d）、書き込み受付の MCP `nest-gate`（`nest/mcp_gate.py` の `submit_proposal`。中身は `nest/gate/proposal.py`。dac0074。台帳 G-96）、narrative-extractor を `submit_proposal` を呼ぶ形に（仮名の復唱・止まったら理由を示して作り直す）
+  - [x] G-96 (f)：`desktop_config.py` の add・check に `nest-gate`、職員の ID の設定 `scripts/gate_staff.py`（set・check。`~/.config/nest/nest-gate.env`・600）、doctor の [3]・[10]、手順書 4.5 を「(a) 設定 → (b) 語りを貼る・仮名の復唱に「はい」・未確定で入る → (c) list で確かめる」に。`submit_proposal.py` は 4.5 の末尾の予備へ
+  - [x] `submit_proposal` の返事に、入れた先の仮名と件数（`summary`・`code`・`pending`・`counts`）が、止まったとき（0 件）も必ず出る
+  - [ ] 河原さんが Claude Desktop で 4.5 (a)〜(c) を一巡する（この Mac ではまだ `desktop_config.py add`・`gate_staff.py set` を打っていない）。一巡の後に `scripts/submit_proposal.py` を外す
+  - [ ] 段階 L・M の案（K-5）は、まだ計画（`docs/implementation-plan.md`）に移していない
 
 ## グレーな判断
 
@@ -91,6 +101,7 @@ docker compose --env-file ~/.config/nest/neo4j-redesign.env down      # --remove
 
 ## 次タスク（優先度順）
 
-- A：止まる点 J-1（河原さんが決める）。決まるまで何も進めない
-- B：J-1 の後、段階 L・M の案（K-5、`docs/proposals/2026-11-08-stage-L-M.md`）を計画に移すかを河原さんが決める。移すなら、先に確認点 L-0（論点 8 つ）
-- C：残る未決は河原さんの側（G-80：Claude に実データを渡す契約の形、療育手帳の通知の照合）。tsunagu-net への提案（台帳 G-40：列挙値と、上限で切れた印）をどこから渡すかは決めていない
+- A：河原さんが 2026-11-11 に Claude Desktop で 4.5 (a)〜(c) を一巡した（C-N5AE5P に未確定 10 件）。詰まり 1〜5 を直した（`docs/journal/2026-11-11-stage-L-trial-fixes.md`。show に項目、list --code、名札の決まり、4.5 (b) の画面と見出しの行と ID）。DB を使う試験はまだ流していない（流す前に河原さんに知らせる）。`scripts/submit_proposal.py` と予備の小段を外すのは、河原さんの指示を待つ（G-94）。6 の 3 点は L-2 の論点に回した（`docs/proposals/2026-11-08-stage-L-M.md`）
+- B：仮名の復唱を道具の側で確かめる仕組みは L-2（引用の印）と合わせて決める
+- C：段階 L・M の案（K-5）を計画に移す（L-2・L-3 の行に決めごと 7 の表示の条件を書いてある）。L-1 の残り（失効・交代・修正・食い違い。正典 v0.14 の `ChangeProposal`）
+- D：残る未決は河原さんの側（G-80：Claude に実データを渡す契約の形、療育手帳の通知の照合）。tsunagu-net への提案（台帳 G-40：列挙値と、上限で切れた印）をどこから渡すかは決めていない

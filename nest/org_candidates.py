@@ -4,6 +4,9 @@
 - 点数づけ・並べ替えの重みづけをしない。名前の順に並べ、上限を超えたら切ったことを示す（truncated）
 - 返すのは候補だけ。chosen はいつも None（候補から職員が選び、intake.check の provider_org_id で渡す）
 - 一致が無ければ空。似た名前を推測で足さない
+- for_involvement：関わりの機関の候補（2026-11-11 河原さん）。名前の引き方は by_name と同じで、候補ごとに所在地の市区
+  （Area.name）とサービスの種類（Service.serviceTypeName の一覧）を添える。案のサービスの種類と照らして候補を減らさない。
+  by_name の返す形は変えない
 """
 import re
 import unicodedata
@@ -42,3 +45,28 @@ def by_name(driver, name, limit=20, database="neo4j"):
             return out
         rows = s.execute_read(work)
     return {"query": name, "candidates": rows[:limit], "truncated": len(rows) > limit, "chosen": None}
+
+
+INVOLVEMENT_SEARCH = SEARCH.split("RETURN")[0] + """WITH o, CASE WHEN own CONTAINS $name THEN 'name' ELSE 'alias' END AS matchedBy
+OPTIONAL MATCH (o)-[:LOCATED_IN]->(a:Area)
+WITH o, matchedBy, collect(DISTINCT a.name) AS areas
+OPTIONAL MATCH (o)-[:PROVIDES]->(s:Service {status: 'Active'})
+WITH o, matchedBy, areas, collect(DISTINCT s.serviceTypeName) AS services
+RETURN o.orgId AS orgId, o.name AS name, o.kind AS kind, matchedBy, areas, services
+ORDER BY name, orgId"""
+
+
+def for_involvement(driver, name, limit=20, database="neo4j"):
+    """関わりの機関の候補。返り値 {"query", "candidates": [{orgId, name, kind, matchedBy, areas, serviceTypes}], "truncated"}。"""
+    key = _key(name)
+    with driver.session(database=database) as s:
+        def work(tx):
+            out = []
+            for r in tx.run(INVOLVEMENT_SEARCH, name=key):
+                out.append({"orgId": r["orgId"], "name": r["name"], "kind": r["kind"], "matchedBy": r["matchedBy"],
+                            "areas": sorted(x for x in r["areas"] if x), "serviceTypes": sorted(x for x in r["services"] if x)})
+                if len(out) > limit:
+                    break
+            return out
+        rows = s.execute_read(work)
+    return {"query": name, "candidates": rows[:limit], "truncated": len(rows) > limit}

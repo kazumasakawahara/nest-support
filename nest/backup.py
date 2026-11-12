@@ -37,9 +37,9 @@ def personal_image(compose_text):
     return m.group(1)
 
 
-def _running(runner):
+def _running(runner, container=CONTAINER):
     code, out = runner(["docker", "ps", "--format", "{{.Names}}"])
-    return code != 0 or CONTAINER in out.split()
+    return code != 0 or container in out.split()
 
 
 def _admin(runner, data, gen, image, *args):
@@ -58,11 +58,12 @@ def _ensure_root(root, runner):
     runner(["tmutil", "addexclusion", str(root)])
 
 
-def dump(root, data, image, runner=run, now=None):
-    """個人の側を書き出す。返り値 {ok, errors, generation, removed}。"""
+def dump(root, data, image, runner=run, now=None, container=CONTAINER):
+    """個人の側を書き出す。返り値 {ok, errors, generation, removed}。
+    container は止まっていることを確かめるコンテナ。DB を使う試験は試験用の DB のコンテナを渡す（2026-11-12 河原さん。台帳 G-103）。"""
     out = {"ok": False, "errors": [], "generation": None, "removed": []}
-    if _running(runner):
-        out["errors"].append("個人の側の DB（%s）が動いているか、確かめられない。止めてから取る" % CONTAINER)
+    if _running(runner, container):
+        out["errors"].append("個人の側の DB（%s）が動いているか、確かめられない。止めてから取る" % container)
         return out
     root = Path(root)
     _ensure_root(root, runner)

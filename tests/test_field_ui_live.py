@@ -1,4 +1,4 @@
-"""N-37：field-ui が起動した個人の側（127.0.0.1:37687）を、包みで読み、ゲートを通して支援記録を書くこと。
+"""N-37：field-ui が試験用の DB（127.0.0.1:36687）を、包みで読み、ゲートを通して支援記録を書くこと。
 NEST_LIVE_DB=1 のときだけ。
 
     NEST_LIVE_DB=1 uv run pytest -q tests/test_field_ui_live.py

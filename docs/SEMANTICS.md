@@ -49,7 +49,7 @@ Claude が確度 `Inference` の関わり（`Involvement`）の案を作れる�
 ### SEM-AREA-04 案と確定
 
 - Claude は語りの文脈で候補から一つ選ぶか、選ばない（機関未確定）。候補の外の機関 ID は点検（`intake.check`）が止める
-- 関わりの確度はいつも `Inference`、終わり方は `Unknown`。案に確度を書かせない。AI 由来なので `Pending`。職員が承認して初めて確定する（N-21）
+- 機関の名前が無い言及（住所からの推定）の関わりの確度はいつも `Inference`、終わり方は `Unknown`。案に確度を書かせない。AI 由来なので `Pending`。職員が承認して初めて確定する（N-21）。原文に機関の名前がある関わりの確度は SEM-REC-05（2026-11-11 河原さん）
 - 後見（`Guardianship`）は推定で作らない。`GuardianshipCenter` を選んだ関わりは `Consultation` だけ（ほかの種類は点検が止める）
 - 住所からの推定（`inferenceBasis` を持つ関わり）で作れる種類は `Consultation`（相談）と `Administrative`（手続き）だけ。ほかの種類（`AgencyContract`・`Guardianship`・`ServiceProvision` など）はゲートが止める。住所で分かるのは「この区の窓口が担当になりうる」ことだけで、契約や選任で決まる関わりは推し量れない（2026-11-05 河原さん。台帳 G-62）
 - 親の介護の相談（親についての関わり）は、本人の関わりにしない。正典 v0.7 から、親を `Person` として持ち、その人に向けた関わり（`CONCERNS` → `Person`）にできる。ただし原文に「その人が相談した・その人に関わった」とはっきり書かれているときだけで、引用を付けて `Pending`。住所からの推定（候補から選んだ機関）では、本人以外の人の関わりを作らない（点検とゲートが止める。台帳 G-60）
@@ -101,6 +101,138 @@ tsunagu-net の SEMANTICS v0.32 の BRS-49 と ENU-05・10・20 に合わせた�
 - 新しい禁忌（`NgAction`）には、根拠の記録（`EVIDENCED_BY` → `Record`）が一つは要る。無ければゲートが止める（ADR D5。台帳 G-52 (7)）
 - 職員が直接知った禁忌は、先に職員の記録（`Record`、`kind: Observation`）を作り、それを根拠にする
 - 取り込みの案の禁忌・推奨ケアの候補は、同じ案の事実を根拠に指す。指していない候補はゲートが止める。新しい推奨ケア（`CarePreference`）にも、由来によらず根拠の記録が要る。職員が直接知ったことは、禁忌と同じく先に職員の記録（`kind: Observation`）を作る（台帳 G-63。正典 v0.9 §6）
+
+### SEM-REC-04 面接記録・見立て・新しい人の根拠（2026-11-10 河原さん。確認点 L-0。台帳 G-95。正典 v0.13。接触の一文の記録の種類は 2026-11-12・台帳 G-99。見立ての記録の種類は 2026-11-12・台帳 G-100、近隣・知人は台帳 G-101）
+
+面接記録の書き方
+- 相談支援の面接 1 回（訪問・来所・電話・同行・会議・文書のやり取り）を `SupportLog` 1 件にする。面接の中で聞いた事実・見たことは、事実ごとに `Record` に分ける（`kind: Interview`／職員が見たことは `Observation`）。禁忌・推奨ケア・食い違いの根拠になれるのは `Record` だけ
+- 接触そのものを述べる一文（「自宅を訪問。母と本人に会う。」「電話で聞き取った」など、記録者がしたこと・見たこと）は `kind: Observation`。相手が語った中身（「〜とのこと」「〜と話した」）は `kind: Interview`。「聞き取った」と書いてあっても、聞いたという行為を述べるだけの一文は `Observation`
+- `SupportLog` の項目の埋め方：`date`＝接触の日、`contactKind`＝接触の種類（合わなければ空）、`situation`＝どこで・誰と（同席者は役割の名前で。例「自宅。母と本人」。GH では今までどおり食事・作業などの場面）、`action`＝記録者がしたこと、`nextAction`＝次の調整（記録者の予定。`Record` にしない）、`note`＝ほか
+- `effectiveness` は行動支援の記録だけが使う。効果の判定は職員が行い、Claude の案には書かせない
+- 同席者を人のノードと結ぶ関係は作らない（`situation` に役割の名前で書く）。話し手は事実ごとの `TOLD_BY`
+- `SupportLog` の根拠（`EVIDENCED_BY`）は、案の事実の引用一つ（接触の一文）に結ぶ
+
+見立て（記録者自身の受け取り方・推測）の書き方
+- 見立ては、原文で【推測】の印を付けた一文を `Record` にする。`certainty: Inference`（約束 3 の「記録者の推測」）。`informantKind` に値は足さない
+- `informantKind` は、その見立てのもとになった話・観察の情報源を書く：本人の話から `Self`、家族の話から `Family`、職員が自分で見たことから `Agency`、既存の記録だけから `DocumentOnly`。記録者は `AUTHORED_BY` の `Staff`。`TOLD_BY` は張らない（誰かが言ったことではない）
+- 見立ての記録の種類（`kind`）は、もとになった情報に合わせる：本人・家族・近隣や知人の話から（`informantKind` が `Self`・`Family`・`Neighbor`）なら `Interview`、記録者の観察から（`Agency`）なら `Observation`、既存の記録だけから（`DocumentOnly`）なら `Document`。見立てであることは確度 `Inference` が表し、記録の種類に見立ての意味を持たせない
+- `PROVIDED_BY` の無い `Agency` は、自分の事業所の職員の見聞と読む。照会口と出力は、これを「記録者の観察」と表示する（段階 L の L-2・L-3 の条件）
+- 見立ては禁忌・推奨ケアの候補の根拠になれる。候補は根拠の確度（`Inference`）を引き継ぐ。根拠が見立てだけの候補は、禁忌（`NgAction`）は入口の点検で止め（推測だけで禁忌にしない）、推奨ケア（`CarePreference`）は注意を出して通す
+
+新しい人の根拠
+- AI が案に出す新しい人（`Person`）は、同じ案の中で、その人が話した記録（`TOLD_BY`）か、その人についての関わり（`CONCERNS`）か、本人との関係（`RELATED_TO`）のどれかで結ぶ。どれにも結ばれない新しい人は、入口の点検でも受付の検証でも止める
+
+### SEM-REC-05 機関の名前のある関わりの確度と終わり方（2026-11-11 河原さん。台帳 G-97。終わり方は 2026-11-12・台帳 G-98）
+
+- 原文に機関の名前（呼び名を含む）があり、案の関わりに `orgName` として写した関わりは、誰も推測していない。その関わりの確度は、根拠の記録（同じ引用の事実の `Record`）の確度を写す。それより強くしない。終わり方は `Unknown`、AI 由来なので `Pending` で、職員が承認して初めて確定する（SEM-AREA-04 と同じ）
+- 職員が候補から選んで機関に結んだか、候補が無くて機関未確定のままかで分けない。確度は案を入れた時に決まり、作った後は変えない（正典 §4.2）。機関が決まっていないことは、機関に結ばれていない（`HAS_INVOLVEMENT` が無い）ことで示す
+- 印の無い原文の記録は `Unspecified`（確度の記載なし）なので、関わりも `Unspecified` のまま写す。`Inference` に寄せない
+- 推定の根拠（`inferenceBasis`）は持たない（住所からの推定ではないため）
+- 一つの関わりに `orgName` と、住所からの推定の候補から選んだ `orgId` の両方があれば、入口の点検が止める（確度の決まりが違うため）
+- 終わり方（`howEnded`）：名前のある関わりは、案に `Ongoing` だけを書ける（任意）。原文から今も続いていると読めるときだけ書く。読めなければ書かず、`Unknown` で入る
+- 終わった値（`Lapsed`・`DeclinedByPerson`・`EndedByAgency`）が案にあれば、入口の点検が止める。止めた理由に「終わった関わりは今は案に書けない。事実の記録としては入る」と出す
+- 名前の無い関わり（住所からの推定）は、今までどおりいつも `Unknown`。案に `howEnded` があれば止める
+
+### SEM-REC-06 新しい人と本人との続柄（2026-11-12 河原さん。台帳 G-102）
+
+- AI が案に出す新しい人（`Person`）に、本人との続柄（`RELATED_TO.kind`）を書けるのは、原文に続柄が書いてあるときだけ（「母」「姉」「主治医」「近所の人」）。推し量って書かない
+- 案に書ける値は、親族の 8 つ（`Parent`・`Child`・`Spouse`・`Partner`・`Sibling`・`Grandparent`・`Grandchild`・`OtherRelative`）と `PrimaryDoctor`・`Neighbor`。`KeyPerson`・`Helper`・`OtherSupporter` は判断や役割の評価を含むので案に書けず、入口の点検が止める。`KeyPerson` は職員が決める
+- 根拠は、その続柄が読める引用の記録（同じ案の事実の `Record`）。確度は根拠の記録の確度を写し、それより強くしない
+- 新しい人を作る前に、照会口で既にいる人の続柄を読む。同じ続柄の人がいれば、同じ人として結ぶかを職員に尋ねる。続柄が同じでも同じ人とは決めない（D8）
+- 既にいる人に、後から続柄を足す道は今は無い
+- 続柄の語の一覧（下の表）に語を足すのは、台帳に記録すれば足りる。値を足す・値の意味を変えるのは河原さんの承認による
+
+続柄の語の一覧（入口の点検が読む。長い語を先に当て、別の続柄の語を含む語（「祖母」の「母」など）は長いほうで読む）
+
+| 値 | 語 |
+|---|---|
+| `Parent` | 母・父・お母さん・お父さん・お母様・お父様・母親・父親・ママ・パパ・おかあさん・おとうさん・実母・実父・養母・養父 |
+| `Child` | 息子・娘・長男・長女・次男・次女・三男・三女・子ども・子供・お子さん・お子様 |
+| `Spouse` | 妻・夫・配偶者・奥さん・奥様・旦那・ご主人・主人 |
+| `Partner` | 内縁の妻・内縁の夫・内縁・事実婚・パートナー |
+| `Sibling` | 姉・兄・妹・弟・きょうだい・兄弟・姉妹・お姉さん・お兄さん・姉さん・兄さん・実姉・実兄・実妹・実弟 |
+| `Grandparent` | 祖母・祖父・祖父母・おばあさん・おじいさん・おばあちゃん・おじいちゃん・おばあ様・おじい様 |
+| `Grandchild` | 孫・お孫さん |
+| `OtherRelative` | 叔母・伯母・叔父・伯父・おば・おじ・おばさん・おじさん・義母・義父・義姉・義兄・義妹・義弟・義理の母・義理の父・義理の姉・義理の兄・義理の妹・義理の弟・継母・継父・姪・甥・いとこ・従兄弟・従姉妹・親戚・親族・曾祖母・曽祖母・曾祖父・曽祖父・兄嫁・弟嫁 |
+| `PrimaryDoctor` | 主治医・かかりつけ医・かかりつけの医師 |
+| `Neighbor` | 近所の人・近所・近隣・隣人・お隣・隣の人・知人 |
+| （続柄にしない語） | 母方・父方・大丈夫・工夫 |
+
+## 項目の表示名（2026-11-11 河原さん。段階 L の確かめ）
+
+承認の前に職員が見る画面（`scripts/review_proposals.py show`）に出す項目の日本語の表示名。コード（`nest/semantics.py` の `field_names`）はこの表から読む。
+正典の項目・必須・列挙値は変えない（名前を添えるだけ）。伏せる項目（実名・かな・電話・住所・生年月日）、ID、引用（`quote`）、指紋（`sourceHash`・`documentHash`）は画面に出さないので、表に載せない。
+
+### SEM-FIELD-01 表示名
+
+| ラベル | 項目 | 表示名 |
+|---|---|---|
+| `SupportLog` | `date` | 面接・支援の日 |
+| `SupportLog` | `contactKind` | 接触の種類 |
+| `SupportLog` | `situation` | 状況 |
+| `SupportLog` | `action` | 対応 |
+| `SupportLog` | `effectiveness` | 効果 |
+| `SupportLog` | `nextAction` | 次の対応 |
+| `SupportLog` | `note` | 注記 |
+| `NgAction` | `action` | してはいけないこと |
+| `NgAction` | `riskLevel` | 危険度 |
+| `NgAction` | `reason` | 理由 |
+| `NgAction` | `validFrom` | 有効の始まり |
+| `NgAction` | `validTo` | 有効の終わり |
+| `CarePreference` | `category` | 種類 |
+| `CarePreference` | `instruction` | 支え方 |
+| `CarePreference` | `priority` | 優先度 |
+| `CarePreference` | `validFrom` | 有効の始まり |
+| `CarePreference` | `validTo` | 有効の終わり |
+| `Record` | `kind` | 記録の種類 |
+| `Record` | `text` | 要約 |
+| `Record` | `certainty` | 確度 |
+| `Record` | `informantKind` | 情報源 |
+| `Record` | `aboutDate` | 出来事の日 |
+| `Record` | `heardOn` | 聞いた日 |
+| `Record` | `providerCertainty` | 提供元の確度 |
+| `Record` | `receivedOn` | 書面を受けた日 |
+| `Person` | `note` | 注記 |
+| `Involvement` | `kind` | 関わりの種類 |
+| `Involvement` | `howEnded` | 終わり方 |
+| `Involvement` | `certainty` | 確度 |
+| `Involvement` | `startDate` | 始まり |
+| `Involvement` | `endDate` | 終わり |
+| `Involvement` | `guardianshipType` | 後見の類型 |
+| `Involvement` | `serviceTypeName` | サービスの種類 |
+| `Involvement` | `inferenceBasis` | 推定の根拠 |
+| `Involvement` | `note` | 注記 |
+| `Condition` | `name` | 特性・診断の名前 |
+| `Condition` | `diagnosisDate` | 診断の日 |
+| `Wish` | `content` | 願い |
+| `LifeHistory` | `era` | 時期 |
+| `LifeHistory` | `episode` | 出来事 |
+| `CareRole` | `name` | 役割 |
+| `CareRole` | `frequency` | 頻度 |
+| `CareRole` | `priority` | 優先度 |
+| `CareRole` | `note` | 注記 |
+| `Certificate` | `type` | 種類 |
+| `Certificate` | `grade` | 等級 |
+| `Certificate` | `issuedDate` | 交付の日 |
+| `Certificate` | `nextRenewalDate` | 次の更新の日 |
+| `PublicAssistance` | `type` | 種類 |
+| `PublicAssistance` | `startDate` | 始まり |
+| `PublicAssistance` | `endDate` | 終わり |
+| `Residence` | `certainty` | 確度 |
+| `Residence` | `areaCode` | 団体コード（区） |
+| `Residence` | `since` | 住み始め |
+| `Residence` | `until` | 住み終わり |
+| `Review` | `domain` | 確かめた領域 |
+| `Review` | `reviewedAt` | 確かめた日時 |
+| `Review` | `informantKind` | 情報源 |
+| `Review` | `note` | 注記 |
+| `RetentionDecision` | `decidedOn` | 判断の日 |
+| `RetentionDecision` | `decision` | 判断 |
+| `RetentionDecision` | `reason` | 理由 |
+| `RetentionDecision` | `nextReviewOn` | 次の見直しの日 |
+| `Client` | `displayCode` | 仮名 |
+| `Client` | `birthDatePrecision` | 生年月日の精度 |
+| `Client` | `bloodType` | 血液型 |
 
 ## 列挙値の表示名（計画 N-27。台帳 G-47）
 
@@ -197,6 +329,12 @@ tsunagu-net と同じ列挙（`status`・`origin`・`certainty`・`informantKind
 | `retentionDecision` | `Delete` | 消す |
 | `linkedBy` | `Gate` | 取り込みで結んだ |
 | `linkedBy` | `Human` | 人が結んだ |
+| `contactKind` | `Visit` | 訪問 |
+| `contactKind` | `OfficeVisit` | 来所 |
+| `contactKind` | `Phone` | 電話 |
+| `contactKind` | `Accompaniment` | 同行 |
+| `contactKind` | `Meeting` | 会議 |
+| `contactKind` | `Correspondence` | 文書・メール・FAX 等のやり取り |
 | `effectiveness` | `Effective` | 効果があった |
 | `effectiveness` | `Ineffective` | 効果がなかった |
 | `effectiveness` | `Neutral` | どちらとも言えない |

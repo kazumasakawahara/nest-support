@@ -1,6 +1,8 @@
 """書き込みの案（narrative-extractor が作った JSON）を、職員が手元で入口の点検とゲートに通す（N-46 詰まり #7。2026-11-09 河原さん）。
 
 **つなぎの道具。段階 L の L-1 で書き込み受付（ゲート MCP）ができたら外す（台帳 G-94）。**
+中身は nest/gate/proposal.py に移し、書き込み受付の MCP（nest/mcp_gate.py の submit_proposal）と同じものを呼ぶ（2026-11-10）。
+外すまでは、Claude Desktop が使えないときの予備として残す。
 
 - 本人は仮名（--code）で指す。道具が個人の側から clientId を引いて案に入れる（案の clientId が空か「CLI-…」のままなら入れ、
   別の本人の ID が書いてあれば止める）
@@ -16,17 +18,13 @@
 import argparse
 import json
 import sys
-import uuid
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from nest import ids  # noqa: E402
-from nest.gate import intake  # noqa: E402
-from nest.gate import write as gw  # noqa: E402
+from nest.gate import proposal  # noqa: E402
 
-CLIENT_OF = "MATCH (c:Client {displayCode: $code}) RETURN c.clientId AS id"
 AGAIN = "何も書いていない。JSON を手で直さず、止めた行をそのまま Claude Desktop に貼って案を作り直してもらう"
 
 
@@ -40,40 +38,22 @@ def parse(argv):
 
 
 def _run(d, a):
-    proposal = json.loads(Path(a.proposal).read_text(encoding="utf-8"))
+    data = json.loads(Path(a.proposal).read_text(encoding="utf-8"))
     original = Path(a.original).read_text(encoding="utf-8")
-    if not isinstance(proposal, dict):
-        print("止めた：案は JSON のオブジェクト")
-        return 1
-    if proposal.get("documentKind") != "OwnCaseRecord":
-        print("止めた：今は自分の記録（OwnCaseRecord）だけを受ける（書面は段階 L で）")
-        return 1
-    records, _, _ = d.execute_query(CLIENT_OF, {"code": a.code}, database_="neo4j")
-    if not records:
-        print("止めた：仮名 %s の本人がいない" % a.code)
-        return 1
-    client_id = records[0]["id"]
-    written = proposal.get("clientId")
-    if ids.is_valid_id(written, "CLI") and written != client_id:
-        print("止めた：案の clientId が仮名 %s の本人と違う" % a.code)
-        return 1
-    proposal["clientId"] = client_id
-    checked = intake.check(proposal, original, a.staff, "req-proposal-" + uuid.uuid4().hex)
-    for w in checked["warnings"]:
+    out = proposal.submit(d, a.staff, a.code, original, data)
+    for w in out["warnings"]:
         print("注意：" + w)
-    if not checked["ok"]:
-        for e in checked["errors"]:
-            print("止めた：" + e)
-        print(AGAIN)
-        return 1
-    out = gw.submit(checked["request"], d)
-    if not out["ok"]:
+    if out["ok"]:
+        print("未確定（Pending）で入れた：%d 件。次に見る：uv run python scripts/review_proposals.py list" % out["pending"])
+        return 0
+    if out["stage"] == "gate":
         print("止めた（ゲート）：" + "；".join(out["errors"]))
+    else:
+        for e in out["errors"]:
+            print("止めた：" + e)
+    if out["stage"] != "input":
         print(AGAIN)
-        return 1
-    n = sum(1 for node in checked["request"]["nodes"] if node["origin"] == "AiExtracted")
-    print("未確定（Pending）で入れた：%d 件。次に見る：uv run python scripts/review_proposals.py list" % n)
-    return 0
+    return 1
 
 
 def main(argv=None, driver=None):

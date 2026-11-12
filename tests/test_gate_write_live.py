@@ -1,4 +1,4 @@
-"""N-20：ゲートの書き込みを、起動した個人の側（127.0.0.1:37687）で確かめる。NEST_LIVE_DB=1 のときだけ。
+"""N-20：ゲートの書き込みを、試験用の DB（127.0.0.1:36687）で確かめる。NEST_LIVE_DB=1 のときだけ。
 
     NEST_LIVE_DB=1 uv run pytest -q tests/test_gate_write_live.py
 

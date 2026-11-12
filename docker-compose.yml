@@ -11,6 +11,14 @@
 #   起動の前に docker ps で、前の DB のコンテナが動いていないことを確かめる
 #   docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d
 #   docker compose --env-file ~/.config/nest/neo4j-redesign.env down   # 試験の終わりに必ず止める
+#   試験用の DB を起こした場合は、stop neo4j-test も打つ。down だけでは止まらない（下の neo4j-test の使い方）
+#
+# DB を使う試験の専用の DB（neo4j-test。2026-11-12 河原さん。案 A。台帳 G-103）。profile "test" なので、上の up -d・down では動かない:
+#   docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d neo4j-test    # 起動（127.0.0.1:36474・36687）
+#   docker compose --env-file ~/.config/nest/neo4j-redesign.env stop neo4j-test     # 停止
+#   パスワードは個人の側と同じ NEST_PERSONAL_PASSWORD（新しい設定を足さない）。中身は架空の試験の残りだけで、試験の始まりに毎回空にする
+#   ポートは、この Mac で使われていない 36xxx（nest-support の 37xxx・38xxx、tsunagu-net の 17xxx・27xxx・47xxx・48xxx、
+#   バックアップの試験の使い捨ての 39687 を避けた）
 #
 # 入れるデータは架空のフィクスチャだけ。実データの読み込みは、契約の確認の記録がそろうまでしない。
 # APOC は入れない。プラグインのフォルダもマウントしない（計画 N-18。台帳 G-35 の 3）。
@@ -58,5 +66,26 @@ services:
     volumes:
       - ./nest_neo4j_resource_data:/data
       - ./nest_neo4j_resource_logs:/logs
+    stop_grace_period: 60s
+    restart: "no"
+
+  neo4j-test:
+    image: neo4j:5.26.32-community@sha256:adaa077a3ab023015143b8f73f7076a7d053f12985f5b06f4c6a128c3a2f7240
+    container_name: nest-redesign-test
+    profiles: ["test"]
+    ports:
+      - "127.0.0.1:36474:7474"
+      - "127.0.0.1:36687:7687"
+    environment:
+      NEO4J_AUTH: "neo4j/${NEST_PERSONAL_PASSWORD:?set in ~/.config/nest/neo4j-redesign.env}"
+      NEO4J_server_memory_heap_initial__size: "512m"
+      NEO4J_server_memory_heap_max__size: "1G"
+      NEO4J_server_memory_pagecache_size: "512m"
+      NEO4J_dbms_security_allow__csv__import__from__file__urls: "false"
+      # 匿名の利用の情報を Neo4j 社に送らない（既定は送る。docs/external-api.md に無い送信。台帳 G-75）
+      NEO4J_dbms_usage__report_enabled: "false"
+    volumes:
+      - ./nest_neo4j_test_data:/data
+      - ./nest_neo4j_test_logs:/logs
     stop_grace_period: 60s
     restart: "no"

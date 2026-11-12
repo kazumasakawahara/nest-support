@@ -115,6 +115,8 @@ def build_plan(rep, req, now, new_id, new_code):
             props.update(linkedBy=actor, at=now)
         if rel["type"] == "CONTRADICTS":
             props["raisedAt"] = now
+        if rel["type"] == "RELATED_TO" and "evidenceRecordIds" in props:  # 同じ依頼の記録の名札を発番した ID に置き換える（正典 v0.14 §4.3）
+            props["evidenceRecordIds"] = [ref_ids[r] if labels.get(r) == "Record" else r for r in props["evidenceRecordIds"]]
         rels.append({"type": rel["type"], "from": a, "to": b, "props": props, "origin": origin})
 
     hashes = {}

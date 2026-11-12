@@ -1,6 +1,6 @@
-# nest-support スキーマ正典 — v0.12
+# nest-support スキーマ正典 — v0.14
 
-- 状態：v0.12（2026-11-06。監査ログに差し戻しの理由 `reason` を足した（台帳 G-91）。v0.11 で廃棄のための保存の判断 `RetentionDecision`・`DECIDES_ON`・`retentionDecision`、監査ログの `Purge` と件数の項目を、tsunagu-net の正典 v0.29〜v0.30 と同じ名前で足した（止まる点 F-1。台帳 G-74）。v0.10 で推奨ケア → 特性のリレーションを `ADDRESSES` から `RESPONDS_TO` に改めた（台帳 G-64）。v0.9 で取り込みの案から禁忌・推奨ケアの候補を作る形を §6 に書いた（台帳 G-63）。v0.8 で任意後見・任意代理を tsunagu-net の正典 v0.31（SEMANTICS v0.32 の BRS-49）に合わせた（§4.5、台帳 G-62）。v0.7 で関わりを本人以外の人にも向けられるようにした（§4.3、台帳 G-60）。v0.6 で関わりの種類の定義と推定の根拠を足した（§4.5、台帳 G-40・G-57）。それより前は 止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43・G-44 の判断（§9 の 10〜13）を反映した）
+- 状態：v0.14（2026-11-12。AI 由来の新しい人と一緒に入る続柄 `RELATED_TO` を未確定で入れ、人の承認・却下で一緒に変える決まりを §7 に、同じ依頼の記録を根拠に指す決まりを §4.3 に書いた（台帳 G-102）。v0.13 で支援の記録 `SupportLog` に接触の種類 `contactKind` を足した（確認点 L-0。台帳 G-95）。v0.12 で監査ログに差し戻しの理由 `reason` を足した（台帳 G-91）。v0.11 で廃棄のための保存の判断 `RetentionDecision`・`DECIDES_ON`・`retentionDecision`、監査ログの `Purge` と件数の項目を、tsunagu-net の正典 v0.29〜v0.30 と同じ名前で足した（止まる点 F-1。台帳 G-74）。v0.10 で推奨ケア → 特性のリレーションを `ADDRESSES` から `RESPONDS_TO` に改めた（台帳 G-64）。v0.9 で取り込みの案から禁忌・推奨ケアの候補を作る形を §6 に書いた（台帳 G-63）。v0.8 で任意後見・任意代理を tsunagu-net の正典 v0.31（SEMANTICS v0.32 の BRS-49）に合わせた（§4.5、台帳 G-62）。v0.7 で関わりを本人以外の人にも向けられるようにした（§4.3、台帳 G-60）。v0.6 で関わりの種類の定義と推定の根拠を足した（§4.5、台帳 G-40・G-57）。それより前は 止まる点 2 の河原さんの判断（§9）と、その後の G-38〜G-41・G-43・G-44 の判断（§9 の 10〜13）を反映した）
 - 根拠：ADR-001（承認 2026-11-05。D1〜D11。D3 は 2026-11-05 に 2 回改めた）、約束 v1.1（`~/Dev-Work/tsunagu-net/docs/contracts/nest-support-shared.md`。2026-11-05 改め。v1 は 2026-11-04 確定）
 - 扱う範囲：個人の側の DB の、ラベル・リレーション・プロパティ・列挙値の**名前と構造**、ID の形、制約。資源の側は tsunagu-net の正典を参照するだけ
 - 扱わない範囲：業務上の意味・運用の規則・列挙値の日本語の表示名（nest-support の意味の文書 `docs/SEMANTICS.md` に置く。まだ無い。ADR D1）。機械が読む JSON は N-07 で §11 に置き、この表と一致させる（N-08 の乖離の検査）
@@ -107,7 +107,7 @@
 | `CareRole` | `careRoleId`✅, `name`✅, `frequency`, `priority`(enum), `note` | 親などが担っている役割（親の機能移行） |
 | `Certificate` | `certificateId`✅, `type`✅(enum), `grade`, `issuedDate`(Date), `nextRenewalDate`(Date) | 手帳・受給者証 |
 | `PublicAssistance` | `publicAssistanceId`✅, `type`✅(enum), `startDate`(Date), `endDate`(Date) | 公的扶助・年金・手当 |
-| `SupportLog` | `supportLogId`✅, `date`✅(Date), `situation`✅, `action`, `effectiveness`(enum), `note`, `nextAction` | 支援の記録。構造（状況・対応・効果）を持つ事実。書いた人は `Staff`。元の文は `Record` に持つ |
+| `SupportLog` | `supportLogId`✅, `date`✅(Date), `situation`✅, `action`, `effectiveness`(enum), `note`, `nextAction`, `contactKind`(enum) | 支援の記録。構造（状況・対応・効果）を持つ事実。GH・事業所の行動支援の記録と、相談支援の面接記録（面接 1 回＝1 件。`contactKind` で接触の種類）の両方。書いた人は `Staff`。元の文は `Record` に持つ。書き方は `docs/SEMANTICS.md` SEM-REC-04 |
 
 **聞いた記録・確認・監査**
 
@@ -162,6 +162,7 @@
 - 始点・終点の「（…ノード）」は、個人の側の任意のラベル（JSON の `"*"`）
 - `RELATED_TO` の向きは「始点の人が、本人の〈kind〉である」。例：`(母)-[:RELATED_TO {kind: Parent}]->(本人)`。同じ人が家族でキーパーソンでもあるときは、`kind` ごとに一本ずつ張る（同じ `Person` のまま。D8）
 - `RELATED_TO` は関係そのものが事実なので、確度（`certainty`。作った後は変えない）と根拠の記録の ID の一覧（`evidenceRecordIds`）を関係に持つ。確かめ直したら、新しい `Record` の ID を一覧に足す。一覧から消さない（関係に関係をつなげないため。§9 の 6）
+- 同じ依頼の中の記録を根拠にするときは、依頼の `evidenceRecordIds` に記録の名札（ref）を書き、ゲートが書くときに発番した ID に置き換える
 - 交代・終わりは張り替えない。終わった関係・関わりに `until`・`endDate` と `Inactive` を書き、新しく作る（前の正典 §7.10 の考え方を残す）
 - `EVIDENCED_BY.linkedBy` は `Gate`（取り込みで新しい事実と一緒に作った）か `Human`（人が既にある事実に結んだ）。既にある事実に結ぶのは人だけ（D5）
 - 資源 DB に無い個人の主治医は `Person` と `RELATED_TO {kind: PrimaryDoctor}`。医療機関は `(Organization)-[:HAS_INVOLVEMENT]->(Involvement {kind: Medical})`。医師をその関わりにつなぐときは `(Person)-[:HAS_INVOLVEMENT]->`
@@ -196,6 +197,7 @@
 | `retentionDecision`（tsunagu-net と同じ） | `Keep`, `Delete` |
 | `linkedBy` | `Gate`, `Human` |
 | `effectiveness` | `Effective`, `Ineffective`, `Neutral`, `Unknown` |
+| `contactKind`（nest-support だけ） | `Visit`, `OfficeVisit`, `Phone`, `Accompaniment`, `Meeting`, `Correspondence` |
 | `priority` | `High`, `Medium`, `Low` |
 | `certificateType` | `IntellectualDisabilityHandbook`, `PhysicalDisabilityHandbook`, `MentalDisabilityHandbook`, `DisabilityServiceRecipientCertificate`, `ChildDayServiceRecipientCertificate`, `SupportiveMedicalCareCertificate`, `Other` |
 | `publicAssistanceType` | `PublicAssistance`, `DisabilityBasicPension`, `DisabilityEmployeesPension`, `SpecialDisabilityAllowance`, `SpecialChildRearingAllowance`, `Other` |
@@ -214,6 +216,7 @@
   - 任意代理と任意後見を一緒に結んだ形は、同じ受任者から二つの関わり（`AgencyContract` と `VoluntaryGuardianshipContracted`）で持つ。効力が生じたら、この二つは `howEnded: Transitioned` で終え、`VoluntaryGuardianship` の関わりを新しく作る。`Transitioned` はこの二つの関わりにだけ書ける（ゲートが止める）
   - 関わりの始点は、受任者・任意後見人が個人なら `Person`、法人なら `Organization`（§4.3 の `HAS_INVOLVEMENT`）
   - 令和 8 年法律第 45 号の施行の後、後見（`Guardianship`）・保佐（`Curatorship`）は新しく使わない。施行日前に始まった後見・保佐は施行の後も残るので、値は消さない。ゲートで新しい後見・保佐を止めるのは、施行日を定める政令が出て条を照合してから（今は止めない）
+- `contactKind`（接触の種類。2026-11-10 河原さん。確認点 L-0。台帳 G-95）：相談支援の面接記録の `SupportLog` にだけ書く。訪問・来所・電話・同行・会議・文書（メール・FAX 等）のやり取りの 6 つ。合わないときは空のまま（「その他」の値は作らない。D7）。GH・事業所の行動支援の記録は空。表示名と書き方は `docs/SEMANTICS.md`（SEM-ENUM-01・SEM-REC-04）
 - `inferenceBasis`（推定の根拠。2026-11-05 河原さん。台帳 G-57）：機関を推定した関わり（`certainty: Inference`）にだけ持つ。住所そのものと区のコードは持たない。値はゲートが推定の結果から付け、案には書かせない。作った後は変えない
   - `ResidenceAreaAtTheTime`：言及の当時の住所の区から推定した
   - `CurrentResidenceArea`：今の住所の区から推定した（当時の住所が記録に無い、または言及の時期が分からない）
@@ -246,10 +249,11 @@
 ## 7. 承認（D9）
 
 - ゲートが書く事実・関係・記録は、AI 由来なら `Pending`（§4.1）
+- AI 由来の `RELATED_TO` は、同じ依頼で作る AI 由来の新しい `Person` からだけ張れる。`status` はゲートが `Pending` にする。その `Person` の承認で一緒に `Active`、却下で一緒に `Inactive` になり、AuditLog を残す。関係だけを承認・却下する操作は無い
 - 承認は書き込みとは別の操作。`(Staff)-[:APPROVED {at, selfApproval}]->(ノード)` を作り、`status` を `Active` にし、`AuditLog`（`action: Approve`、`selfApproval`）を残す
 - 一人で使う人は、自分が取り込んだものを自分で承認してよい。そのときは `selfApproval: true`。`APPROVED.selfApproval` は必須で、自己承認の数がいつでも数えられる
 - 承認の役割（tsunagu-net の `Approver`）は持たない。`staffRole` は tsunagu-net の 3 値の部分集合（`Staff`・`Administrator`）
-- 承認の操作は、そのノードの根拠の `Record.quote` を並べて見せてから行う。AI 由来のノードをまとめて一括で承認しない（一回の操作で一つのノード）
+- 承認の操作は、そのノードの根拠の `Record.quote` を並べて見せてから行う。AI 由来のノードをまとめて一括で承認しない（一回の操作で一つのノード。そのノードから張った未確定の `RELATED_TO` は一緒に変わる）。`Person` の承認では、未確定の `RELATED_TO` の `kind` と、その根拠（`evidenceRecordIds`）の記録の引用も見せる
 - 却下は `status: Inactive` と `AuditLog`（`action: Reject`）。消さない
 
 ## 8. 前の正典（v3.5）とのつき合わせ
@@ -345,7 +349,7 @@
       "CareRole":         {"required": ["careRoleId", "name"], "optional": ["frequency", "priority", "note"], "unique": ["careRoleId"]},
       "Certificate":      {"required": ["certificateId", "type"], "optional": ["grade", "issuedDate", "nextRenewalDate"], "unique": ["certificateId"]},
       "PublicAssistance": {"required": ["publicAssistanceId", "type"], "optional": ["startDate", "endDate"], "unique": ["publicAssistanceId"]},
-      "SupportLog":       {"required": ["supportLogId", "date", "situation"], "optional": ["action", "effectiveness", "note", "nextAction"], "unique": ["supportLogId"]},
+      "SupportLog":       {"required": ["supportLogId", "date", "situation"], "optional": ["action", "effectiveness", "note", "nextAction", "contactKind"], "unique": ["supportLogId"]},
       "Record":           {"required": ["recordId", "kind", "text", "quote", "certainty", "informantKind", "sourceHash"], "optional": ["aboutDate", "heardOn", "documentHash", "providerCertainty", "receivedOn"], "unique": ["recordId"]},
       "Review":           {"required": ["reviewId", "domain", "reviewedAt", "informantKind"], "optional": ["note"], "unique": ["reviewId"]},
       "AuditLog":         {"required": ["auditId", "at", "action", "targetLabel", "targetId", "requestId"], "optional": ["selfApproval", "retentionId", "purgedCounts", "keptPersons", "reason"], "unique": ["auditId"]},
@@ -410,14 +414,15 @@
     "priority": ["High", "Medium", "Low"],
     "certificateType": ["IntellectualDisabilityHandbook", "PhysicalDisabilityHandbook", "MentalDisabilityHandbook", "DisabilityServiceRecipientCertificate", "ChildDayServiceRecipientCertificate", "SupportiveMedicalCareCertificate", "Other"],
     "publicAssistanceType": ["PublicAssistance", "DisabilityBasicPension", "DisabilityEmployeesPension", "SpecialDisabilityAllowance", "SpecialChildRearingAllowance", "Other"],
-    "inferenceBasis": ["ResidenceAreaAtTheTime", "CurrentResidenceArea"]
+    "inferenceBasis": ["ResidenceAreaAtTheTime", "CurrentResidenceArea"],
+    "contactKind": ["Visit", "OfficeVisit", "Phone", "Accompaniment", "Meeting", "Correspondence"]
   },
   "enumBindings": {
     "*.status": "status", "*.origin": "origin",
     "Client.birthDatePrecision": "birthDatePrecision", "Staff.role": "staffRole",
     "Involvement.kind": "involvementKind", "Involvement.howEnded": "howEnded", "Involvement.certainty": "certainty", "Residence.certainty": "certainty", "Involvement.guardianshipType": "guardianshipType", "Involvement.inferenceBasis": "inferenceBasis",
     "NgAction.riskLevel": "riskLevel", "CarePreference.priority": "priority", "CareRole.priority": "priority",
-    "Certificate.type": "certificateType", "PublicAssistance.type": "publicAssistanceType", "SupportLog.effectiveness": "effectiveness",
+    "Certificate.type": "certificateType", "PublicAssistance.type": "publicAssistanceType", "SupportLog.effectiveness": "effectiveness", "SupportLog.contactKind": "contactKind",
     "Record.kind": "recordKind", "Record.certainty": "certainty", "Record.providerCertainty": "certainty", "Record.informantKind": "informantKind",
     "Review.domain": "reviewDomain", "Review.informantKind": "informantKind", "AuditLog.action": "auditAction", "RetentionDecision.decision": "retentionDecision",
     "RELATED_TO.kind": "clientRelationKind", "RELATED_TO.certainty": "certainty", "RELATED_TO.status": "status",
@@ -448,6 +453,8 @@
 
 ## 変更履歴
 
+- v0.14（2026-11-12）：河原さんの決定（台帳 G-102。提案 `docs/proposals/2026-11-12-relation-of-new-person.md`）。AI 由来の `RELATED_TO` は同じ依頼の AI 由来の新しい `Person` からだけ張り、ゲートが `Pending` にし、その人の承認・却下で一緒に `Active`・`Inactive` にする（§7）。同じ依頼の記録を `evidenceRecordIds` に名札で指し、ゲートが ID に置き換える（§4.3）。案に書ける続柄の値と語の一覧は `docs/SEMANTICS.md` SEM-REC-06。ラベル・関係・項目・列挙値・機械検証ブロックは変えない（`version` は 0.5 のまま）。確認点 L-0 の決めごと 12 で v0.14 に充てていた ADR-002 の `ChangeProposal` は v0.15 に送る
+- v0.13（2026-11-10）：河原さんの決定（確認点 L-0。台帳 G-95。提案 `docs/proposals/2026-11-10-L0-entrance-decisions.md`）。`SupportLog` に任意の `contactKind`（列挙 `contactKind`：`Visit`・`OfficeVisit`・`Phone`・`Accompaniment`・`Meeting`・`Correspondence`。nest-support だけ）を足した。面接 1 回＝`SupportLog` 1 件、聞いた事実は `Record` に分ける。見立ての書き方（値を足さず `certainty: Inference`）と新しい人の根拠は `docs/SEMANTICS.md` SEM-REC-04。ラベル・関係・必須の項目・共有の列挙値は変えない。機械検証ブロックの `version` は 0.5 のまま
 - v0.12（2026-11-06）：河原さんの決定（台帳 G-91）。`AuditLog` に `reason`（文字列。差し戻し `Reject` のときだけ・任意・一行・名前を書かない）を足した。ゲートの却下（`nest.gate.approve.reject`）が書く。tsunagu-net の AuditLog には無い（§10）
 - v0.11（2026-11-06）：河原さんの決定（止まる点 F-1。台帳 G-74）。本人のデータの廃棄（計画 N-32）のために、tsunagu-net の正典 v0.29（保存の判断）・v0.30（監査ログの Purge）と同じ名前で足した：ノード `RetentionDecision`（接頭辞 `RTD`）、`DECIDES_ON`（→ `Client`。tsunagu-net は → `Household`）、列挙値 `retentionDecision`（`Keep`・`Delete`）、`auditAction` の `Purge`、`AuditLog` の `retentionId`・`purgedCounts`・`keptPersons`。事案の終了（`CaseClosure`）と見直しの一覧は足さない
 - v0.10（2026-11-06）：河原さんの決定（台帳 G-64 の (b)）。推奨ケア → 特性のリレーション `ADDRESSES` を `RESPONDS_TO` に改めた。個人の側の読み取りの包みが、住所の項目（`address`）の部分一致で `ADDRESSES` を拒否するため。包みの検査は緩めない。tsunagu-net の正典・意味の文書に `RESPONDS_TO` は無い（2026-11-06 に確かめた）。新しい DB は `ADDRESSES` を一度も書いていない

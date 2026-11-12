@@ -5,7 +5,7 @@
 # 確かめること:
 #   1. 前の DB のコンテナが動いていない（前の DB は起動しない）
 #   2. 新しい二つのコンテナは、動いていれば 127.0.0.1 だけで待ち受けている（止まっているのは正しい状態）
-#   3. 接続の設定のファイルがあり、権限が 600（中身は読まない）。ほかの設定のファイル（field-ui-staff.json・external-api-record.json・external-api-features.json）は、あれば 600、無ければ WARN（N-38・F-3）
+#   3. 接続の設定のファイルがあり、権限が 600（中身は読まない）。ほかの設定のファイル（field-ui-staff.json・external-api-record.json・external-api-features.json・nest-gate.env）は、あれば 600、無ければ WARN（N-38・F-3・G-96）
 #   4. .mcp.json が nest-personal・nest-resource を持ち、前の MCP（neo4j・neo4j-shared）を持たない
 #   5. ~/.claude/skills/ のリンクが、このリポジトリの claude-skills を指している。外したスキルのリンクが残っていない
 #   6. 正典のずれが 0 件（scripts/check_drift.py）
@@ -25,7 +25,7 @@ SKILLS_DIR="${HOME}/.claude/skills"
 ENV_FILE="${HOME}/.config/nest/neo4j-redesign.env"
 DESKTOP_CONFIG="${HOME}/Library/Application Support/Claude/claude_desktop_config.json"
 OLD_CONTAINERS=(nest-support-neo4j support-db-neo4j)
-NEW_CONTAINERS=(nest-redesign-personal nest-redesign-resource)
+NEW_CONTAINERS=(nest-redesign-personal nest-redesign-resource nest-redesign-test)  # test は DB を使う試験の専用（2026-11-12 台帳 G-103）
 REMOVED_SKILLS=(wamnet-provider-sync livelihood-support)
 
 PASS=0
@@ -69,6 +69,9 @@ for name in "${NEW_CONTAINERS[@]}"; do
     fail "${name} が 127.0.0.1 の外でも待ち受けている（${line}）"
   else
     ok "${name}: 127.0.0.1 だけで待ち受けている"
+    if [ "${name}" = "nest-redesign-test" ]; then  # ふだんの down では止まらない（2026-11-12 河原さん）
+      info "試験用の DB が起きている（使い終わったら stop neo4j-test も打つ。down だけでは止まらない）"
+    fi
   fi
 done
 
@@ -85,7 +88,7 @@ else
   fail "~/.config/nest/neo4j-redesign.env が無い（docs/SETUP_GUIDE.md の 4）"
 fi
 # ほかの設定のファイル（N-38）。無いのは正しい状態。あれば権限 600
-for name in field-ui-staff.json external-api-record.json external-api-features.json; do
+for name in field-ui-staff.json external-api-record.json external-api-features.json nest-gate.env; do
   f="${HOME}/.config/nest/${name}"
   if [ -L "${f}" ]; then
     fail "~/.config/nest/${name} がリンク（実体のファイルにする）"
@@ -193,6 +196,11 @@ if [ -f "${DESKTOP_CONFIG}" ]; then
     info "Desktop の設定に nest-personal がある"
   else
     info "Desktop の設定に nest-personal が無い（Claude Desktop を使うときだけ uv run python scripts/desktop_config.py add を打つ）"
+  fi
+  if grep -q '"nest-gate"' "${DESKTOP_CONFIG}"; then
+    info "Desktop の設定に nest-gate（書き込み受付）がある"
+  else
+    info "Desktop の設定に nest-gate（書き込み受付）が無い（uv run python scripts/desktop_config.py add を打つ）"
   fi
 else
   info "Desktop の設定が無い（Claude Code だけなら要らない。Claude Desktop を使うなら uv run python scripts/desktop_config.py add を打つ）"

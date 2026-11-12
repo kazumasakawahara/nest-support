@@ -44,7 +44,8 @@ def test_doc_add_line_creates_the_config_when_absent(tool, tmp_path, uv):
     cfg = tmp_path / "Claude" / "claude_desktop_config.json"
     assert tool.main(_doc("add"), path=cfg) == 0
     servers = json.loads(cfg.read_text(encoding="utf-8"))["mcpServers"]
-    for name, module in (("nest-personal", "nest.mcp_personal"), ("nest-resource", "nest.mcp_resource")):
+    for name, module in (("nest-personal", "nest.mcp_personal"), ("nest-resource", "nest.mcp_resource"),
+                         ("nest-gate", "nest.mcp_gate")):
         assert servers[name]["command"] == uv
         args = servers[name]["args"]
         assert args[args.index("--directory") + 1] == str(REPO)
@@ -117,3 +118,31 @@ def test_doctor_10_points_to_the_tool(tmp_path):
     out = run_doctor(tmp_path, [])
     line = [l for l in out.stdout.splitlines() if "INFO" in l and "Desktop の設定" in l]
     assert line and "desktop_config.py add" in line[0], out.stdout
+
+
+# 台帳 G-96 (f)（2026-11-10 河原さん）：書き込み受付（nest-gate）も足す・確かめる
+
+def test_check_fails_when_only_the_two_read_only_wrappers_are_there(tool, tmp_path, capsys, uv):
+    cfg = tmp_path / "claude_desktop_config.json"
+    assert tool.main(_doc("add"), path=cfg) == 0
+    data = __import__("json").loads(cfg.read_text(encoding="utf-8"))
+    del data["mcpServers"]["nest-gate"]
+    cfg.write_text(__import__("json").dumps(data), encoding="utf-8")
+    capsys.readouterr()
+    assert tool.main(_doc("check"), path=cfg) == 1
+    out = capsys.readouterr().out
+    assert "nest-gate が無い" in out and "desktop_config.py add" in out
+
+
+def test_the_template_has_the_gate_too():
+    servers = json.loads((REPO / "configs" / "claude_desktop_config.json").read_text(encoding="utf-8"))["mcpServers"]
+    assert servers["nest-gate"]["args"][-2:] == ["-m", "nest.mcp_gate"]
+
+
+def test_doctor_10_tells_whether_the_gate_is_in_the_desktop_config(tmp_path):
+    cfg = tmp_path / "home" / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text('{"mcpServers": {"nest-personal": {}, "nest-resource": {}}}', encoding="utf-8")
+    out = run_doctor(tmp_path, [])
+    line = [l for l in out.stdout.splitlines() if "INFO" in l and "nest-gate" in l]
+    assert line and "無い" in line[0] and "desktop_config.py add" in line[0], out.stdout

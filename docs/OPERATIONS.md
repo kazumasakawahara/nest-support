@@ -125,52 +125,75 @@ uv run python scripts/new_client.py find --family 氏 --given 名     # 名前�
 
 点検：人が確かめる（`find` で仮名が引けること）
 
-## 4.5 Claude Desktop をつなぐ（設定と、語りから案を作る）
+## 4.5 Claude Desktop をつなぐ（設定と、語りから未確定で入れる）
 
-段 0 の操作 2〜5 と、5 の段の後半（書き込みの案を承認する）は、この段を済ませてから使います。**今は架空の事例の DB でだけ使います**（台帳 G-80）。Claude の照会は架空の印のある DB でだけ動きます（試走では 1 の「試走のときだけ」で印を置いています）。
+段 0 の操作 2〜5 と、5 の段の後半（書き込みの案を承認する）は、この段を済ませてから使います。**今は架空の事例の DB でだけ使います**（台帳 G-80）。Claude の照会と書き込み受付は、架空の印のある DB でだけ動きます（試走では 1 の「試走のときだけ」で印を置いています）。
 
 ### (a) 設定を足す
 
-設定の JSON は手で開きません。道具が、Claude Desktop の設定（`~/Library/Application Support/Claude/claude_desktop_config.json`）に `nest-personal`・`nest-resource` の 2 つを足します。中身はひな形 `configs/claude_desktop_config.json` と同じで、このフォルダと uv の完全なパスを道具が埋めます。ほかの道具の設定は消しません。前の設定は同じ場所に `.bak` として残ります。
+設定の JSON は手で開きません。道具が、Claude Desktop の設定（`~/Library/Application Support/Claude/claude_desktop_config.json`）に 3 つを足します：読むだけの照会口 `nest-personal`・`nest-resource` と、書き込み受付 `nest-gate`（案を点検して未確定で入れる道具）。中身はひな形 `configs/claude_desktop_config.json` と同じで、このフォルダと uv の完全なパスを道具が埋めます。ほかの道具の設定は消しません。前の設定は同じ場所に `.bak` として残ります。
+
+続けて、書き込み受付が「誰が出した案か」を知るための職員の ID を設定します。書くのは、この Mac で Claude Desktop に語りを貼る人、つまり**案を出す人**の職員 ID（`STF-…`）を一つです。**案を出す人と承認する人を分けるときは、職員（Staff）の ID を書きます**（2 の段の後半の `new_staff` で作った職員）。承認は 5 の段の後半で、別の人の ID（管理者など）で打ちます。管理者の ID（2 の段で控えたもの）を書くと、その人が自分で出した案を自分で承認することになり、承認の記録に自己承認（selfApproval）が付きます。一人で回す試走ではそれでもかまいません。ファイルは `~/.config/nest/nest-gate.env`（権限 600）で、道具が作ります。中身は開きません。Claude にも見せません（Claude は職員の ID を指定できません）。DB を起こしてから打ちます（Active の職員かを確かめるため）。
 
 ```bash
-uv run python scripts/desktop_config.py add     # 「足した：…」と出ること
+uv run python scripts/desktop_config.py add     # 「足した：nest-personal・nest-resource・nest-gate …」と出ること
 uv run python scripts/desktop_config.py check   # 「足してある：…」と出ること
+uv run python scripts/gate_staff.py set --staff STF-…   # 「設定した：…（権限 600）」と出ること
+uv run python scripts/gate_staff.py check       # 「設定してある：…」と出ること（ID そのものは出ない）
 ```
 
 - 「止めた：Desktop の設定が読めない」と出たら、何も書いていません。設定を自分で直さず、出た行を Claude Code に伝えます
-- Claude Desktop を終了して（⌘Q）、起動し直します。道具（`nest-personal`・`nest-resource`）が見えることを確かめます
-- doctor の [10] が「Desktop の設定に nest-personal がある」になることを確かめます
+- 「止めた：個人の側に Active の職員としていない」と出たら、何も書いていません。2 の段で出た職員 ID を打ち直します
+- Claude Desktop を終了して（⌘Q）、起動し直します。道具（`nest-personal`・`nest-resource`・`nest-gate`）が見えることを確かめます
+- doctor の [3] が「`nest-gate.env`: 権限 600」、[10] が「Desktop の設定に nest-personal がある」「Desktop の設定に nest-gate（書き込み受付）がある」になることを確かめます
 
 ```bash
-./scripts/doctor.sh                         # [10] が「Desktop の設定に nest-personal がある」になること
+./scripts/doctor.sh                         # [3] nest-gate.env が権限 600、[10] nest-personal と nest-gate があること
 ```
 
-### (b) 語りから案を作る（narrative-extractor）
+### (b) Claude Desktop に語りを貼る（narrative-extractor → 仮名の復唱 → 未確定で入る）
 
-1. Claude Desktop で新しい会話を開き、「C-…… の面談記録から書き込みの案を作って」と頼んで、続けて原文を貼ります（`narrative-extractor` が動きます）
-2. 架空の事例（`fixture_kakuu_haruto.md`）は、**§2 の語りをそのまま貼ってかまいません**（§3 も同じ）。**§1（本人の登録の値。実名・住所・生年月日）は貼りません。** 実データは貼りません（台帳 G-80）
+1. **Claude Desktop（Mac のアプリ）で「新規作成」を押します。** 入力欄の下の「プロジェクトまたはフォルダー」は何も選ばず、右下は「手動」のままにします。その入力欄で「C-…… の面談記録から書き込みの案を作って」と頼んで、続けて原文を貼って送ります（`narrative-extractor` が動きます）。ターミナルで `claude` と打って起動したものには `nest-gate` がつながっていないので、そちらには貼りません
+   - **原文は、見出しの行（日付のある行。例：「2026-11-02 訪問」）から貼ります。** 見出しの行が無いと面接の日が分からず、面接記録（supportLog）が作れません
+2. 架空の事例（`fixture_kakuu_haruto.md`）は、**§2 の語りをそのまま貼ってかまいません**（§3 も同じ）。機関の候補から選ぶ一往復（5 の続き）を試すときは、§4 の記録 2（呼び名「つばさ」の一文がある）を見出しの行から貼ります。§3 の機関の名前は架空なので候補が出ず、機関未確定のまま通ります。**§1（本人の登録の値。実名・住所・生年月日）は貼りません。** 実データは貼りません（台帳 G-80）
 3. 語りに確度の印を付けるなら、文の直後（句点「。」の後）に【本人の話】【伝聞】【確認済み】【未確認】【推測】のどれかを置きます。印はその直前の一文にだけかかります（文の前に置かない。ほかの語の印は点検で止まります）
-4. Claude は案（JSON）を返して止まります。Claude は DB に書きません。案の `clientId` は空か `CLI-…` のままでかまいません（(c) の道具が仮名から入れます）
-5. 貼った原文と返ってきた案を、リポジトリの外の手元のフォルダに保存します（例：原文は `~/nest-intake/原文.txt`、案は `~/nest-intake/案.json`）。原文は貼ったものと一字も変えません
+4. Claude が案の要点（事実の件数・面接記録・禁忌と推奨ケアの候補）を示し、「対象は C-…… の本人です。この本人に未確定で入れてよいですか」と仮名を復唱します。**本人の紙の記録に書き添えた仮名と一字ずつ見比べ**、合っていれば「はい」と答えます。違えば「違う。C-…… です」と正しい仮名を伝えます（「はい」と答えるまで Claude は出しません）
+5. 「はい」の後、Claude が書き込み受付（`nest-gate` の `submit_proposal`）を呼び、案が入口の点検とゲートを通って**未確定（Pending）で入ります**。右下が「手動」のままなら、道具を呼ぶたびに Claude Desktop が許可を求めてくるので、`submit_proposal` を呼ぶ瞬間が見えます。**許可を求められたら、仮名を確かめてから許可する**（4 で復唱した仮名と同じか）。返事に入れた先の仮名と件数が出ます（例：「C-…… に未確定（Pending）で 12 件入れた（Record 11・SupportLog 1）」）。仮名が 4 で復唱したものと同じかを確かめます
+   - **返事に機関の候補が出たら**（原文に機関の名前が書かれた関わりがあるとき）：Claude が関わりごとに候補を番号つきで示します（名前・種類・所在地の市区・サービスの種類）。同じ呼び名が並ぶので、所在地とサービスの種類で見分け、**番号で答えます**。どれでもなければ「無い」と答えます（関わりは機関未確定のまま入っています）。Claude は自分では選びません（候補が一件でも尋ねてきます）。番号を答えると、Claude が `link_organization`（`nest-gate`）を呼び、関わりが未確定のままその機関に結ばれます。許可を求められたら、仮名と番号を確かめてから許可します。確定は 5 の段の後半の承認です。候補が 0 件のときは「候補が無い。機関未確定のまま」と出ます
+6. 止まったときは、返事に「C-…… には何も入れていない（0 件）」と理由が出ます。**DB には何も入りません**（入口の点検でもゲートでも同じ）。Claude が理由をそのまま示し、理由のとおりに案を作り直して、4 の復唱からやり直します。案の JSON は人が手で直さないでください。原文に無いことを足して通すこともしません。同じ理由で二度止まったら、Claude は出し直さずに相談してきます
+- Claude は DB に直接書きません。書くのはゲートだけで、通った案は AI 由来なので未確定で入ります
+- **原文は、引用の照合と原本の指紋（documentHash）にだけ使い、DB に入れません。** DB に入るのは事実ごとの要約（text）と引用（quote）です
+- 今は自分の記録（OwnCaseRecord）だけを受けます。他の機関からの書面（ProvisionDocument）は止まります
 
-### (c) 案を通して未確定で入れる（submit_proposal）
+### (c) 未確定で入ったことを確かめる（review_proposals list）
+
+```bash
+uv run python scripts/review_proposals.py list --code C-……   # (b) で復唱した仮名の本人の分だけ、未確定で並ぶ
+uv run python scripts/review_proposals.py show --id INV-…    # 関わりのサービスの種類と、結ばれた機関（無ければ「機関未確定」）を見る
+```
+
+- 並んだ件数が (b) の返事の件数と合うかを確かめます。合わないときは `--code` を外して全部を出し、違う本人の行に並んでいたら、承認せずに差し戻します（5 の段の後半）
+- 全部を出したときの本人「―」の行は、どの本人にも結ばれていないもの（本人の記録・関わりのどれともつながっていない）です。承認の前に `show` で中身を見ます
+- 機関を選んだ関わりは、`show --id INV-…` で「機関：」の行に選んだ機関の名前が出ることを確かめます。選ばなかった関わりは「機関：機関未確定」です
+- 承認・差し戻しは 5 の段の後半（review_proposals）で一つずつ行います
+
+点検：[3]（`nest-gate.env` が 600）・[10]（Desktop の設定に nest-personal・nest-gate がある）。仮名を見比べて「はい」と答えたこと、案が未確定で並んだことは人が確かめる（`review_proposals.py list`）
+
+### MCP が使えないときの予備（submit_proposal）
+
+Claude Desktop で `nest-gate` が使えないとき（道具が見えない・設定が無いと言われる）だけ使います。Claude には (b) の 1〜3 のとおりに頼み、案（JSON）だけを返してもらいます。**河原さんが Claude Desktop で (a)〜(c) の一巡を確かめた後に、この予備の道具は外します**（台帳 G-94・G-96）。
+
+1. 貼った原文と返ってきた案を、リポジトリの外の手元のフォルダに保存します（例：原文は `~/nest-intake/原文.txt`、案は `~/nest-intake/案.json`）。原文は貼ったものと一字も変えません。案の `clientId` は空か `CLI-…` のままでかまいません（道具が仮名から入れます）
+2. 次を打ちます
 
 ```bash
 mkdir -m 700 -p ~/nest-intake
 uv run python scripts/submit_proposal.py --staff STF-… --code C-…… --original ~/nest-intake/原文.txt --proposal ~/nest-intake/案.json
-uv run python scripts/review_proposals.py list   # 入れた記録が未確定で並ぶ（5 の段の後半へ）
 ```
 
-- 道具は入口の点検（原文に無い引用・引用に無い数字・原文の印と違う確度・型に無い項目）を通してから、ゲートに渡します。**点検で止まっても、ゲートで止まっても（`止めた：…`・`止めた（ゲート）：…`）、DB には何も入りません**
-- 止まったときの直し方：**案の JSON は手で直さない。** 止めた行をそのまま (b) の会話に貼り、「この理由で止まった。案を作り直して」と頼みます（例：`止めた（ゲート）：ノード 13（fact-11）：…informantKind…` なら「fact-11 を外して案を作り直して」）。返ってきた案で `~/nest-intake/案.json` を置き換え、同じコマンドを打ち直します。点検の結果を自分で読み替えて通しません
-- 通った案は AI 由来なので、未確定（Pending）で入ります。5 の段の後半（review_proposals）で一つずつ承認するか差し戻します
-- **原文は、引用の照合と原本の指紋（documentHash）にだけ使い、DB に入れません。** DB に入るのは事実ごとの要約（text）と引用（quote）です
-- 今は自分の記録（OwnCaseRecord）だけを受けます。他の機関からの書面（ProvisionDocument）は止まります
-- 通したら、`~/nest-intake/` の原文と案のファイルを消します
-- この道具はつなぎです。段階 L の L-1 で書き込み受付（ゲート MCP）ができたら外します（台帳 G-94）
-
-点検：[10]（Desktop の設定に nest-personal がある）。案が未確定で並んだことは人が確かめる（`review_proposals.py list`）
+- 道具は書き込み受付と同じ点検（原文に無い引用・引用に無い数字・原文の印と違う確度・型に無い項目）を通してから、ゲートに渡します。**点検で止まっても、ゲートで止まっても（`止めた：…`・`止めた（ゲート）：…`）、DB には何も入りません**
+- 止まったときの直し方：**案の JSON は手で直さない。** 止めた行をそのまま会話に貼り、「この理由で止まった。案を作り直して」と頼みます。返ってきた案で `~/nest-intake/案.json` を置き換え、同じコマンドを打ち直します。点検の結果を自分で読み替えて通しません
+- 通ったら (c) で確かめます。`~/nest-intake/` の原文と案のファイルを消します
 
 ## 5. 支援記録を入れる（field-ui）
 
@@ -192,11 +215,11 @@ cd sos && PORT=8010 uv run python api_server.py     # SOS：http://127.0.0.1:801
 
 ### 書き込みの案を点検して承認する（review_proposals）
 
-AI が作ったもの（`narrative-extractor` の案など）は未確定（Pending）で入ります（入れ方は 4.5 の (c)）。職員が一つずつ見て、承認するか差し戻します。
+AI が作ったもの（`narrative-extractor` の案など）は未確定（Pending）で入ります（入れ方は 4.5 の (b)。確かめ方は (c)）。職員が一つずつ見て、承認するか差し戻します。
 
 ```bash
 uv run python scripts/review_proposals.py list                                   # 未確定の一覧（古い順）。本人は仮名で出る
-uv run python scripts/review_proposals.py show --id REC-…                        # 一件の根拠の引用を見る
+uv run python scripts/review_proposals.py show --id REC-…                        # 一件の項目（列挙値は表示名つき）と根拠の引用を見る
 uv run python scripts/review_proposals.py approve --staff STF-… --id REC-…       # 承認する（Active になる）
 uv run python scripts/review_proposals.py reject --staff STF-… --id REC-… --reason "…"   # 差し戻す（Inactive になる）。理由は一行・任意・名前を書かない
 uv run python scripts/review_proposals.py list --rejected                        # 差し戻したものを理由と見る
@@ -206,6 +229,7 @@ uv run python scripts/review_proposals.py list --rejected                       
 - 差し戻しの理由（`--reason`）は AuditLog の `reason` に残り、`show` と `list --rejected` で見えます。理由は一行・200 字までで、省けます。名前（本人・家族・職員）を書きません（台帳 G-91）
 - 承認・差し戻しは AuditLog に残ります。自分で登録したものを承認すると「自己承認」と出て、`selfApproval` が付きます
 - 承認する前に、`show` で根拠の引用を読みます。引用が無いもの・引用と中身が合わないものは差し戻します
+- **根拠の記録を先に承認します。** 禁忌・推奨ケア・面接記録・関わりなどは、根拠の記録（`REC-…`）が未確定のうちは承認できず、止まります（何も変わりません）。`show` で根拠の行に「未確定。先に承認する」と出た記録を、`show --id REC-…` で読んでから一件ずつ承認し、そのあと対象を承認します。根拠がすべて差し戻し済みのものは承認できません（差し戻すか、新しい根拠で出し直します）
 - 実データでは、Claude に渡せない間（台帳 G-80）AI の案が無いので、この段は使いません
 
 点検：人が確かめる（一覧が古い順で、根拠の引用を読んでから決めたこと）
@@ -329,20 +353,25 @@ doctor の項目：[1] 前の DB は動いていない、[2] 新しい DB の待
 
 ### 試走（架空の事例の DB）のときだけ：止める前に DB つきの試験を流す
 
-試走の終わりに、DB を起こしたまま、DB つきの試験をまとめて流します。**実データを入れた DB では流しません**（試験は架空の職員・本人・案を DB に足します）。
+試走の終わりに、DB つきの試験をまとめて流します。DB つきの試験は、**試験用の DB（`nest-redesign-test`。127.0.0.1:36687）だけ**で流します。試走の DB の中身には触れません。試走の DB（37687）に向いたままでは、試験は始まりで止まります（2026-11-12。台帳 G-103）。**実データを入れた DB では流しません**。
 
 ```bash
-NEST_LIVE_DB=1 uv run pytest -q             # 最後の行に failed が無いこと
+docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d neo4j-test   # 試験用の DB を起こす
+NEST_DB_TARGET=test NEST_LIVE_DB=1 uv run pytest -q   # 最後の行に failed が無いこと
+docker compose --env-file ~/.config/nest/neo4j-redesign.env stop neo4j-test    # 試験用の DB を止める
 ```
 
-- 試験が足した架空の本人・案は残ります（試走の DB の中身も消しません）。そのため、`review_proposals.py list` などに試験のものが混ざります
-- 段 1 の `live_mark.py` で置いた架空の印は残したままでかまいません（試験は印の数が始める前と同じかを見ます）
+- 試験は始まりで試験用の DB を空にします。試験用の印（`NestTestDbProbe`）と架空の印（`NestLiveProbe`）は残します。試験用の印が無い DB では、空にせずに止まります
+- 初めての一度だけ：試験用の DB を起こした後、試験の前に `NEST_DB_TARGET=test uv run python tests/live_testdb.py mark` で試験用の印を置きます。印を置けるのは、中身が一つも無い試験用の DB だけです
+- 資源の側（38687）は試走と共有します。試験は資源の側に書きません
+- 試験用の DB のパスワードは、個人の側と同じ（`neo4j-redesign.env` の `NEST_PERSONAL_PASSWORD`）です。新しい設定は要りません
+- Claude Desktop の道具と、端末で打つ道具（`review_proposals.py`・`new_client.py` など）は、今までどおり試走の DB に向きます
 
 ### 止める
 
 ```bash
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down
-docker ps                                   # 新しい DB（nest-redesign-personal・nest-redesign-resource）が出ないこと
+docker ps                                   # 新しい DB（nest-redesign-personal・nest-redesign-resource・nest-redesign-test）が出ないこと
 ```
 
 点検：人が確かめる（`docker ps` に新しい DB の 2 つが出ないこと）
@@ -357,7 +386,7 @@ docker ps                                   # 新しい DB（nest-redesign-perso
 | 2. 最初の管理者（bootstrap_admin） | 人が確かめる |
 | 3. 職員のトークン（staff_token） | [3]。トークンを手で渡したことは人が確かめる |
 | 4. 本人の登録（new_client） | 人が確かめる |
-| 4.5 Claude Desktop をつなぐ（設定・narrative-extractor・submit_proposal） | [10]。案が未確定で並んだことは人が確かめる |
+| 4.5 Claude Desktop をつなぐ（設定・narrative-extractor・書き込み受付 nest-gate） | [3]（nest-gate.env）・[10]。仮名を見比べて「はい」と答えたこと、案が未確定で並んだことは人が確かめる |
 | 5. 支援記録の入力（field-ui） | 人が確かめる |
 | 6. 音声（録音・文字起こし・purge_voice） | [9]（音声）・[3]（文字起こしの設定） |
 | 7. バックアップ（backup） | [7] [8]。取ったこと・周期・戻せることは人が確かめる |

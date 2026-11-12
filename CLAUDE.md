@@ -39,8 +39,9 @@ This file provides guidance to Claude Code / Claude Desktop when working with th
 |---|---|---|---|
 | 個人の側（`nest-redesign-personal`） | 本人・家族・支援の記録 | 127.0.0.1:37687 | MCP `nest-personal`：`read_personal_cypher`・`read_quote`・`personal_schema` |
 | 資源の側（`nest-redesign-resource`） | 事業所・窓口・区域・サービスの公開情報 | 127.0.0.1:38687 | MCP `nest-resource`：`read_resource_cypher`・`resource_version` |
+| 試験用（`nest-redesign-test`） | DB を使う試験の架空の残りだけ（試験の始まりに毎回空にする） | 127.0.0.1:36687 | DB を使う試験だけ（`NEST_DB_TARGET=test`）。Claude Desktop の道具・端末の道具は向かない |
 
-- 起動と停止：`docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d` ／ `… down`。`--remove-orphans` は使わない
+- 起動と停止：`docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d` ／ `… down`。`--remove-orphans` は使わない。試験用の DB を起こした場合は、stop neo4j-test も打つ。down だけでは止まらない（`… stop neo4j-test`）
 - 接続の設定のファイル（`~/.config/nest/neo4j-redesign.env`）の中身は読まない・表示しない
 - 二つの DB はまたげない。個人の側の `Organization` は `orgId` だけを持ち、名前は資源の側で引く
 - 個人の側の包みは、実名・かな・電話・住所・生年月日、記録の原文（`text`）を返さない。引用は `read_quote` で 200 字まで
@@ -132,10 +133,12 @@ This file provides guidance to Claude Code / Claude Desktop when working with th
 ```bash
 uv run pytest -q                       # DB を使わない試験
 uv run python scripts/check_drift.py   # 正典の表と JSON のずれ
-NEST_LIVE_DB=1 uv run pytest -q        # DB を使う試験（DB を起動したときだけ。終わったら止める）
+docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d neo4j-test   # 試験用の DB（127.0.0.1:36687）
+NEST_DB_TARGET=test NEST_LIVE_DB=1 uv run pytest -q   # DB を使う試験（試験用の DB だけ。試走の DB に向いていると止まる）
+docker compose --env-file ~/.config/nest/neo4j-redesign.env stop neo4j-test
 ```
 
-DB を起動するのは結合試験のときだけ。起動の前に前の DB が動いていないことを `docker ps` で確かめ、起動の後に二つとも 127.0.0.1 だけで待ち受けていることを確かめる。終わったら止める。
+DB を使う試験は試験用の DB だけで流す（2026-11-12 河原さん。台帳 G-103）。接続してよいのは 37687（試走）・38687（資源）・36687（試験用）だけ。起動の前に前の DB が動いていないことを `docker ps` で確かめ、起動の後に 127.0.0.1 だけで待ち受けていることを確かめる。試験用の DB を空にするのは試験の始まり（`tests/conftest.py`）だけで、試験用の印（`NestTestDbProbe`）が無ければ止まる。
 
 ---
 

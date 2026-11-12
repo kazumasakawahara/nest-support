@@ -436,6 +436,11 @@ def test_section_10_runs_the_live_tests_before_down_only_on_the_trial_db():
     sub = sec[i:sec.index("\n### ", i + 1)]
     assert "実データ" in sub
     lines = [c for c, _ in _box_lines(sec)]
-    live = next(n for n, l in enumerate(lines) if l == "NEST_LIVE_DB=1 uv run pytest -q")
+    # 2026-11-12 河原さん（案 A。台帳 G-103）：DB つきの試験は試験用の DB だけで流す。起こす → 流す → 止める → 試走の DB を止める
+    up = lines.index("docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d neo4j-test")
+    live = lines.index("NEST_DB_TARGET=test NEST_LIVE_DB=1 uv run pytest -q")
+    stop = lines.index("docker compose --env-file ~/.config/nest/neo4j-redesign.env stop neo4j-test")
     down = next(n for n, l in enumerate(lines) if l.endswith(" down"))
-    assert live < down
+    assert up < live < stop < down
+    assert "NEST_LIVE_DB=1 uv run pytest -q" not in lines  # 試走の DB に向けて流す行を残さない
+    assert "試走の DB の中身には触れません" in sub and "live_testdb.py mark" in sub

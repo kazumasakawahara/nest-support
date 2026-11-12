@@ -96,6 +96,16 @@ def test_fails_when_a_new_db_listens_on_all_addresses(tmp_path):
     assert out.returncode == 1 and "nest-redesign-personal" in out.stdout
 
 
+def test_the_test_db_is_checked_like_the_others(tmp_path):
+    # 2026-11-12 河原さん（案 A。台帳 G-103）：試験用の DB（nest-redesign-test。36687）も、動いていれば 127.0.0.1 だけで待ち受ける
+    ok = _run(tmp_path / "a", ["nest-redesign-test 127.0.0.1:36474->7474/tcp, 127.0.0.1:36687->7687/tcp"])
+    assert ok.returncode == 0 and "nest-redesign-test: 127.0.0.1 だけで待ち受けている" in ok.stdout, ok.stdout
+    bad = _run(tmp_path / "b", ["nest-redesign-test 0.0.0.0:36687->7687/tcp"])
+    assert bad.returncode == 1 and "nest-redesign-test" in bad.stdout
+    stopped = _run(tmp_path / "c", [])
+    assert "nest-redesign-test: 止まっている" in stopped.stdout
+
+
 def test_fails_when_the_settings_file_is_readable_by_others(tmp_path):
     out = _run(tmp_path, [], env_mode=0o644)
     assert out.returncode == 1 and "600" in out.stdout
@@ -194,7 +204,7 @@ def test_recent_voice_and_other_files_are_fine(tmp_path):
 
 # ---- N-38：新しい Mac の手順の結果。~/.config/nest/ のほかの設定のファイル ----
 
-CONFIG_FILES = ("field-ui-staff.json", "external-api-record.json", "external-api-features.json")
+CONFIG_FILES = ("field-ui-staff.json", "external-api-record.json", "external-api-features.json", "nest-gate.env")  # nest-gate.env は G-96 (f)
 
 
 def test_other_config_files_absent_are_warned(tmp_path):
@@ -204,12 +214,12 @@ def test_other_config_files_absent_are_warned(tmp_path):
     lines = out.stdout.splitlines()
     for name in CONFIG_FILES:
         assert any("WARN" in line and name in line for line in lines), out.stdout
-    assert "3 warned" in out.stdout
+    assert "%d warned" % len(CONFIG_FILES) in out.stdout
 
 
 def test_no_warning_when_the_other_config_files_are_there(tmp_path):
     out = _run(tmp_path, [], config_files={n: 0o600 for n in CONFIG_FILES})
-    assert "0 warned" in out.stdout and not any("WARN" in l and ".json" in l for l in out.stdout.splitlines())
+    assert "0 warned" in out.stdout and not any("WARN" in l and (".json" in l or ".env" in l) for l in out.stdout.splitlines())
 
 
 def test_other_config_files_pass_when_600(tmp_path):
@@ -222,3 +232,12 @@ def test_fails_when_an_other_config_file_is_readable_by_others(tmp_path, name):
     out = _run(tmp_path, [], config_files={name: 0o644})
     assert out.returncode == 1
     assert any("FAIL" in line and name in line for line in out.stdout.splitlines()), out.stdout
+
+
+def test_doctor_says_when_the_test_db_is_up(tmp_path):
+    # 2026-11-12 河原さん：ふだんの down では試験用の DB が止まらないので、起きているときに一行で知らせる（止め忘れを防ぐ）
+    up = _run(tmp_path / "a", ["nest-redesign-test 127.0.0.1:36474->7474/tcp, 127.0.0.1:36687->7687/tcp"])
+    assert "試験用の DB が起きている（使い終わったら stop neo4j-test も打つ。down だけでは止まらない）" in up.stdout, up.stdout
+    assert up.returncode == 0
+    down = _run(tmp_path / "b", [])
+    assert "試験用の DB が起きている" not in down.stdout

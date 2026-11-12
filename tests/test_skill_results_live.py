@@ -88,18 +88,22 @@ def fictional(driver, admin):
                     driver)
     assert out["ok"], out["errors"]
     ids = dict(out["ids"], client=client["id"])
-    # キーパーソン（根拠の記録の ID が要るので二つ目の依頼）・承認待ちの AI 由来の記録・確認の記録
-    out2 = gw.submit({"requestId": "req-" + uuid.uuid4().hex, "actorStaffId": admin,
-                      "nodes": [{"ref": "ai", "label": "Record", "origin": "AiExtracted",
-                                 "properties": _rec("架空の話 %s：未確定の話" % mark)}],
-                      "relationships": [{"type": "ABOUT", "from": "ai", "to": client},
-                                        {"type": "AUTHORED_BY", "from": "ai", "to": staff},
-                                        {"type": "RELATED_TO", "from": {"label": "Person", "id": ids["p"]}, "to": client,
+    # キーパーソン（根拠の記録の ID が要るので二つ目の依頼）・承認待ちの AI 由来の記録・確認の記録。
+    # 2026-11-12 河原さん（案 B）：AI 由来の記録と職員が作る続柄は別の依頼に分ける（混ぜると止まる。正典 v0.14 §7。台帳 G-102）
+    out2 = gw.submit({"requestId": "req-" + uuid.uuid4().hex, "actorStaffId": admin, "nodes": [],
+                      "relationships": [{"type": "RELATED_TO", "from": {"label": "Person", "id": ids["p"]}, "to": client,
                                          "properties": {"kind": "KeyPerson", "certainty": "Hearsay", "rank": 1,
                                                         "evidenceRecordIds": [ids["r0"]], "status": "Active"}}]},
                      driver)
     assert out2["ok"], out2["errors"]
-    ids["ai"] = out2["ids"]["ai"]
+    out3 = gw.submit({"requestId": "req-" + uuid.uuid4().hex, "actorStaffId": admin,
+                      "nodes": [{"ref": "ai", "label": "Record", "origin": "AiExtracted",
+                                 "properties": _rec("架空の話 %s：未確定の話" % mark)}],
+                      "relationships": [{"type": "ABOUT", "from": "ai", "to": client},
+                                        {"type": "AUTHORED_BY", "from": "ai", "to": staff}]},
+                     driver)
+    assert out3["ok"], out3["errors"]
+    ids["ai"] = out3["ids"]["ai"]
     rv = gw.record_review(driver, admin, client["id"], "Guardianship", dt.datetime.now(dt.timezone.utc).isoformat(),
                           "Family", [ids["r0"]], "req-" + uuid.uuid4().hex)
     assert rv["ok"], rv["errors"]
@@ -121,7 +125,13 @@ def test_there_are_fifteen_queries():
 
 
 def test_q01_list_has_the_code(driver, fictional):
-    assert {"code": fictional["code"], "status": "Active"} in _run(driver, 1)
+    # 2026-11-12 河原さん：q13 と同じ直し方。照会 1 は仮名の順で、包みの上限（500 行）を超えると試験の本人が返らないことがある。
+    # 照会 1 の条件と返す形はそのままに、試験が入れた本人で絞る（スキルは変えない）
+    from nest import mcp_guard
+    head = "WHERE c.status IN ['Active', 'Pending']\n"
+    assert Q[1].count(head) == 1
+    q = Q[1].replace(head, "WHERE c.status IN ['Active', 'Pending'] AND c.displayCode = $code\n")
+    assert {"code": fictional["code"], "status": "Active"} in mcp_guard.run_read(driver, q, {"code": fictional["code"]}, personal=True)
 
 
 def test_q02_ngactions_lifethreatening_first_with_evidence_and_contradiction(driver, fictional):
@@ -190,7 +200,13 @@ def test_q12_evidence_and_told_by(driver, fictional):
 
 
 def test_q13_pending_ai_record_listed(driver, fictional):
-    rows = _run(driver, 13)
+    # 2026-11-12 河原さん：DB 全体の件数に左右されない確かめ方にする。照会 13 は古い順で、包みの上限（500 行）を超えると
+    # 新しいものが返らない。照会 13 の条件と返す形はそのままに、試験が入れた本人で絞る（スキルは変えない）
+    from nest import mcp_guard
+    head = "MATCH (n {status: 'Pending', origin: 'AiExtracted'})\n"
+    assert Q[13].count(head) == 1
+    q = Q[13].replace(head, head + "MATCH (n)-[:ABOUT]->(:Client {displayCode: $code})\n")
+    rows = mcp_guard.run_read(driver, q, {"code": fictional["code"]}, personal=True)
     assert {"label": "Record", "id": fictional["ai"]} in [{"label": r["label"], "id": r["id"]} for r in rows]
 
 
