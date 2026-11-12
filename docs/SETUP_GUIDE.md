@@ -87,6 +87,8 @@ docker ps --format '{{.Names}} {{.Ports}}'      # 二つとも 127.0.0.1 だけ�
 docker compose --env-file ~/.config/nest/neo4j-redesign.env down    # 使い終わったら止める
 ```
 
+試験用の DB を起こした場合は、stop neo4j-test も打つ。down だけでは止まらない（`docker compose --env-file ~/.config/nest/neo4j-redesign.env stop neo4j-test`）。
+
 | コンテナ | 中身 | 待ち受け |
 |---|---|---|
 | `nest-redesign-personal` | 個人の側（本人・家族・支援の記録） | 127.0.0.1:37687（Bolt）・37474（ブラウザ） |

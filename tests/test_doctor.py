@@ -232,3 +232,12 @@ def test_fails_when_an_other_config_file_is_readable_by_others(tmp_path, name):
     out = _run(tmp_path, [], config_files={name: 0o644})
     assert out.returncode == 1
     assert any("FAIL" in line and name in line for line in out.stdout.splitlines()), out.stdout
+
+
+def test_doctor_says_when_the_test_db_is_up(tmp_path):
+    # 2026-11-12 河原さん：ふだんの down では試験用の DB が止まらないので、起きているときに一行で知らせる（止め忘れを防ぐ）
+    up = _run(tmp_path / "a", ["nest-redesign-test 127.0.0.1:36474->7474/tcp, 127.0.0.1:36687->7687/tcp"])
+    assert "試験用の DB が起きている（使い終わったら stop neo4j-test も打つ。down だけでは止まらない）" in up.stdout, up.stdout
+    assert up.returncode == 0
+    down = _run(tmp_path / "b", [])
+    assert "試験用の DB が起きている" not in down.stdout

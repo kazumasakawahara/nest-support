@@ -69,6 +69,9 @@ for name in "${NEW_CONTAINERS[@]}"; do
     fail "${name} が 127.0.0.1 の外でも待ち受けている（${line}）"
   else
     ok "${name}: 127.0.0.1 だけで待ち受けている"
+    if [ "${name}" = "nest-redesign-test" ]; then  # ふだんの down では止まらない（2026-11-12 河原さん）
+      info "試験用の DB が起きている（使い終わったら stop neo4j-test も打つ。down だけでは止まらない）"
+    fi
   fi
 done
 

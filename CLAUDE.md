@@ -41,7 +41,7 @@ This file provides guidance to Claude Code / Claude Desktop when working with th
 | 資源の側（`nest-redesign-resource`） | 事業所・窓口・区域・サービスの公開情報 | 127.0.0.1:38687 | MCP `nest-resource`：`read_resource_cypher`・`resource_version` |
 | 試験用（`nest-redesign-test`） | DB を使う試験の架空の残りだけ（試験の始まりに毎回空にする） | 127.0.0.1:36687 | DB を使う試験だけ（`NEST_DB_TARGET=test`）。Claude Desktop の道具・端末の道具は向かない |
 
-- 起動と停止：`docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d` ／ `… down`。`--remove-orphans` は使わない
+- 起動と停止：`docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d` ／ `… down`。`--remove-orphans` は使わない。試験用の DB を起こした場合は、stop neo4j-test も打つ。down だけでは止まらない（`… stop neo4j-test`）
 - 接続の設定のファイル（`~/.config/nest/neo4j-redesign.env`）の中身は読まない・表示しない
 - 二つの DB はまたげない。個人の側の `Organization` は `orgId` だけを持ち、名前は資源の側で引く
 - 個人の側の包みは、実名・かな・電話・住所・生年月日、記録の原文（`text`）を返さない。引用は `read_quote` で 200 字まで

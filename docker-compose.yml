@@ -11,6 +11,7 @@
 #   起動の前に docker ps で、前の DB のコンテナが動いていないことを確かめる
 #   docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d
 #   docker compose --env-file ~/.config/nest/neo4j-redesign.env down   # 試験の終わりに必ず止める
+#   試験用の DB を起こした場合は、stop neo4j-test も打つ。down だけでは止まらない（下の neo4j-test の使い方）
 #
 # DB を使う試験の専用の DB（neo4j-test。2026-11-12 河原さん。案 A。台帳 G-103）。profile "test" なので、上の up -d・down では動かない:
 #   docker compose --env-file ~/.config/nest/neo4j-redesign.env up -d neo4j-test    # 起動（127.0.0.1:36474・36687）
