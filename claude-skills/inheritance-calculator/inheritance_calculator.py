@@ -531,7 +531,7 @@ def main():
         error_result = {
             "error": "入力データエラー",
             "message": str(e),
-            "suggestion": "入力データの形式を確認してください。詳細はforms.mdを参照してください。"
+            "suggestion": "入力データの形式を確認してください。詳細はSKILL.mdの「入力JSONスキーマ」を参照してください。"
         }
         print(json.dumps(error_result, ensure_ascii=False, indent=2), file=sys.stderr)
         sys.exit(1)

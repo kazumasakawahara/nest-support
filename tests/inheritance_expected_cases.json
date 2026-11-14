@@ -1,0 +1,575 @@
+{
+  "_fictional": "この表の事案と人物（甲・乙・子A など）はすべて架空です。実在の人・家族・案件とは関係がありません。",
+  "_note": "expected は inheritance_calculator.py を動かして得た値ではなく、民法の条文から手で計算した値。式は各件の basis に書いてある。検査は tests/test_inheritance_expected_values.py。",
+  "_statute": {
+    "law": "民法（明治二十九年法律第八十九号）",
+    "law_id": "129AC0000000089",
+    "law_revision_id": "129AC0000000089_20260624_508AC0000000045",
+    "articles": ["887", "889", "890", "900", "901", "939"],
+    "source": "e-Gov 法令API v2（/api/2/law_data）"
+  },
+  "cases": [
+    {
+      "id": "E01",
+      "description": "被相続人 甲に配偶者 乙だけがいる。子・直系尊属・兄弟姉妹はいない。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "spouse": {"name": "乙", "status": "alive", "renounced": false}
+      },
+      "expected": {"乙": "1"},
+      "basis": "890条: 配偶者は常に相続人。887条・889条により相続人となるべき者がいないので、同順位の者がなく 900条の按分は生じない。乙が全部 = 1"
+    },
+    {
+      "id": "E02",
+      "description": "配偶者はいない。子Aが1人。父と全血の兄弟Cも生存している。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "children": [
+          {"name": "子A", "status": "alive", "renounced": false}
+        ],
+        "parents": [
+          {"name": "父", "status": "alive", "renounced": false, "generation": 1}
+        ],
+        "siblings": [
+          {"name": "兄弟C", "status": "alive", "renounced": false, "blood_relation": "full"}
+        ]
+      },
+      "expected": {"子A": "1"},
+      "basis": "887条1項: 子は相続人。889条1項柱書: 直系尊属・兄弟姉妹が相続人となるのは 887条により相続人となるべき者がない場合だけ → 父・兄弟Cは相続人でない。子Aが全部 = 1"
+    },
+    {
+      "id": "E03",
+      "description": "配偶者はいない。子がA・B・Cの3人。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "children": [
+          {"name": "子A", "status": "alive", "renounced": false},
+          {"name": "子B", "status": "alive", "renounced": false},
+          {"name": "子C", "status": "alive", "renounced": false}
+        ]
+      },
+      "expected": {"子A": "1/3", "子B": "1/3", "子C": "1/3"},
+      "basis": "887条1項: 子は相続人。900条4号本文: 子が数人あるときは相等しい。1 ÷ 3 = 各1/3"
+    },
+    {
+      "id": "E04",
+      "description": "配偶者 乙と子Aが1人。父・母と全血の兄弟Cも生存している。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "spouse": {"name": "乙", "status": "alive", "renounced": false},
+        "children": [
+          {"name": "子A", "status": "alive", "renounced": false}
+        ],
+        "parents": [
+          {"name": "父", "status": "alive", "renounced": false, "generation": 1},
+          {"name": "母", "status": "alive", "renounced": false, "generation": 1}
+        ],
+        "siblings": [
+          {"name": "兄弟C", "status": "alive", "renounced": false, "blood_relation": "full"}
+        ]
+      },
+      "expected": {"乙": "1/2", "子A": "1/2"},
+      "basis": "887条1項・890条: 子と配偶者が相続人。889条1項柱書: 子がいるので父・母・兄弟Cは相続人でない。900条1号: 配偶者1/2、子1/2。子は1人なので子A = 1/2"
+    },
+    {
+      "id": "E05",
+      "description": "配偶者 乙と、子がA・B・Cの3人。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "spouse": {"name": "乙", "status": "alive", "renounced": false},
+        "children": [
+          {"name": "子A", "status": "alive", "renounced": false},
+          {"name": "子B", "status": "alive", "renounced": false},
+          {"name": "子C", "status": "alive", "renounced": false}
+        ]
+      },
+      "expected": {"乙": "1/2", "子A": "1/6", "子B": "1/6", "子C": "1/6"},
+      "basis": "900条1号: 配偶者1/2、子1/2。900条4号本文: 子3人は相等しい。1/2 ÷ 3 = 各1/6"
+    },
+    {
+      "id": "E06",
+      "description": "配偶者 乙がいて子はいない。父・母が生存。全血の兄弟Cも生存している。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "spouse": {"name": "乙", "status": "alive", "renounced": false},
+        "parents": [
+          {"name": "父", "status": "alive", "renounced": false, "generation": 1},
+          {"name": "母", "status": "alive", "renounced": false, "generation": 1}
+        ],
+        "siblings": [
+          {"name": "兄弟C", "status": "alive", "renounced": false, "blood_relation": "full"}
+        ]
+      },
+      "expected": {"乙": "2/3", "父": "1/6", "母": "1/6"},
+      "basis": "889条1項: 子がいないので1号の直系尊属が相続人。2号の兄弟姉妹は1号より後の順位なので兄弟Cは相続人でない。900条2号: 配偶者2/3、直系尊属1/3。900条4号本文: 父母は相等しい。1/3 ÷ 2 = 各1/6"
+    },
+    {
+      "id": "E07",
+      "description": "配偶者 乙がいて子はいない。父は既に死亡、母が生存。全血の兄弟C・Dも生存している。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "spouse": {"name": "乙", "status": "alive", "renounced": false},
+        "parents": [
+          {"name": "父", "status": "deceased", "renounced": false, "generation": 1},
+          {"name": "母", "status": "alive", "renounced": false, "generation": 1}
+        ],
+        "siblings": [
+          {"name": "兄弟C", "status": "alive", "renounced": false, "blood_relation": "full"},
+          {"name": "兄弟D", "status": "alive", "renounced": false, "blood_relation": "full"}
+        ]
+      },
+      "expected": {"乙": "2/3", "母": "1/3"},
+      "basis": "889条1項1号: 直系尊属（母）が相続人。2号の兄弟姉妹は後順位なので兄弟C・Dは相続人でない。900条2号: 配偶者2/3、直系尊属1/3。直系尊属は母1人なので母 = 1/3"
+    },
+    {
+      "id": "E08",
+      "description": "配偶者 乙がいて子はいない。父母は既に死亡。全血の兄弟C・D・Eの3人が生存。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "spouse": {"name": "乙", "status": "alive", "renounced": false},
+        "parents": [
+          {"name": "父", "status": "deceased", "renounced": false, "generation": 1},
+          {"name": "母", "status": "deceased", "renounced": false, "generation": 1}
+        ],
+        "siblings": [
+          {"name": "兄弟C", "status": "alive", "renounced": false, "blood_relation": "full"},
+          {"name": "兄弟D", "status": "alive", "renounced": false, "blood_relation": "full"},
+          {"name": "兄弟E", "status": "alive", "renounced": false, "blood_relation": "full"}
+        ]
+      },
+      "expected": {"乙": "3/4", "兄弟C": "1/12", "兄弟D": "1/12", "兄弟E": "1/12"},
+      "basis": "889条1項2号: 子も直系尊属もいないので兄弟姉妹が相続人。900条3号: 配偶者3/4、兄弟姉妹1/4。900条4号本文: 全血3人は相等しい。1/4 ÷ 3 = 各1/12"
+    },
+    {
+      "id": "E09",
+      "description": "配偶者も子もいない。父・母が生存。全血の兄弟Cも生存している。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "parents": [
+          {"name": "父", "status": "alive", "renounced": false, "generation": 1},
+          {"name": "母", "status": "alive", "renounced": false, "generation": 1}
+        ],
+        "siblings": [
+          {"name": "兄弟C", "status": "alive", "renounced": false, "blood_relation": "full"}
+        ]
+      },
+      "expected": {"父": "1/2", "母": "1/2"},
+      "basis": "889条1項1号: 直系尊属が相続人。兄弟C（2号）は後順位で相続人でない。配偶者がいないので直系尊属で全部。900条4号本文: 父母は相等しい。1 ÷ 2 = 各1/2"
+    },
+    {
+      "id": "E10",
+      "description": "配偶者も子もいない。父母は既に死亡。父方の祖父・祖母と母方の祖母の3人が生存。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "parents": [
+          {"name": "父", "status": "deceased", "renounced": false, "generation": 1},
+          {"name": "母", "status": "deceased", "renounced": false, "generation": 1},
+          {"name": "父方祖父", "status": "alive", "renounced": false, "generation": 2},
+          {"name": "父方祖母", "status": "alive", "renounced": false, "generation": 2},
+          {"name": "母方祖母", "status": "alive", "renounced": false, "generation": 2}
+        ]
+      },
+      "expected": {"父方祖父": "1/3", "父方祖母": "1/3", "母方祖母": "1/3"},
+      "basis": "889条1項1号: 直系尊属が相続人。生存する直系尊属は3人とも2親等で親等が同じなので、ただし書による優劣はない。900条4号本文: 直系尊属が数人あるときは相等しい（父方・母方で分けない）。1 ÷ 3 = 各1/3"
+    },
+    {
+      "id": "E11",
+      "description": "配偶者も子もいない。父は既に死亡、母が生存。父方の祖父も生存している。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "parents": [
+          {"name": "父", "status": "deceased", "renounced": false, "generation": 1},
+          {"name": "母", "status": "alive", "renounced": false, "generation": 1},
+          {"name": "父方祖父", "status": "alive", "renounced": false, "generation": 2}
+        ]
+      },
+      "expected": {"母": "1"},
+      "basis": "889条1項1号ただし書: 親等の異なる直系尊属の間では近い者を先にする → 1親等の母が先、2親等の父方祖父は相続人でない（直系尊属に代襲の規定はない。889条2項が準用するのは2号の兄弟姉妹だけ）。母が全部 = 1"
+    },
+    {
+      "id": "E12",
+      "description": "配偶者 乙がいて子はいない。父が生存、母は既に死亡。母方の祖父・祖母が生存している。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "spouse": {"name": "乙", "status": "alive", "renounced": false},
+        "parents": [
+          {"name": "父", "status": "alive", "renounced": false, "generation": 1},
+          {"name": "母", "status": "deceased", "renounced": false, "generation": 1},
+          {"name": "母方祖父", "status": "alive", "renounced": false, "generation": 2},
+          {"name": "母方祖母", "status": "alive", "renounced": false, "generation": 2}
+        ]
+      },
+      "expected": {"乙": "2/3", "父": "1/3"},
+      "basis": "889条1項1号ただし書: 1親等の父が先。2親等の母方祖父・母方祖母は相続人でない。900条2号: 配偶者2/3、直系尊属1/3。直系尊属は父1人なので父 = 1/3"
+    },
+    {
+      "id": "E13",
+      "description": "配偶者 乙がいて子はいない。父母は既に死亡。父方の祖母と母方の祖父が生存。全血の兄弟Cも生存している。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "spouse": {"name": "乙", "status": "alive", "renounced": false},
+        "parents": [
+          {"name": "父", "status": "deceased", "renounced": false, "generation": 1},
+          {"name": "母", "status": "deceased", "renounced": false, "generation": 1},
+          {"name": "父方祖母", "status": "alive", "renounced": false, "generation": 2},
+          {"name": "母方祖父", "status": "alive", "renounced": false, "generation": 2}
+        ],
+        "siblings": [
+          {"name": "兄弟C", "status": "alive", "renounced": false, "blood_relation": "full"}
+        ]
+      },
+      "expected": {"乙": "2/3", "父方祖母": "1/6", "母方祖父": "1/6"},
+      "basis": "889条1項1号: 直系尊属（祖父母を含む）が相続人。兄弟C（2号）は後順位で相続人でない。生存する直系尊属は2人とも2親等。900条2号: 配偶者2/3、直系尊属1/3。900条4号本文: 相等しい。1/3 ÷ 2 = 各1/6"
+    },
+    {
+      "id": "E14",
+      "description": "配偶者・子・直系尊属がいない。全血の兄弟C・Dの2人が生存。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "siblings": [
+          {"name": "兄弟C", "status": "alive", "renounced": false, "blood_relation": "full"},
+          {"name": "兄弟D", "status": "alive", "renounced": false, "blood_relation": "full"}
+        ]
+      },
+      "expected": {"兄弟C": "1/2", "兄弟D": "1/2"},
+      "basis": "889条1項2号: 兄弟姉妹が相続人。配偶者がいないので兄弟姉妹で全部。900条4号本文: 相等しい。1 ÷ 2 = 各1/2"
+    },
+    {
+      "id": "E15",
+      "description": "配偶者・子・直系尊属がいない。全血の兄弟C・Dと、半血（父母の一方だけが同じ）の兄弟Eが生存。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "siblings": [
+          {"name": "兄弟C", "status": "alive", "renounced": false, "blood_relation": "full"},
+          {"name": "兄弟D", "status": "alive", "renounced": false, "blood_relation": "full"},
+          {"name": "兄弟E", "status": "alive", "renounced": false, "blood_relation": "half"}
+        ]
+      },
+      "expected": {"兄弟C": "2/5", "兄弟D": "2/5", "兄弟E": "1/5"},
+      "basis": "889条1項2号: 兄弟姉妹で全部。900条4号ただし書: 半血の相続分は全血の1/2 → 比は C:D:E = 2:2:1、合計5。C = 2/5、D = 2/5、E = 1/5"
+    },
+    {
+      "id": "E16",
+      "description": "配偶者 乙がいて子・直系尊属はいない。全血の兄弟Cと、半血の兄弟D・Eが生存。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "spouse": {"name": "乙", "status": "alive", "renounced": false},
+        "siblings": [
+          {"name": "兄弟C", "status": "alive", "renounced": false, "blood_relation": "full"},
+          {"name": "兄弟D", "status": "alive", "renounced": false, "blood_relation": "half"},
+          {"name": "兄弟E", "status": "alive", "renounced": false, "blood_relation": "half"}
+        ]
+      },
+      "expected": {"乙": "3/4", "兄弟C": "1/8", "兄弟D": "1/16", "兄弟E": "1/16"},
+      "basis": "900条3号: 配偶者3/4、兄弟姉妹1/4。900条4号ただし書: 比は C:D:E = 2:1:1、合計4。C = 1/4 × 2/4 = 1/8、D = E = 1/4 × 1/4 = 1/16"
+    },
+    {
+      "id": "E17",
+      "description": "配偶者・子・直系尊属がいない。兄弟姉妹は半血の兄弟C・Dの2人だけ（全血の兄弟姉妹はいない）。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "siblings": [
+          {"name": "兄弟C", "status": "alive", "renounced": false, "blood_relation": "half"},
+          {"name": "兄弟D", "status": "alive", "renounced": false, "blood_relation": "half"}
+        ]
+      },
+      "expected": {"兄弟C": "1/2", "兄弟D": "1/2"},
+      "basis": "889条1項2号: 兄弟姉妹で全部。900条4号ただし書は半血と全血の間の比を定めるもので、全血がいなければ比べる相手がない → 本文どおり相等しい。1 ÷ 2 = 各1/2"
+    },
+    {
+      "id": "E18",
+      "description": "配偶者 乙と子A。子Bは甲より先に死亡しており、Bの子（孫）B1・B2・B3が生存。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "spouse": {"name": "乙", "status": "alive", "renounced": false},
+        "children": [
+          {"name": "子A", "status": "alive", "renounced": false},
+          {
+            "name": "子B", "status": "deceased", "renounced": false,
+            "children": [
+              {"name": "孫B1", "status": "alive", "renounced": false},
+              {"name": "孫B2", "status": "alive", "renounced": false},
+              {"name": "孫B3", "status": "alive", "renounced": false}
+            ]
+          }
+        ]
+      },
+      "expected": {"乙": "1/2", "子A": "1/4", "孫B1": "1/12", "孫B2": "1/12", "孫B3": "1/12"},
+      "basis": "887条2項: 子Bが相続開始以前に死亡 → Bの子が代襲。900条1号: 配偶者1/2、子1/2。900条4号本文: A・Bの2系統で各1/4。901条1項: 代襲者の分はBが受けるべきであった1/4、数人なのでその部分を900条に従い均等。1/4 ÷ 3 = 各1/12"
+    },
+    {
+      "id": "E19",
+      "description": "配偶者はいない。子A・Bはいずれも甲より先に死亡。Aの子は孫A1の1人、Bの子は孫B1・B2・B3の3人。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "children": [
+          {
+            "name": "子A", "status": "deceased", "renounced": false,
+            "children": [
+              {"name": "孫A1", "status": "alive", "renounced": false}
+            ]
+          },
+          {
+            "name": "子B", "status": "deceased", "renounced": false,
+            "children": [
+              {"name": "孫B1", "status": "alive", "renounced": false},
+              {"name": "孫B2", "status": "alive", "renounced": false},
+              {"name": "孫B3", "status": "alive", "renounced": false}
+            ]
+          }
+        ]
+      },
+      "expected": {"孫A1": "1/2", "孫B1": "1/6", "孫B2": "1/6", "孫B3": "1/6"},
+      "basis": "887条2項: 孫はそれぞれの親を代襲。900条4号本文: A・Bが受けるべきであった分は各1/2。901条1項: 孫A1はAの1/2をそのまま。Bの1/2は孫3人で均等、1/2 ÷ 3 = 各1/6（孫4人の頭割り1/4ではない）"
+    },
+    {
+      "id": "E20",
+      "description": "配偶者はいない。子Aが生存。子Bは先に死亡し、Bの子のうち孫B1も先に死亡（その子＝ひ孫B1a・B1bが生存）、孫B2は生存。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "children": [
+          {"name": "子A", "status": "alive", "renounced": false},
+          {
+            "name": "子B", "status": "deceased", "renounced": false,
+            "children": [
+              {
+                "name": "孫B1", "status": "deceased", "renounced": false,
+                "children": [
+                  {"name": "ひ孫B1a", "status": "alive", "renounced": false},
+                  {"name": "ひ孫B1b", "status": "alive", "renounced": false}
+                ]
+              },
+              {"name": "孫B2", "status": "alive", "renounced": false}
+            ]
+          }
+        ]
+      },
+      "expected": {"子A": "1/2", "孫B2": "1/4", "ひ孫B1a": "1/8", "ひ孫B1b": "1/8"},
+      "basis": "887条2項: Bを孫が代襲。887条3項: 代襲者B1も相続開始以前に死亡 → B1の子が再代襲。900条4号本文: A・Bの2系統で各1/2。901条1項: Bの1/2をB1・B2の2系統で各1/4。B1の1/4をひ孫2人で均等、1/4 ÷ 2 = 各1/8"
+    },
+    {
+      "id": "E21",
+      "description": "配偶者・子・直系尊属がいない。全血の兄弟Cが生存。全血の兄弟Dは甲より先に死亡し、Dの子（おい・めい）D1・D2・D3が生存。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "siblings": [
+          {"name": "兄弟C", "status": "alive", "renounced": false, "blood_relation": "full"},
+          {
+            "name": "兄弟D", "status": "deceased", "renounced": false, "blood_relation": "full",
+            "children": [
+              {"name": "おいD1", "status": "alive", "renounced": false},
+              {"name": "おいD2", "status": "alive", "renounced": false},
+              {"name": "めいD3", "status": "alive", "renounced": false}
+            ]
+          }
+        ]
+      },
+      "expected": {"兄弟C": "1/2", "おいD1": "1/6", "おいD2": "1/6", "めいD3": "1/6"},
+      "basis": "889条2項（887条2項の準用）: 兄弟Dの子が代襲。900条4号本文: C・Dの2系統で各1/2。901条2項（1項の準用）: Dが受けるべきであった1/2を3人で均等。1/2 ÷ 3 = 各1/6（4人の頭割り1/4ではない）"
+    },
+    {
+      "id": "E22",
+      "description": "配偶者 乙がいて子・直系尊属はいない。全血の兄弟C・Dはいずれも先に死亡。Cの子はおいC1の1人、Dの子はおいD1・めいD2の2人。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "spouse": {"name": "乙", "status": "alive", "renounced": false},
+        "siblings": [
+          {
+            "name": "兄弟C", "status": "deceased", "renounced": false, "blood_relation": "full",
+            "children": [
+              {"name": "おいC1", "status": "alive", "renounced": false}
+            ]
+          },
+          {
+            "name": "兄弟D", "status": "deceased", "renounced": false, "blood_relation": "full",
+            "children": [
+              {"name": "おいD1", "status": "alive", "renounced": false},
+              {"name": "めいD2", "status": "alive", "renounced": false}
+            ]
+          }
+        ]
+      },
+      "expected": {"乙": "3/4", "おいC1": "1/8", "おいD1": "1/16", "めいD2": "1/16"},
+      "basis": "889条2項: おい・めいが代襲。900条3号: 配偶者3/4、兄弟姉妹1/4。900条4号本文: C・Dの2系統で各1/8。901条2項: おいC1はCの1/8をそのまま。Dの1/8を2人で均等、1/8 ÷ 2 = 各1/16（3人の頭割り1/12ではない）"
+    },
+    {
+      "id": "E23",
+      "description": "配偶者・子・直系尊属がいない。全血の兄弟Cが生存。半血の兄弟Dは先に死亡し、Dの子おいD1・めいD2が生存。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "siblings": [
+          {"name": "兄弟C", "status": "alive", "renounced": false, "blood_relation": "full"},
+          {
+            "name": "兄弟D", "status": "deceased", "renounced": false, "blood_relation": "half",
+            "children": [
+              {"name": "おいD1", "status": "alive", "renounced": false},
+              {"name": "めいD2", "status": "alive", "renounced": false}
+            ]
+          }
+        ]
+      },
+      "expected": {"兄弟C": "2/3", "おいD1": "1/6", "めいD2": "1/6"},
+      "basis": "889条2項: Dの子が代襲。900条4号ただし書: 半血Dが受けるべきであった分は全血Cの1/2 → C:D = 2:1、C = 2/3、D = 1/3。901条2項: 代襲者はDが受けるべきであった1/3を2人で均等。1/3 ÷ 2 = 各1/6"
+    },
+    {
+      "id": "E24",
+      "description": "配偶者 乙と子A・B・C。子Bが相続を放棄した。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "spouse": {"name": "乙", "status": "alive", "renounced": false},
+        "children": [
+          {"name": "子A", "status": "alive", "renounced": false},
+          {"name": "子B", "status": "alive", "renounced": true},
+          {"name": "子C", "status": "alive", "renounced": false}
+        ]
+      },
+      "expected": {"乙": "1/2", "子A": "1/4", "子C": "1/4"},
+      "basis": "939条: 放棄した子Bは初めから相続人とならなかったものとみなす → 子はA・Cの2人。900条1号: 配偶者1/2、子1/2。900条4号本文: 1/2 ÷ 2 = 各1/4"
+    },
+    {
+      "id": "E25",
+      "description": "配偶者 乙と子A・B。子は2人とも相続を放棄した。父・母が生存している。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "spouse": {"name": "乙", "status": "alive", "renounced": false},
+        "children": [
+          {"name": "子A", "status": "alive", "renounced": true},
+          {"name": "子B", "status": "alive", "renounced": true}
+        ],
+        "parents": [
+          {"name": "父", "status": "alive", "renounced": false, "generation": 1},
+          {"name": "母", "status": "alive", "renounced": false, "generation": 1}
+        ]
+      },
+      "expected": {"乙": "2/3", "父": "1/6", "母": "1/6"},
+      "basis": "939条: 子A・Bは初めから相続人でない → 887条により相続人となるべき者がない。889条1項1号: 直系尊属が相続人。900条2号: 配偶者2/3、直系尊属1/3。900条4号本文: 1/3 ÷ 2 = 各1/6"
+    },
+    {
+      "id": "E26",
+      "description": "配偶者はいない。子Aが生存。子Bは相続を放棄したが、Bには子（孫）B1・B2がいる。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "children": [
+          {"name": "子A", "status": "alive", "renounced": false},
+          {
+            "name": "子B", "status": "alive", "renounced": true,
+            "children": [
+              {"name": "孫B1", "status": "alive", "renounced": false},
+              {"name": "孫B2", "status": "alive", "renounced": false}
+            ]
+          }
+        ]
+      },
+      "expected": {"子A": "1"},
+      "basis": "939条: 子Bは初めから相続人でない。887条2項: 代襲の原因は相続開始以前の死亡・891条該当（欠格）・廃除だけで、放棄は挙がっていない → 孫B1・B2は代襲しない。子はAだけなのでA = 1"
+    },
+    {
+      "id": "E27",
+      "description": "配偶者 乙と子Aが1人。子Aは相続を放棄した（Aには子＝孫A1がいる）。父母は既に死亡。全血の兄弟Cが生存。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "spouse": {"name": "乙", "status": "alive", "renounced": false},
+        "children": [
+          {
+            "name": "子A", "status": "alive", "renounced": true,
+            "children": [
+              {"name": "孫A1", "status": "alive", "renounced": false}
+            ]
+          }
+        ],
+        "parents": [
+          {"name": "父", "status": "deceased", "renounced": false, "generation": 1},
+          {"name": "母", "status": "deceased", "renounced": false, "generation": 1}
+        ],
+        "siblings": [
+          {"name": "兄弟C", "status": "alive", "renounced": false, "blood_relation": "full"}
+        ]
+      },
+      "expected": {"乙": "3/4", "兄弟C": "1/4"},
+      "basis": "939条: 子Aは初めから相続人でない。887条2項: 放棄は代襲の原因でない → 孫A1は相続人でない。889条1項: 子も直系尊属もいないので2号の兄弟姉妹が相続人。900条3号: 配偶者3/4、兄弟姉妹1/4。兄弟は1人なのでC = 1/4"
+    },
+    {
+      "id": "E28",
+      "description": "配偶者 乙と子A。子Bは甲と同時に死亡したと推定され、Bの子（孫）B1・B2が生存。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": true,
+        "spouse": {"name": "乙", "status": "alive", "renounced": false},
+        "children": [
+          {"name": "子A", "status": "alive", "renounced": false},
+          {
+            "name": "子B", "status": "simultaneous_death", "renounced": false,
+            "children": [
+              {"name": "孫B1", "status": "alive", "renounced": false},
+              {"name": "孫B2", "status": "alive", "renounced": false}
+            ]
+          }
+        ]
+      },
+      "expected": {"乙": "1/2", "子A": "1/4", "孫B1": "1/8", "孫B2": "1/8"},
+      "basis": "887条2項: 代襲の原因は「相続の開始以前に死亡したとき」。同時の死亡は「以前」に当たるので、Bの子が代襲する。900条1号: 配偶者1/2、子1/2。900条4号本文: A・Bの2系統で各1/4。901条1項: Bの1/4を2人で均等、1/4 ÷ 2 = 各1/8"
+    },
+    {
+      "id": "E29",
+      "description": "配偶者はいない。子Aが生存。子Bは先に死亡し、Bの子のうち孫B1は相続を放棄、孫B2は放棄していない。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "children": [
+          {"name": "子A", "status": "alive", "renounced": false},
+          {
+            "name": "子B", "status": "deceased", "renounced": false,
+            "children": [
+              {"name": "孫B1", "status": "alive", "renounced": true},
+              {"name": "孫B2", "status": "alive", "renounced": false}
+            ]
+          }
+        ]
+      },
+      "expected": {"子A": "1/2", "孫B2": "1/2"},
+      "basis": "887条2項: Bを孫が代襲。939条: 放棄した孫B1は初めから相続人でない → Bの代襲者は孫B2だけ。900条4号本文: A・Bの2系統で各1/2。901条1項本文: 孫B2はBが受けるべきであった1/2をそのまま受ける"
+    },
+    {
+      "id": "E30",
+      "description": "配偶者 乙と子A・B。配偶者 乙が相続を放棄した。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "spouse": {"name": "乙", "status": "alive", "renounced": true},
+        "children": [
+          {"name": "子A", "status": "alive", "renounced": false},
+          {"name": "子B", "status": "alive", "renounced": false}
+        ]
+      },
+      "expected": {"子A": "1/2", "子B": "1/2"},
+      "basis": "939条: 放棄した乙は初めから相続人でない → 相続人は子だけで、900条1号の場面ではない。900条4号本文: 子2人は相等しい。1 ÷ 2 = 各1/2"
+    }
+  ]
+}
