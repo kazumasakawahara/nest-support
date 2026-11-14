@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""inheritance_calculator.py のテスト（標準ライブラリの unittest のみ）。
+"""inheritance_calculator.py の入力検証と結果表示のテスト（unittest で書いてあり、pytest でも走る）。
 
-実行方法（このフォルダで）:
-    /usr/bin/python3 -m unittest test_inheritance_calculator -v
+相続分の回帰テストは tests/test_inheritance_calculator.py。
+実行方法（リポジトリの直下で）:
+    uv run pytest tests/test_inheritance_input_validation.py
+    /usr/bin/python3 -m unittest tests/test_inheritance_input_validation.py   （pytest 無しでも可）
 
 人物名はすべて架空（太郎・花子・A・B・C など）。
 ネットワーク・ファイル書き込みは行わない。
@@ -21,7 +23,18 @@ import unittest
 from fractions import Fraction
 from unittest import mock
 
-import inheritance_calculator as ic
+import importlib.util
+from pathlib import Path
+
+_MODULE_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "claude-skills"
+    / "inheritance-calculator"
+    / "inheritance_calculator.py"
+)
+_spec = importlib.util.spec_from_file_location("inheritance_calculator", _MODULE_PATH)
+ic = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(ic)
 
 
 def _run(data):

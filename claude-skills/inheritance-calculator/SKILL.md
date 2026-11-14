@@ -123,11 +123,7 @@ python3 ~/.claude/skills/inheritance-calculator/inheritance_calculator.py --pret
 - `renounced` は真偽値（`true` / `false`）だけを受け付ける。`"false"` などの文字列・`0` / `1`・`null` は入力エラー（終了コード 1、結果は出ない）。省略時は `false`。
 - `status` が `unknown`（省略を含む）の人物は相続判定から除外して計算する。そのとき結果JSONの `is_provisional` が `true` になり、`unknown_status_persons` に該当者（`role` と `name`）が並ぶ。**`is_provisional` が `true` の結果は確定ではない**（不明者の生死が分かれば相続人・相続分が変わりうる）ので、そのまま確定した結論として提示しない。
 
-#### テストの実行
-
-```bash
-cd ~/.claude/skills/inheritance-calculator && /usr/bin/python3 -m unittest test_inheritance_calculator -v
-```
+テストは nest-support リポジトリの `tests/test_inheritance_calculator.py`（相続分の回帰）と `tests/test_inheritance_input_validation.py`（入力検証・結果表示）にある。計算エンジンを変えたら、リポジトリの直下で `uv run pytest tests/test_inheritance_calculator.py tests/test_inheritance_input_validation.py` を通す。
 
 ### ステップ3: 結果の解釈と提示
 
@@ -152,9 +148,8 @@ cd ~/.claude/skills/inheritance-calculator && /usr/bin/python3 -m unittest test_
 
 ```
 inheritance-calculator/
-├── SKILL.md                         ← このファイル
-├── inheritance_calculator.py        ← 計算エンジン
-└── test_inheritance_calculator.py   ← テスト（unittest）
+├── SKILL.md                    ← このファイル
+└── inheritance_calculator.py   ← 計算エンジン
 ```
 
 ---
