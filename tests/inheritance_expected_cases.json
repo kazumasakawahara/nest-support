@@ -570,6 +570,59 @@
       },
       "expected": {"子A": "1/2", "子B": "1/2"},
       "basis": "939条: 放棄した乙は初めから相続人でない → 相続人は子だけで、900条1号の場面ではない。900条4号本文: 子2人は相等しい。1 ÷ 2 = 各1/2"
+    },
+    {
+      "id": "E31",
+      "description": "配偶者・子・直系尊属がいない。全血の兄弟Cが生存。全血の兄弟Dは先に死亡し、Dの子おいD1も先に死亡。D1の子D1aが生存。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "siblings": [
+          {"name": "兄弟C", "status": "alive", "renounced": false, "blood_relation": "full"},
+          {
+            "name": "兄弟D", "status": "deceased", "renounced": false, "blood_relation": "full",
+            "children": [
+              {
+                "name": "おいD1", "status": "deceased", "renounced": false,
+                "children": [
+                  {"name": "おいの子D1a", "status": "alive", "renounced": false}
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {"兄弟C": "1"},
+      "basis": "889条2項が兄弟姉妹に準用するのは 887条2項だけで、再代襲を定める同条3項は準用していない → おいD1の子D1aは代襲しない。兄弟Dの系統に相続人となる者がなく、兄弟姉妹は Cだけ。C = 1"
+    },
+    {
+      "id": "E32",
+      "description": "配偶者も子もいない。父・母はともに相続を放棄した。父方の祖母が生存している。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": false,
+        "parents": [
+          {"name": "父", "status": "alive", "renounced": true, "generation": 1},
+          {"name": "母", "status": "alive", "renounced": true, "generation": 1},
+          {"name": "父方祖母", "status": "alive", "renounced": false, "generation": 2}
+        ]
+      },
+      "expected": {"父方祖母": "1"},
+      "basis": "939条: 放棄した父・母は初めから相続人でない。889条1項1号: 直系尊属が相続人で、ただし書は親等の異なる「者の間」の優劣を定める。1親等に相続人となる者がいないので、2親等の父方祖母が相続人。祖母が全部 = 1"
+    },
+    {
+      "id": "E33",
+      "description": "配偶者 乙は甲と同時に死亡したと推定される。子Aが生存している。",
+      "input": {
+        "deceased_name": "甲",
+        "has_simultaneous_death": true,
+        "spouse": {"name": "乙", "status": "simultaneous_death", "renounced": false},
+        "children": [
+          {"name": "子A", "status": "alive", "renounced": false}
+        ]
+      },
+      "expected": {"子A": "1"},
+      "basis": "相続人は相続開始の時に生存していなければならないので、甲と同時に死亡したと推定される乙（32条の2。この条は _statute の照合に含めていない）は相続人でない。890条の配偶者に代襲の規定はない。887条1項: 子Aが相続人で、Aが全部 = 1"
     }
   ]
 }
