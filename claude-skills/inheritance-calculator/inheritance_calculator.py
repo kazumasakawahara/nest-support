@@ -120,6 +120,8 @@ class InheritanceCalculator:
         無警告で判定から漏れ、下位順位が誤って繰り上がる。ここで明示的に弾く。
         """
         warnings: List[str] = []
+        unknown_persons: List[Dict[str, str]] = []
+        self.unknown_status_persons = unknown_persons
 
         def check(person: Dict, role: str):
             if not isinstance(person, dict):
@@ -132,7 +134,14 @@ class InheritanceCalculator:
                     f"{role}『{name}』の status '{status}' は不正です。"
                     f"許可値: {sorted(self._VALID_STATUS)}"
                 )
+            # renounced は真偽値のみ（"false" 等の文字列は真と判定され、無警告で放棄扱いになる）
+            if "renounced" in person and not isinstance(person["renounced"], bool):
+                raise ValueError(
+                    f"{role}『{name}』の renounced {person['renounced']!r} は不正です。"
+                    "真偽値（true / false）で指定してください"
+                )
             if status_val == PersonStatus.UNKNOWN.value:
+                unknown_persons.append({"role": role, "name": name})
                 warnings.append(
                     f"{role}『{name}』の status が unknown です"
                     "（相続判定から除外されます）"
@@ -210,7 +219,9 @@ class InheritanceCalculator:
     def _line_has_living(cls, person: Dict) -> bool:
         """その人物の系統（本人＋代襲卑属）に相続可能な生存者がいるか。
 
-        放棄した者は代襲を生じさせない（民法887条2項但書の趣旨）ため、
+        放棄した者は代襲を生じさせない。民法887条2項が代襲の原因とするのは
+        相続開始以前の死亡・欠格・廃除だけで、放棄は含まれない（放棄者は
+        民法939条により初めから相続人とならなかったものとみなす）ため、
         放棄者は系統ごと除外する。
         """
         if person.get("renounced", False):
@@ -387,7 +398,9 @@ class InheritanceCalculator:
                 "has_legal_heirs": False,
                 "note": note + "法定相続人はいません。",
                 "heirs": [],
-                "summary": "法定相続人が存在しないため、相続財産は最終的に国庫に帰属します。"
+                "summary": "法定相続人が存在しないため、相続財産は最終的に国庫に帰属します。",
+                "is_provisional": bool(self.unknown_status_persons),
+                "unknown_status_persons": self.unknown_status_persons
             }
         
         heirs_info = []
@@ -418,7 +431,9 @@ class InheritanceCalculator:
                 "ただし、多額の債務など自身の利害に重大な影響を及ぼす事実を後から知った場合、その時から3ヶ月となる場合もあります。",
                 "再転相続の場合、熟慮期間の起算点は再転相続人が自身のために相続が開始した事実を知った時です。",
                 "このツールは参考情報を提供するものであり、法的助言ではありません。実際の相続では専門家にご相談ください。"
-            ]
+            ],
+            "is_provisional": bool(self.unknown_status_persons),
+            "unknown_status_persons": self.unknown_status_persons
         }
     
     def _rank_to_japanese(self, rank: InheritanceRank) -> str:
