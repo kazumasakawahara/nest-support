@@ -118,6 +118,17 @@ python3 ~/.claude/skills/inheritance-calculator/inheritance_calculator.py --pret
 
 標準入力から渡す場合は `--stdin` を使用する。出力は法定相続人と相続分（分数・パーセント）のJSON。
 
+#### 入力と出力の注意
+
+- `renounced` は真偽値（`true` / `false`）だけを受け付ける。`"false"` などの文字列・`0` / `1`・`null` は入力エラー（終了コード 1、結果は出ない）。省略時は `false`。
+- `status` が `unknown`（省略を含む）の人物は相続判定から除外して計算する。そのとき結果JSONの `is_provisional` が `true` になり、`unknown_status_persons` に該当者（`role` と `name`）が並ぶ。**`is_provisional` が `true` の結果は確定ではない**（不明者の生死が分かれば相続人・相続分が変わりうる）ので、そのまま確定した結論として提示しない。
+
+#### テストの実行
+
+```bash
+cd ~/.claude/skills/inheritance-calculator && /usr/bin/python3 -m unittest test_inheritance_calculator -v
+```
+
 ### ステップ3: 結果の解釈と提示
 
 計算結果をユーザーに分かりやすく説明します。
@@ -134,13 +145,16 @@ python3 ~/.claude/skills/inheritance-calculator/inheritance_calculator.py --pret
 - 遺留分の計算
 - 具体的な相続財産の評価
 - 相続税の計算
+- 再転相続・数次相続（被相続人より後に死亡した相続人がいる場合）。入力で表現できない。後に死亡した者を `deceased` として入れると、代襲相続として処理されて誤った結果になる
+- 相続欠格・廃除。入力で表現できない
 
 ## 📦 ファイル構成
 
 ```
 inheritance-calculator/
-├── SKILL.md                    ← このファイル
-└── inheritance_calculator.py   ← 計算エンジン
+├── SKILL.md                         ← このファイル
+├── inheritance_calculator.py        ← 計算エンジン
+└── test_inheritance_calculator.py   ← テスト（unittest）
 ```
 
 ---
